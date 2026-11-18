@@ -7,6 +7,7 @@ from yonder_contracts.errors import ErrorCode
 from app.context import get_principal, get_request_id
 from app.errors import error_response
 from app.services.addons import AddonError
+from app.services.addon_service import ServiceProbeError
 
 router = APIRouter(prefix="/api/admin/addons", tags=["addons"])
 
@@ -103,3 +104,37 @@ async def security_insights(request: Request):
             str(exc),
             get_request_id(request),
         )
+
+
+@router.get("/{addon_id}/service/health")
+async def addon_service_health(addon_id: str, request: Request):
+    denied = _authorize(request, "operations.view")
+    if denied:
+        return denied
+    registry = request.app.state.addons
+    if addon_id not in {item["id"] for item in registry.snapshot()["addons"]}:
+        return error_response(
+            ErrorCode.INVALID_REQUEST,
+            "Unknown bundled add-on.",
+            get_request_id(request),
+        )
+    return await request.app.state.addon_services.health(
+        addon_id, installed=registry.installed(addon_id)
+    )
+
+
+@router.post("/services/reload")
+async def reload_services(request: Request):
+    denied = _authorize(request, "operations.manage")
+    if denied:
+        return denied
+    try:
+        result = request.app.state.addon_services.reload()
+    except ServiceProbeError:
+        return error_response(
+            ErrorCode.INVALID_REQUEST,
+            "Add-on service configuration is invalid or insecure.",
+            get_request_id(request),
+        )
+    _audit(request, "services", "config_reload")
+    return result
