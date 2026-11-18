@@ -93,3 +93,23 @@ async def test_controller_upgrade_preview_only_inspects_running_container(tmp_pa
     assert adapter.calls == [("status", "demo-addon")]
     assert controller.jobs.desired()[0]["version"] == "1.0.0"
     assert controller.jobs.list() == []
+
+
+def test_unknown_migration_policy_blocks_without_guessing():
+    result = assess_upgrade(
+        {
+            "version": "1.0.0",
+            "image": IMAGE,
+            "desired_state": "running",
+        },
+        "running",
+        deployment(persistent=True),
+        UpgradePolicy(),
+    )
+    assert result["data_migration"] == "unknown"
+    assert result["can_execute"] is False
+    assert any(
+        row["name"] == "migration" and row["status"] == "blocked"
+        and "no reviewed" in row["explanation"]
+        for row in result["checks"]
+    )
