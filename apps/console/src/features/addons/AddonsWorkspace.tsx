@@ -67,6 +67,7 @@ type DeploymentPlan = {
   plan_sha256: string;
   configuration: {
     public_settings: Record<string, string>;
+    provision_managed_resources: boolean;
     secret_volume: string | null;
     data_volume: string | null;
   };
@@ -165,6 +166,8 @@ export function AddonsWorkspace() {
         "Configuration: " + JSON.stringify(plan.configuration.public_settings),
         "Secrets volume: " + (plan.configuration.secret_volume ?? "not requested"),
         "Persistent data volume: " + (plan.configuration.data_volume ?? "not requested"),
+        "Provision missing approved data/network resources: " +
+          (plan.configuration.provision_managed_resources ? "Yes" : "No"),
         "Publisher: " + plan.publisher_verification + (plan.publisher_key_id ? " (" + plan.publisher_key_id + ")" : ""),
         "Readiness: " + plan.readiness.mode + " (" + plan.readiness.timeout_seconds + "s)",
         "Rollback if unhealthy: " + (plan.readiness.rollback_on_failure ? "Yes" : "No"),
