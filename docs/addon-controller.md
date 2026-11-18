@@ -786,3 +786,64 @@ Data-volume presence alone is not evidence that a database migration is
 required or that its absence is safe. The upgrade assessment reports this
 uncertainty explicitly rather than guessing. No new upgrade execution route
 has been introduced.
+
+
+## Experimental staged stateless upgrades — opt-in M02.8 slice
+
+The controller now supports an **experimental, explicitly enabled** upgrade
+job for *isolated stateless* add-ons. It is **disabled by default** even on
+homelab installations.
+
+To opt in on a trusted lab controller, set
+`YONDER_CONTROLLER_ENABLE_STATELESS_UPGRADES=true` and keep
+`YONDER_CONTROLLER_REQUIRE_SIGNATURES=true`. The operator approval file
+must declare `"upgrade_data_migration": "none"`, and the candidate must:
+
+- Have a new reviewed version and full immutable OCI image digest.
+- Verify against a trusted, non-revoked, non-expired publisher key.
+- Have **no persistent data volume**, **no secret volume**, and
+  `"network": "none"`. This is an isolated background process only.
+- Have an existing verified, managed, running release recorded in the
+  controller's desired-state ledger.
+
+The upgrade is approved using an exact plan hash that covers the previous
+version/image, the proposed version/image, permission/resource policy and
+the staged upgrade strategy. There is no arbitrary Docker command input.
+
+The controller stages the candidate under a job-specific name, waits for
+its approved readiness policy to pass, then verifies both the original and
+candidate image identities before stopping the original and renaming it to
+a **job-specific rollback container**. The already-running candidate is
+promoted to the canonical add-on container name. The old container is
+retained stopped, **not deleted**.
+
+If candidate readiness fails *before cutover*, a verified stage is removed
+and the original remains untouched. If post-cutover readiness fails, the
+controller attempts to restore the old container and verifies it is running
+again. If any cutover/recovery operation cannot be verified, the durable
+job becomes `interrupted`, blocking further operations until human review.
+Every major step is recorded as a durable job phase. **There is no automatic
+retry of destructive operations after a restart.**
+
+### Important restrictions
+
+This mechanism does **not** support live stateful upgrade migrations,
+external database changes, networked services, credential rotation,
+hot-zero-downtime traffic switching, automatic cleanup of saved rollback
+containers, or operator-safe recovery from every Docker failure. A host
+crash during the stop/rename cutover requires manual reconciliation. The
+controller currently retains rollback containers indefinitely; administrators
+must review and clean them up separately using supported tools.
+
+The Add-ons UI offers an experimental upgrade button only when the
+administrator enabled the feature, the signed plan can be verified,
+the previous release is recorded, the container is observed as running, and
+all stateless restrictions pass. The approval dialog shows the old/new
+immutable images and retention policy. The backend rechecks the plan and
+Docker image identities before changing containers.
+
+**Do not enable this feature on a school, business, or production server
+until real-host crash/restart, rollback, privilege and health testing has
+been completed.** Stateful add-ons such as Workspaces, Authentik and
+Convyx remain blocked from this upgrade method; their correct migrations
+need separately tested backups, snapshots and transactional orchestration.
