@@ -19,6 +19,54 @@ DIGEST_IMAGE = re.compile(
 )
 
 
+class SetupField(BaseModel):
+    """Safe, browser-editable non-secret setting for a reviewed add-on."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    key: str
+    label: str = Field(min_length=1, max_length=80)
+    help_text: str = Field(default="", max_length=400)
+    kind: Literal["text", "choice", "boolean", "integer"] = "text"
+    required: bool = True
+    default: str | None = Field(default=None, max_length=128)
+    choices: list[str] = Field(default_factory=list, max_length=30)
+
+    @model_validator(mode="after")
+    def check(self) -> SetupField:
+        if (
+            not NON_SECRET_KEY.fullmatch(self.key)
+            or SENSITIVE_KEY.search(self.key)
+        ):
+            raise ValueError("Setup field keys must be safe non-secret names")
+        if self.kind == "choice":
+            if not self.choices or len(set(self.choices)) != len(self.choices):
+                raise ValueError("Choices must be unique and nonempty")
+        elif self.choices:
+            raise ValueError("Only choice fields can list choices")
+        if self.default is not None:
+            self.validate_value(self.default)
+        return self
+
+    def validate_value(self, value: str) -> str:
+        if not isinstance(value, str) or len(value) > 128:
+            raise ValueError("Setup value must be a short string")
+        if any(ord(char) < 32 or ord(char) == 127 for char in value):
+            raise ValueError("Control characters are forbidden")
+        if self.required and not value:
+            raise ValueError("Required setup value missing")
+        if self.kind == "choice" and value not in self.choices:
+            raise ValueError("Value is not an approved choice")
+        if self.kind == "boolean" and value not in ("true", "false"):
+            raise ValueError("Boolean fields must be true or false")
+        if self.kind == "integer" and (
+            not value.isascii() or not value.isdecimal()
+            or len(value) > 9
+        ):
+            raise ValueError("Integer fields must contain decimal digits")
+        return value
+
+
 class ApprovedDeployment(BaseModel):
     """Operator-reviewed deployment data; no shell, mounts or commands allowed."""
 
@@ -32,6 +80,7 @@ class ApprovedDeployment(BaseModel):
     pids_limit: int = Field(default=128, ge=32, le=512)
     network: str = "none"
     public_settings: dict[str, str] = Field(default_factory=dict, max_length=24)
+    setup_fields: list[SetupField] = Field(default_factory=list, max_length=24)
     secret_volume: bool = False
     data_volume: bool = False
     provision_managed_resources: bool = False
@@ -62,6 +111,11 @@ class ApprovedDeployment(BaseModel):
 
     @model_validator(mode="after")
     def digest_only(self) -> ApprovedDeployment:
+        keys = [field.key for field in self.setup_fields]
+        if len(keys) != len(set(keys)):
+            raise ValueError("Duplicate setup fields")
+        if any(key in self.public_settings for key in keys):
+            raise ValueError("Setup fields cannot override locked public settings")
         if self.network != "none" and self.network != f"yonder-addon-net-{self.addon_id}":
             raise ValueError("Network must be dedicated to the selected add-on")
         if not DIGEST_IMAGE.fullmatch(self.image):
