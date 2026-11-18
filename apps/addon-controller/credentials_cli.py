@@ -23,10 +23,10 @@ def main() -> int:
     parser.add_argument("--key-file", type=Path, default=Path(DEFAULT_KEY))
     operations = parser.add_subparsers(dest="action", required=True)
     operations.add_parser("init-key")
-    for name in ("set", "revoke", "status"):
+    for name in ("set", "revoke", "status", "audit"):
         command = operations.add_parser(name)
         command.add_argument("addon_id")
-        if name != "status":
+        if name in ("set", "revoke"):
             command.add_argument("credential_name")
     args = parser.parse_args()
     try:
@@ -49,6 +49,12 @@ def main() -> int:
         elif args.action == "revoke":
             revision = vault.revoke(args.addon_id, args.credential_name)
             print("Credential revoked. Revision:", revision)
+        elif args.action == "audit":
+            for event in vault.audit_events(args.addon_id):
+                print(
+                    event["timestamp"], event["action"], event["credential_name"],
+                    "revision", event["revision"], "uid", event["actor_uid"],
+                )
         else:
             for entry in vault.metadata(args.addon_id):
                 print(
