@@ -128,6 +128,8 @@ async def test_cutover_failure_requires_operator_recovery(tmp_path, monkeypatch)
     await engine._tasks[job["id"]]
     assert engine.jobs.get(job["id"])["status"] == "interrupted"
     assert engine.jobs.desired()[0]["image"] == OLD_IMAGE
+    with pytest.raises(ControllerError, match="full host reconciliation"):
+        await engine.acknowledge(job["id"], "running")
     with pytest.raises(ControllerError, match="already active"):
         await engine.submit(
             "demo-addon", "upgrade", plan["plan_sha256"], "new-upgrade-123456"
