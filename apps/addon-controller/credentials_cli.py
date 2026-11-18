@@ -23,6 +23,8 @@ def main() -> int:
     parser.add_argument("--key-file", type=Path, default=Path(DEFAULT_KEY))
     operations = parser.add_subparsers(dest="action", required=True)
     operations.add_parser("init-key")
+    backup_cmd = operations.add_parser("backup")
+    backup_cmd.add_argument("destination", type=Path)
     for name in ("set", "revoke", "status", "audit"):
         command = operations.add_parser(name)
         command.add_argument("addon_id")
@@ -35,7 +37,11 @@ def main() -> int:
             print("Master key created. Back it up to a secure offline location.")
             return 0
         vault = CredentialVault(args.database, args.key_file)
-        if args.action == "set":
+        if args.action == "backup":
+            vault.backup(args.destination)
+            print("Encrypted records backed up to:", args.destination)
+            print("Back up the master key separately; it is not in this file.")
+        elif args.action == "set":
             first = getpass.getpass("Credential value (hidden): ")
             second = getpass.getpass("Confirm credential value: ")
             if first != second:
