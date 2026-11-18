@@ -49,10 +49,10 @@ from app.errors import ERROR_STATUS, error_payload
 from app.paths import resolve_repo_root
 from app.persistence import build_persistence
 from app.routing.gate import DeploymentAdmissionGate
-from app.services.addons import AddonRegistry
 from app.services.addon_controller_client import AddonControllerClient
-from app.services.addon_service_registry import AddonServiceRegistry
 from app.services.addon_service import ServiceProbeError
+from app.services.addon_service_registry import AddonServiceRegistry
+from app.services.addons import AddonRegistry
 from app.services.artifacts import LocalArtifactStore
 from app.services.chat import ChatService
 from app.services.coder_workspace import CoderWorkspaceService
