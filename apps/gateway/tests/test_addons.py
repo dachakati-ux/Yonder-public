@@ -1,4 +1,5 @@
 """Bundled add-on registry and fail-closed installation tests."""
+
 from __future__ import annotations
 
 import json
@@ -22,11 +23,16 @@ def make_registry(tmp_path: Path) -> AddonRegistry:
         (folder / "addon.json").write_text(
             json.dumps({
                 "schema_version": 1,
+                "api_version": 1,
+                "min_core_version": "0.1.0",
+                "max_core_version_exclusive": "1.0.0",
+                "docs": f"addons/{name}/README.md",
                 "id": name,
                 "name": name,
                 "version": "0.1.0",
                 "status": status,
                 "install_mode": mode,
+                "dependencies": [],
             }),
             encoding="utf-8",
         )
@@ -85,5 +91,48 @@ def test_malicious_manifest_id_is_not_loaded(tmp_path: Path):
     data = json.loads(path.read_text())
     data["id"] = "../../evil"
     path.write_text(json.dumps(data))
+    with pytest.raises(AddonError):
+        registry.install("security-insights")
+
+
+def test_core_incompatibility_blocks_install(tmp_path: Path):
+    registry = make_registry(tmp_path)
+    path = registry.root / "security-insights" / "addon.json"
+    item = json.loads(path.read_text())
+    item["min_core_version"] = "999.0.0"
+    item["max_core_version_exclusive"] = None
+    path.write_text(json.dumps(item))
+    addon = registry.snapshot()["addons"][-1]
+    assert addon["compatibility"] == "core_too_old"
+    assert addon["installable"] is False
+    with pytest.raises(AddonError, match="incompatible"):
+        registry.install("security-insights")
+
+
+def test_dependencies_are_enforced_bidirectionally(tmp_path: Path):
+    registry = make_registry(tmp_path)
+    path = registry.root / "identity-security" / "addon.json"
+    item = json.loads(path.read_text())
+    item["status"] = "available"
+    item["install_mode"] = "bundled"
+    item["dependencies"] = ["security-insights"]
+    path.write_text(json.dumps(item))
+    with pytest.raises(AddonError, match="required"):
+        registry.install("identity-security")
+    registry.install("security-insights")
+    registry.install("identity-security")
+    with pytest.raises(AddonError, match="dependent"):
+        registry.uninstall("security-insights")
+    registry.uninstall("identity-security")
+    registry.uninstall("security-insights")
+
+
+def test_malformed_manifest_not_listed_or_activated(tmp_path: Path):
+    registry = make_registry(tmp_path)
+    path = registry.root / "security-insights" / "addon.json"
+    item = json.loads(path.read_text())
+    item["permissions"] = ["root.everything"]
+    path.write_text(json.dumps(item))
+    assert not any(row["id"] == "security-insights" for row in registry.snapshot()["addons"])
     with pytest.raises(AddonError):
         registry.install("security-insights")
