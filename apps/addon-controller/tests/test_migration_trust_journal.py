@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 
 import pytest
 from controller.migration_journal import JournalError, MigrationJournal
@@ -135,6 +136,20 @@ def test_restarted_journal_requires_manual_acknowledgment(tmp_path):
     resumed.acknowledge_interrupted(run)
     assert resumed.get(run)["state"] == "acknowledged"
     assert resumed.start("demo-addon", OLD, NEW, "a" * 64, "b" * 64)
+
+
+def test_private_journal_permissions_and_symlink_rejected(tmp_path):
+    journal_path = tmp_path / "rehearsals.db"
+    MigrationJournal(journal_path)
+    if os.name == "posix":
+        assert journal_path.stat().st_mode & 0o077 == 0
+        os.chmod(journal_path, 0o644)
+        with pytest.raises(JournalError, match="private"):
+            MigrationJournal(journal_path)
+    alias = tmp_path / "alias.db"
+    alias.symlink_to(journal_path)
+    with pytest.raises(JournalError, match="symlink"):
+        MigrationJournal(alias)
 
 
 def test_journal_never_marks_passed_without_a_verified_output(tmp_path):
