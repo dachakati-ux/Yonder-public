@@ -51,6 +51,13 @@ class AddonManifest(BaseModel):
     service_id: str | None = None
     config_schema_version: int = Field(default=1, ge=1)
 
+    @field_validator("service_id")
+    @classmethod
+    def valid_service_id(cls, value: str | None) -> str | None:
+        if value is not None and not ADDON_ID.fullmatch(value):
+            raise ValueError("Invalid add-on service ID.")
+        return value
+
     @field_validator("id")
     @classmethod
     def valid_id(cls, value: str) -> str:
