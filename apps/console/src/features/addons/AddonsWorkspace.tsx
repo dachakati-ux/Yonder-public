@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { GATEWAY_URL } from "@/lib/brand";
+import { AddonSetupWizard } from "@/features/addons/AddonSetupWizard";
 
 type Addon = {
   id: string;
@@ -50,13 +51,89 @@ type AddonServiceHealth = {
   service?: { version: string; health: string; capabilities: string[] };
 };
 
+type ControllerStatus = {
+  configured: boolean;
+  available?: boolean;
+  deployments: Array<{ addon_id: string; version: string; adapter: string }>;
+};
+type DeploymentPlan = {
+  schema_version: number;
+  addon_id: string;
+  version: string;
+  action: "install" | "remove" | "upgrade";
+  adapter: string;
+  image: string;
+  image_acquisition: "preloaded" | "signed_pull";
+  previous?: { version: string; image: string };
+  upgrade_strategy?: string;
+  rollback_container_retained?: boolean;
+  limits: { memory_mb: number; cpus: number; pids: number; network: string };
+  plan_sha256: string;
+  configuration: {
+    public_settings: Record<string, string>;
+    provision_managed_resources: boolean;
+    secret_volume: string | null;
+    data_volume: string | null;
+  };
+  publisher_verification: string;
+  publisher_key_id?: string;
+  readiness: { mode: string; timeout_seconds: number; rollback_on_failure: boolean };
+  requires_approval: boolean;
+  note: string;
+};
+type DesiredAddon = {
+  addon_id: string;
+  version: string;
+  image: string;
+  desired_state: string;
+  observed_state: string;
+  drift: boolean;
+};
+type CredentialInventory = {
+  addon_id: string;
+  vault_available: boolean;
+  runtime_delivery: string;
+  credentials: Array<{
+    name: string;
+    revision: number;
+    configured: boolean;
+    updated_at: string;
+    delivery: { status: string; delivered_revision: number | null };
+  }>;
+};
+type UpgradeAssessment = {
+  addon_id: string;
+  from: { version: string | null; image: string | null };
+  to: { version: string; image: string };
+  can_execute: boolean;
+  backup_required: boolean;
+  rollback_supported: boolean;
+  checks: Array<{ name: string; status: string; explanation: string }>;
+  reason: string;
+};
+type PreflightReport = {
+  addon_id: string;
+  can_submit: boolean;
+  checks: Array<{ name: string; status: string; message: string }>;
+  note: string;
+};
+type ControllerJob = {
+  id: string;
+  addon_id: string;
+  action: string;
+  status: string;
+  message: string;
+};
 type SecurityReport = {
   checks: Array<{ id: string; status: string; message: string }>;
   note: string;
 };
 
-async function api<T>(path: string, method = "GET"): Promise<T> {
-  const response = await fetch(GATEWAY_URL + path, { method, cache: "no-store" });
+async function api<T>(path: string, method = "GET", payload?: object): Promise<T> {
+  const response = await fetch(GATEWAY_URL + path, {
+    method, cache: "no-store",
+    ...(payload ? { headers: { "content-type": "application/json" }, body: JSON.stringify(payload) } : {}),
+  });
   const body = await response.json();
   if (!response.ok) {
     throw new Error(body?.error?.message ?? "Request failed (" + response.status + ")");
@@ -71,6 +148,13 @@ export function AddonsWorkspace() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [serviceHealth, setServiceHealth] = useState<Record<string, AddonServiceHealth>>({});
+  const [controller, setController] = useState<ControllerStatus | null>(null);
+  const [deployments, setDeployments] = useState<ControllerJob[]>([]);
+  const [desiredItems, setDesiredItems] = useState<DesiredAddon[]>([]);
+  const [setupAddon, setSetupAddon] = useState<string | null>(null);
+  const [preflight, setPreflight] = useState<PreflightReport | null>(null);
+  const [upgrade, setUpgrade] = useState<UpgradeAssessment | null>(null);
+  const [credentialInventory, setCredentialInventory] = useState<CredentialInventory | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -85,6 +169,100 @@ export function AddonsWorkspace() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  useEffect(() => {
+    let active = true;
+    async function pollController() {
+      try {
+        const status = await api<ControllerStatus>("/api/admin/addons/controller/status");
+        if (!active) return;
+        setController(status);
+        if (status.configured && status.available) {
+          const result = await api<{ jobs: ControllerJob[] }>(
+            "/api/admin/addons/controller/jobs"
+          );
+          if (active) setDeployments(result.jobs);
+          const inventory = await api<{ items: DesiredAddon[] }>(
+            "/api/admin/addons/controller/inventory"
+          );
+          if (active) setDesiredItems(inventory.items);
+        }
+      } catch {
+        if (active) setController({ configured: false, deployments: [] });
+      }
+    }
+    void pollController();
+    const timer = window.setInterval(() => void pollController(), 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  async function manageService(
+    item: Addon, action: "install" | "remove" | "upgrade"
+  ) {
+    setBusyId(item.id);
+    try {
+      if (action === "install") {
+        const report = await api<PreflightReport>(
+          "/api/admin/addons/" + encodeURIComponent(item.id) + "/controller/preflight"
+        );
+        setPreflight(report);
+        if (!report.can_submit) {
+          throw new Error("Installation requirements are not met. Review preflight below.");
+        }
+      }
+      const planResult = await api<{ plan: DeploymentPlan }>(
+        "/api/admin/addons/" + encodeURIComponent(item.id) +
+        "/controller/plan?action=" + action
+      );
+      const plan = planResult.plan;
+      const details = [
+        "APPROVE " + action.toUpperCase() + ": " + item.name,
+        "Image: " + plan.image,
+        "Image acquisition: " + plan.image_acquisition,
+        ...(plan.previous ? [
+          "Previous version: " + plan.previous.version,
+          "Previous image: " + plan.previous.image,
+          "Upgrade strategy: " + plan.upgrade_strategy,
+          "Previous container retained: " + (plan.rollback_container_retained ? "Yes" : "No"),
+        ] : []),
+        "Version: " + plan.version,
+        "Memory: " + plan.limits.memory_mb + " MiB",
+        "CPU limit: " + plan.limits.cpus,
+        "Network: " + plan.limits.network,
+        "Configuration: " + JSON.stringify(plan.configuration.public_settings),
+        "Secrets volume: " + (plan.configuration.secret_volume ?? "not requested"),
+        "Persistent data volume: " + (plan.configuration.data_volume ?? "not requested"),
+        "Provision missing approved data/network resources: " +
+          (plan.configuration.provision_managed_resources ? "Yes" : "No"),
+        "Publisher: " + plan.publisher_verification + (plan.publisher_key_id ? " (" + plan.publisher_key_id + ")" : ""),
+        "Readiness: " + plan.readiness.mode + " (" + plan.readiness.timeout_seconds + "s)",
+        "Rollback if unhealthy: " + (plan.readiness.rollback_on_failure ? "Yes" : "No"),
+        "Plan checksum: " + plan.plan_sha256,
+        "",
+        "This changes Docker containers on the controller host.",
+        "Proceed with this exact approved plan?"
+      ].join("\n");
+      if (!window.confirm(details)) return;
+      const key = crypto.randomUUID().replaceAll("-", "");
+      const result = await api<{ job: ControllerJob }>(
+        "/api/admin/addons/" + encodeURIComponent(item.id) + "/controller/jobs",
+        "POST",
+        {
+          addon_id: item.id,
+          action,
+          plan_sha256: plan.plan_sha256,
+          idempotency_key: key,
+        }
+      );
+      setDeployments((current) => [result.job, ...current]);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Controller rejected deployment");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
 
   useEffect(() => {
     if (!catalog?.addons.some((x) => x.id === "security-insights" && x.status === "installed")) {
@@ -126,6 +304,52 @@ export function AddonsWorkspace() {
     }
   }
 
+  async function inspectUpgrade(item: Addon) {
+    setBusyId(item.id);
+    setError(null);
+    try {
+      const report = await api<UpgradeAssessment>(
+        "/api/admin/addons/" + encodeURIComponent(item.id) + "/controller/upgrade"
+      );
+      setUpgrade(report);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upgrade review unavailable");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function inspectCredentials(item: Addon) {
+    setBusyId(item.id);
+    setError(null);
+    try {
+      const info = await api<CredentialInventory>(
+        "/api/admin/addons/" + encodeURIComponent(item.id) +
+        "/controller/credentials"
+      );
+      setCredentialInventory(info);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Credential inventory unavailable");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function checkRequirements(item: Addon) {
+    setBusyId(item.id);
+    setError(null);
+    try {
+      const report = await api<PreflightReport>(
+        "/api/admin/addons/" + encodeURIComponent(item.id) + "/controller/preflight"
+      );
+      setPreflight(report);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not check requirements");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function inspectService(item: Addon) {
     setBusyId(item.id);
     try {
@@ -136,6 +360,44 @@ export function AddonsWorkspace() {
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not verify service");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function acknowledgeRecovery(job: ControllerJob) {
+    setBusyId(job.id);
+    try {
+      const observed = await api<{ observed_state: string }>(
+        "/api/admin/addons/" + encodeURIComponent(job.addon_id) +
+        "/controller/observed"
+      );
+      const state = observed.observed_state;
+      if (!["running", "stopped", "not_deployed"].includes(state)) {
+        throw new Error("Unsafe or unknown Docker state: " + state);
+      }
+      const confirmed = window.confirm([
+        "An earlier " + job.action + " was interrupted.",
+        "Add-on: " + job.addon_id,
+        "Docker currently reports: " + state,
+        "",
+        "Review the container and any stored data before acknowledging.",
+        "This only unblocks a new deployment plan; it DOES NOT undo changes.",
+        "Acknowledge this observed state?"
+      ].join("\n"));
+      if (!confirmed) return;
+      const response = await api<{ job: ControllerJob }>(
+        "/api/admin/addons/controller/jobs/" + encodeURIComponent(job.id) +
+        "/acknowledge",
+        "POST",
+        { observed_state: state }
+      );
+      setDeployments((current) =>
+        current.map((existing) => existing.id === job.id ? response.job : existing)
+      );
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Recovery review failed");
     } finally {
       setBusyId(null);
     }
@@ -234,6 +496,41 @@ export function AddonsWorkspace() {
               ) : (
                 <button className="btn" type="button" disabled>Not yet available</button>
               )}
+              {controller?.available && item.status === "installed" &&
+                controller.deployments.some((entry) => entry.addon_id === item.id) ? (
+                <>
+                  <button className="btn btn-ghost" type="button"
+                    disabled={busyId != null}
+                    onClick={() => { setSetupAddon(item.id); setPreflight(null); }}>
+                    Configure
+                  </button>
+                  <button className="btn btn-ghost" type="button"
+                    disabled={busyId != null}
+                    onClick={() => void inspectUpgrade(item)}>
+                    Review upgrade
+                  </button>
+                  <button className="btn btn-ghost" type="button"
+                    disabled={busyId != null}
+                    onClick={() => void inspectCredentials(item)}>
+                    Credential status
+                  </button>
+                  <button className="btn btn-ghost" type="button"
+                    disabled={busyId != null}
+                    onClick={() => void checkRequirements(item)}>
+                    Check requirements
+                  </button>
+                  <button className="btn" type="button"
+                    disabled={busyId != null}
+                    onClick={() => void manageService(item, "install")}>
+                    Deploy service
+                  </button>
+                  <button className="btn btn-ghost" type="button"
+                    disabled={busyId != null}
+                    onClick={() => void manageService(item, "remove")}>
+                    Remove service
+                  </button>
+                </>
+              ) : null}
               {item.service_id && item.status === "installed" ? (
                 <button className="btn btn-ghost" type="button"
                   disabled={busyId != null}
@@ -249,6 +546,147 @@ export function AddonsWorkspace() {
           </article>
         ))}
       </div>
+
+      {upgrade ? (
+        <section className="models-panel" aria-label="Upgrade readiness">
+          <div className="panel-head">
+            <h2>Upgrade assessment: {upgrade.addon_id}</h2>
+            <button className="btn btn-ghost" type="button"
+              onClick={() => setUpgrade(null)}>Close</button>
+          </div>
+          <p className="entity-meta">
+            Current: {upgrade.from.version ?? "unknown"} · Proposed: {upgrade.to.version}
+          </p>
+          <p className="message-error" role="status">
+            {upgrade.can_execute
+              ? "Experimental stateless upgrade: " + upgrade.reason
+              : "Upgrade execution is blocked: " + upgrade.reason}
+          </p>
+          <div className="addons-checks">
+            {upgrade.checks.map((item) => (
+              <div key={item.name} className="addons-check">
+                <strong>{item.status}</strong>
+                <span>{item.name}: {item.explanation}</span>
+              </div>
+            ))}
+          </div>
+          <p className="entity-meta">
+            Backup required: {upgrade.backup_required ? "yes" : "no"}
+            {" · "}Staged recovery supported: {upgrade.rollback_supported ? "yes" : "no"}
+          </p>
+          {upgrade.can_execute ? (
+            <button className="btn btn-primary" type="button"
+              disabled={busyId != null}
+              onClick={() => {
+                const addon = catalog?.addons.find(
+                  (item) => item.id === upgrade.addon_id
+                );
+                if (addon) void manageService(addon, "upgrade");
+              }}>
+              Approve experimental stateless upgrade
+            </button>
+          ) : null}
+        </section>
+      ) : null}
+      {credentialInventory ? (
+        <section className="models-panel" aria-label="Credential status">
+          <div className="panel-head">
+            <h2>Credentials: {credentialInventory.addon_id}</h2>
+            <button type="button" className="btn btn-ghost"
+              onClick={() => setCredentialInventory(null)}>Close</button>
+          </div>
+          <p className="entity-meta">
+            {credentialInventory.vault_available
+              ? "Encrypted local credential inventory is available."
+              : "Local encrypted credential inventory is not configured."}
+            {" "}Runtime delivery: {credentialInventory.runtime_delivery.replaceAll("_", " ")}.
+          </p>
+          <p className="entity-meta">
+            Secret values cannot be read or changed from this UI.
+            Configure them using the trusted administrator CLI.
+          </p>
+          <div className="addons-checks">
+            {credentialInventory.credentials.map((entry) => (
+              <div key={entry.name} className="addons-check">
+                <strong>{entry.delivery.status === "stale_delivery" || entry.delivery.status === "revoked_cleanup_required" ? "Attention" : entry.configured ? "Stored" : "Revoked"}</strong>
+                <span>
+                  {entry.name} · vault revision {entry.revision}
+                  {" · "}delivery: {entry.delivery.status.replaceAll("_", " ")}
+                  {entry.delivery.delivered_revision != null
+                    ? " (revision " + entry.delivery.delivered_revision + ")" : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {preflight ? (
+        <section className="models-panel" aria-label="Add-on preflight">
+          <div className="panel-head">
+            <h2>Installation requirements: {preflight.addon_id}</h2>
+            <span className="entity-meta">
+              {preflight.can_submit ? "Ready for approval" : "Action required"}
+            </span>
+          </div>
+          <div className="addons-checks">
+            {preflight.checks.map((check) => (
+              <div key={check.name} className="addons-check">
+                <strong>{check.status}</strong>
+                <span>{check.name}: {check.message}</span>
+              </div>
+            ))}
+          </div>
+          <p className="entity-meta">{preflight.note}</p>
+        </section>
+      ) : null}
+      {setupAddon ? (
+        <AddonSetupWizard addonId={setupAddon} onClose={() => setSetupAddon(null)} />
+      ) : null}
+
+      <section className="models-panel" aria-label="Add-on controller">
+        <h2>Deployment controller</h2>
+        <p className="entity-meta">
+          {controller?.available ? "Controller connected. Reviewed deployment plans can be approved above."
+            : controller?.configured ? "Controller configured but unavailable."
+            : "Controller is optional and currently not connected."}
+        </p>
+        <p className="entity-meta">
+          Only approved image digests can be deployed. Docker is never controlled
+          directly by the browser or Yonder Gateway.
+        </p>
+        {desiredItems.length > 0 ? (
+          <div className="addons-checks" aria-label="Desired state inventory">
+            {desiredItems.map((item) => (
+              <div key={item.addon_id} className="addons-check">
+                <strong>{item.drift ? "Review drift" : "In sync"}</strong>
+                <span>
+                  {item.addon_id} v{item.version} · desired {item.desired_state}
+                  {" · "}observed {item.observed_state}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {deployments.length ? (
+          <div className="addons-checks">
+            {deployments.slice(0, 12).map((job) => (
+              <div key={job.id} className="addons-check">
+                <strong>{job.status}</strong>
+                <span>
+                  {job.addon_id}: {job.action} · {job.message || job.id}
+                  {job.status === "interrupted" ? (
+                    <button className="btn btn-ghost" type="button"
+                      disabled={busyId != null}
+                      onClick={() => void acknowledgeRecovery(job)}>
+                      Review interrupted job
+                    </button>
+                  ) : null}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       {security ? (
         <section className="models-panel" aria-label="Security Insights report">

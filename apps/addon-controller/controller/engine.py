@@ -1,0 +1,833 @@
+"""Controller orchestration. Only exact operator-approved deployment plans run."""
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import os
+import re
+from pathlib import Path
+
+from pydantic import ValidationError
+
+from .backup_verifier import BackupError, verify_bundle
+from .credential_vault import CredentialVault, VaultError, read_master_key
+from .docker_adapter import DockerAdapter, DockerError
+from .migration_trust import MigrationTrustError, verify_migration_attestation
+from .models import ApprovedDeployment, ControllerConfig
+from .release_trust import ReleaseTrustError, verify_release
+from .sqlite_migration import MigrationError, read_contract
+from .store import JobConflict, JobStore
+from .upgrade_planner import UpgradePolicy, assess_upgrade
+
+APPROVAL = re.compile(r"^[a-f0-9]{64}$")
+KEY = re.compile(r"^[A-Za-z0-9_-]{12,128}$")
+
+
+class ControllerError(ValueError):
+    pass
+
+
+def load_deployments(path: Path) -> dict[str, ApprovedDeployment]:
+    if not path.is_file() or path.is_symlink():
+        raise ControllerError("An approved, non-symlink deployment file is required")
+    mode = path.stat().st_mode
+    if os.name == "posix" and mode & 0o022:
+        raise ControllerError("Deployment file must not be writable by group/others")
+    if path.stat().st_size > 100_000:
+        raise ControllerError("Deployment configuration is too large")
+    try:
+        parsed = ControllerConfig.model_validate(
+            json.loads(path.read_text(encoding="utf-8"))
+        )
+    except (OSError, ValueError, ValidationError) as exc:
+        raise ControllerError("Invalid approved deployment configuration") from exc
+    return {item.addon_id: item for item in parsed.deployments}
+
+
+class Controller:
+    def __init__(
+        self, config: Path, database: Path, adapter: DockerAdapter | None = None
+    ):
+        self.config = config
+        self.jobs = JobStore(database)
+        self.docker = adapter or DockerAdapter()
+        self._tasks: dict[str, asyncio.Task] = {}
+        self._lock = asyncio.Lock()
+        self.vault_key = Path(os.getenv(
+            "YONDER_CONTROLLER_CREDENTIAL_KEY", "/etc/yonder/credentials.key"
+        ))
+        self.vault_db = Path(os.getenv(
+            "YONDER_CONTROLLER_CREDENTIAL_DB", "/var/lib/yonder/credentials.db"
+        ))
+        self.require_signed_releases = (
+            os.getenv("YONDER_CONTROLLER_REQUIRE_SIGNATURES", "false").lower()
+            in ("true", "1", "yes")
+        )
+        self.stateful_backup_root = Path(os.getenv(
+            "YONDER_CONTROLLER_STATEFUL_BACKUP_ROOT", "/var/lib/yonder/offline-backups"
+        ))
+        self.migration_contract_root = Path(os.getenv(
+            "YONDER_CONTROLLER_MIGRATION_ROOT", "/etc/yonder/migration-contracts"
+        ))
+        self.enable_stateless_upgrades = (
+            os.getenv("YONDER_CONTROLLER_ENABLE_STATELESS_UPGRADES", "false").lower()
+            in ("true", "1", "yes")
+        )
+        self.release_root = Path(
+            os.getenv("YONDER_CONTROLLER_RELEASE_ROOT", "/etc/yonder/releases")
+        )
+        self.publisher_trust = Path(
+            os.getenv("YONDER_CONTROLLER_PUBLISHER_KEYS", "/etc/yonder/publishers.json")
+        )
+
+    def credential_status(self, addon_id: str) -> dict:
+        """Read-only public metadata; secret material never enters HTTP responses."""
+        if addon_id not in self.approved():
+            raise ControllerError("Add-on is not approved on this host")
+        if not self.vault_key.is_file() or not self.vault_db.is_file():
+            return {
+                "addon_id": addon_id, "vault_available": False,
+                "credentials": [], "runtime_delivery": "offline_admin_only_unverified",
+            }
+        try:
+            read_master_key(self.vault_key)
+            vault = CredentialVault(self.vault_db, self.vault_key)
+            entries = vault.metadata(addon_id)
+            events = vault.audit_events(addon_id, limit=20)
+        except (VaultError, OSError):
+            return {
+                "addon_id": addon_id, "vault_available": False,
+                "credentials": [], "audit_events": [],
+                "stale_count": 0, "cleanup_required_count": 0,
+                "runtime_delivery": "not_implemented",
+            }
+        stale_count = sum(
+            1 for item in entries if (item.get("delivery") or {}).get("status") == "stale_delivery"
+        )
+        cleanup_required_count = sum(
+            1
+            for item in entries
+            if (item.get("delivery") or {}).get("status") == "revoked_cleanup_required"
+        )
+        return {
+            "addon_id": addon_id, "vault_available": True,
+            "credentials": entries,
+            "audit_events": events,
+            "stale_count": stale_count,
+            "cleanup_required_count": cleanup_required_count,
+            "runtime_delivery": "not_implemented",
+            "note": (
+                "Local administrator may deliver into approved Docker volumes; "
+                "this API does not verify delivered file contents or provider acceptance."
+            ),
+        }
+
+    def approved(self) -> dict[str, ApprovedDeployment]:
+        return load_deployments(self.config)
+
+    def setup(self, addon_id: str) -> dict:
+        deployment = self.approved().get(addon_id)
+        if deployment is None:
+            raise ControllerError("Add-on is not approved for setup")
+        saved = self.jobs.get_setup(addon_id)
+        fields = deployment.setup_fields
+        effective = {
+            field.key: saved.get(
+                field.key, field.default if field.default is not None else ""
+            )
+            for field in fields
+        }
+        return {
+            "addon_id": addon_id,
+            "fields": [field.model_dump() for field in fields],
+            "values": effective,
+            "configured": all(
+                (not field.required or bool(effective[field.key]))
+                and (not effective[field.key]
+                     or self._safe_field(field, effective[field.key]))
+                for field in fields
+            ),
+            "locked_settings": sorted(deployment.public_settings),
+            "secrets_required": deployment.secret_volume,
+            "note": "Only non-secret fields are accepted. Secrets are provisioned separately.",
+        }
+
+    @staticmethod
+    def _safe_field(field, value: str) -> bool:
+        try:
+            field.validate_value(value)
+            return True
+        except ValueError:
+            return False
+
+    async def configure(self, addon_id: str, values: dict[str, str]) -> dict:
+        async with self._lock:
+            deployment = self.approved().get(addon_id)
+            if deployment is None:
+                raise ControllerError("Add-on is not approved for setup")
+            fields = {field.key: field for field in deployment.setup_fields}
+            if not fields:
+                raise ControllerError("This add-on has no editable setup fields")
+            if set(values) != set(fields):
+                raise ControllerError("Provide only the declared setup fields")
+            try:
+                for name, value in values.items():
+                    fields[name].validate_value(value)
+                self.jobs.save_setup(addon_id, values)
+            except (ValueError, JobConflict) as exc:
+                raise ControllerError("Setup rejected: " + str(exc)) from exc
+            return self.setup(addon_id)
+
+    def effective(self, addon_id: str) -> ApprovedDeployment:
+        deployment = self.approved().get(addon_id)
+        if deployment is None:
+            raise ControllerError("Add-on is not approved for deployment on this host")
+        state = self.setup(addon_id)
+        if not state["configured"]:
+            raise ControllerError("Complete the declared setup fields first")
+        configured = {
+            key: value
+            for key, value in state["values"].items()
+            if value != ""
+        }
+        return deployment.model_copy(
+            update={"public_settings": {**deployment.public_settings, **configured}}
+        )
+
+    def plan(self, addon_id: str, action: str) -> dict:
+        if action not in ("install", "remove", "upgrade"):
+            raise ControllerError("Unsupported action")
+        selected = (
+            self.effective(addon_id)
+            if action in ("install", "upgrade")
+            else self.approved().get(addon_id)
+        )
+        if selected is None:
+            raise ControllerError("Add-on is not approved for deployment on this host")
+
+        previous = None
+        if action == "upgrade":
+            if not self.enable_stateless_upgrades:
+                raise ControllerError("Experimental stateless upgrades are disabled")
+            if not self.require_signed_releases:
+                raise ControllerError("Upgrades require signed publisher verification")
+            if (
+                selected.data_volume or selected.secret_volume
+                or selected.network != "none"
+                or selected.upgrade_data_migration != "none"
+            ):
+                raise ControllerError(
+                    "Upgrade requires a stateless, isolated, migration-free add-on"
+                )
+            previous = next(
+                (item for item in self.jobs.desired()
+                 if item["addon_id"] == addon_id and item["desired_state"] == "running"),
+                None,
+            )
+            if previous is None:
+                raise ControllerError("No running previous release is recorded")
+            if (
+                previous["version"] == selected.version
+                or previous["image"] == selected.image
+            ):
+                raise ControllerError("Upgrade must change version and image digest")
+
+        plan = selected.plan("install" if action == "upgrade" else action)
+        plan["action"] = action
+        if previous is not None:
+            plan["previous"] = {
+                "version": previous["version"],
+                "image": previous["image"],
+            }
+            plan["upgrade_strategy"] = "staged_stateless_only"
+            plan["rollback_container_retained"] = True
+
+        if (
+            action in ("install", "upgrade")
+            and selected.image_acquisition == "signed_pull"
+            and not self.require_signed_releases
+        ):
+            raise ControllerError("Remote image pulling requires signed releases")
+        if action in ("install", "upgrade"):
+            if self.require_signed_releases:
+                try:
+                    proof = verify_release(
+                        selected,
+                        self.release_root / f"{addon_id}.json",
+                        self.publisher_trust,
+                    )
+                except ReleaseTrustError as exc:
+                    raise ControllerError("Add-on publisher verification failed") from exc
+                plan["publisher_key_id"] = proof["publisher_key_id"]
+                plan["publisher_verification"] = "ed25519_valid"
+            else:
+                plan["publisher_verification"] = "not_enforced"
+        else:
+            plan["publisher_verification"] = "not_applicable"
+        plan.pop("plan_sha256")
+        data = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()
+        plan["plan_sha256"] = hashlib.sha256(data).hexdigest()
+        return plan
+
+    async def preflight_report(self, addon_id: str) -> dict:
+        """Read-only requirement checks; never starts Docker or pulls an image."""
+        checks: list[dict[str, str]] = []
+
+        def check(name: str, state: str, message: str) -> None:
+            checks.append({"name": name, "status": state, "message": message})
+
+        try:
+            current_setup = self.setup(addon_id)
+        except ControllerError:
+            raise ControllerError("Add-on is not approved on this host") from None
+        if current_setup["configured"]:
+            check("configuration", "ready", "Required non-secret settings are complete.")
+        else:
+            check("configuration", "blocked", "Complete the setup wizard first.")
+
+        policy = self.approved()[addon_id]
+        desired = next(
+            (item for item in self.jobs.desired() if item["addon_id"] == addon_id),
+            None,
+        )
+        if desired is not None and desired["desired_state"] == "running":
+            check(
+                "existing_release", "blocked",
+                "A running release is recorded. Fresh install cannot bypass "
+                "stateful upgrade and recovery checks.",
+            )
+        else:
+            check("existing_release", "ready", "No running release is recorded.")
+        try:
+            self.plan(addon_id, "install")
+        except ControllerError:
+            check("release", "blocked", "Approved publisher/release or setup is incomplete.")
+        else:
+            check("release", "ready", "Approved release and plan can be verified.")
+
+        try:
+            await self.docker._run("version", "--format", "{{.Server.Version}}")
+        except DockerError:
+            check("docker", "blocked", "Controller cannot contact Docker daemon.")
+        else:
+            check("docker", "ready", "Docker daemon is reachable.")
+
+        if policy.image_acquisition == "signed_pull":
+            check("image", "managed", "Signed immutable image is acquired after approval.")
+        else:
+            try:
+                await self.docker.preflight(policy)
+            except DockerError:
+                check("image", "blocked", "Approved image digest is not available locally.")
+            else:
+                check("image", "ready", "Approved image digest is already present.")
+
+        if policy.secret_volume:
+            secret_only = policy.model_copy(update={
+                "network": "none", "data_volume": False,
+            })
+            try:
+                await self.docker.preflight_resources(secret_only)
+            except DockerError:
+                check(
+                    "secrets", "blocked",
+                    "Administrator must provision the approved read-only secrets volume.",
+                )
+            else:
+                cred_summary = self.credential_status(addon_id)
+                if cred_summary.get("cleanup_required_count", 0) > 0:
+                    check(
+                        "secrets", "blocked",
+                        "Revoked credential(s) still require delivered-file cleanup before launch.",
+                    )
+                elif cred_summary.get("stale_count", 0) > 0:
+                    check(
+                        "secrets", "managed",
+                        "Secret volume labels verified; stale delivered credential(s) detected "
+                        "and require re-delivery by the host administrator.",
+                    )
+                else:
+                    check(
+                        "secrets", "managed",
+                        "Secret volume labels verified; file delivery and rotation "
+                        "must be confirmed by the host administrator.",
+                    )
+        else:
+            check("secrets", "ready", "No credentials are requested.")
+
+        if policy.provision_managed_resources:
+            check(
+                "resources", "managed",
+                "Controller may create approved data/network resources after approval.",
+            )
+        else:
+            resources_only = policy.model_copy(update={"secret_volume": False})
+            try:
+                await self.docker.preflight_resources(resources_only)
+            except DockerError:
+                check(
+                    "resources", "blocked",
+                    "Required approved data volume or network is missing or untrusted.",
+                )
+            else:
+                check("resources", "ready", "Required resource labels are verified.")
+
+        return {
+            "addon_id": addon_id,
+            "checks": checks,
+            "can_submit": all(row["status"] != "blocked" for row in checks),
+            "note": (
+                "Read-only preflight is a snapshot. The controller validates all "
+                "policies again when executing an approved installation."
+            ),
+        }
+
+    async def submit(
+        self, addon_id: str, action: str, digest: str, key: str
+    ) -> tuple[dict, bool]:
+        if not APPROVAL.fullmatch(digest) or not KEY.fullmatch(key):
+            raise ControllerError("Invalid plan approval or idempotency key")
+        async with self._lock:
+            plan = self.plan(addon_id, action)
+            if digest != plan["plan_sha256"]:
+                raise ControllerError(
+                    "Approved plan has changed; review and approve the current plan"
+                )
+            try:
+                job, created = self.jobs.create(key, addon_id, action, plan)
+            except JobConflict as exc:
+                raise ControllerError(str(exc)) from exc
+            if created:
+                task = asyncio.create_task(self._execute(job["id"]))
+                self._tasks[job["id"]] = task
+                task.add_done_callback(
+                    lambda _task, jid=job["id"]: self._tasks.pop(jid, None)
+                )
+            return job, created
+
+    async def _execute(self, job_id: str) -> None:
+        job = self.jobs.get(job_id)
+        if job is None:
+            return
+        deployment: ApprovedDeployment | None = None
+        try:
+            self.jobs.transition(job_id, "preflight")
+            action = job["action"]
+            deployment = (
+                self.effective(job["addon_id"]) if action in ("install", "upgrade")
+                else self.approved().get(job["addon_id"])
+            )
+            if deployment is None:
+                raise ControllerError("Approved deployment is no longer available")
+            if self.plan(deployment.addon_id, action)["plan_sha256"] != job["plan_sha256"]:
+                raise ControllerError("Deployment changed before execution")
+            if action == "install":
+                if deployment.image_acquisition == "signed_pull":
+                    self.jobs.transition(job_id, "acquiring")
+                    await self.docker.acquire(deployment)
+                else:
+                    await self.docker.preflight(deployment)
+                self.jobs.transition(job_id, "deploying")
+                if deployment.provision_managed_resources:
+                    await self.docker.prepare_resources(deployment)
+                await self.docker.install(deployment)
+                self.jobs.transition(job_id, "verifying")
+                deadline = asyncio.get_running_loop().time() + (
+                    deployment.readiness_timeout_seconds
+                )
+                while True:
+                    state = await self.docker.readiness(deployment)
+                    if state == "ready":
+                        break
+                    if state in (
+                        "stopped", "not_deployed", "unhealthy",
+                        "missing_healthcheck", "unmanaged_container_collision",
+                    ):
+                        raise ControllerError(
+                            "Readiness failed: " + state
+                        )
+                    if asyncio.get_running_loop().time() >= deadline:
+                        raise ControllerError("Readiness exceeded approved timeout")
+                    await asyncio.sleep(1)
+                self.jobs.set_desired(
+                    deployment.addon_id, deployment.version, deployment.image, "running"
+                )
+                self.jobs.transition(job_id, "succeeded", "Readiness verified")
+            elif action == "upgrade":
+                await self._execute_stateless_upgrade(job, deployment)
+            elif action == "remove":
+                self.jobs.transition(job_id, "removing")
+                await self.docker.remove(deployment)
+                self.jobs.set_desired(
+                    deployment.addon_id, deployment.version, deployment.image, "absent"
+                )
+                self.jobs.transition(job_id, "succeeded", "Container removed")
+            else:
+                raise ControllerError("Unknown operation")
+        except asyncio.CancelledError:
+            self.jobs.transition(
+                job_id, "interrupted", "Task stopped; verify host before resubmitting"
+            )
+            raise
+        except (ControllerError, DockerError, OSError) as exc:
+            if (
+                job["action"] == "upgrade"
+                and self.jobs.get(job_id)["status"] in (
+                    "staging", "cutover", "verifying", "rolling_back",
+                )
+            ):
+                self.jobs.transition(
+                    job_id, "interrupted",
+                    "Upgrade state uncertain; inspect both releases before retry",
+                )
+                return
+            message = str(exc)[:220]
+            # Roll back only containers created by this install operation.
+            # Removal failure must never trigger another destructive action.
+            if (
+                job["action"] == "install"
+                and self.jobs.get(job_id)["status"] == "verifying"
+                and deployment is not None
+                and deployment.rollback_on_failed_readiness
+            ):
+                try:
+                    self.jobs.transition(job_id, "rolling_back", "Readiness failed")
+                    await self.docker.remove(deployment)
+                    message += "; new container removed"
+                except (DockerError, OSError):
+                    self.jobs.transition(
+                        job_id, "interrupted",
+                        "Rollback not verified; administrator recovery required",
+                    )
+                    return
+            self.jobs.transition(job_id, "failed", message)
+        except Exception:
+            # Never disclose secrets or host exception data to browser clients.
+            # Unknown errors during a cutover cannot be considered safe failures.
+            if (
+                job["action"] == "upgrade"
+                and self.jobs.get(job_id)["status"] in (
+                    "staging", "cutover", "verifying", "rolling_back",
+                )
+            ):
+                self.jobs.transition(
+                    job_id, "interrupted",
+                    "Unexpected upgrade error; all container identities need review",
+                )
+            else:
+                self.jobs.transition(
+                    job_id, "failed", "Unexpected controller error"
+                )
+
+
+    async def _execute_stateless_upgrade(
+        self, job: dict, deployment: ApprovedDeployment
+    ) -> None:
+        """Opt-in stateless-only staged update; never migrates persistent data."""
+        job_id = job["id"]
+        previous = job["plan"]["previous"]
+        old_image = previous["image"]
+        if (
+            not self.enable_stateless_upgrades
+            or not self.require_signed_releases
+            or deployment.data_volume or deployment.secret_volume
+            or deployment.network != "none"
+            or deployment.upgrade_data_migration != "none"
+        ):
+            raise ControllerError("Unsafe or disabled stateless upgrade policy")
+        if deployment.image_acquisition == "signed_pull":
+            self.jobs.transition(job_id, "acquiring")
+            await self.docker.acquire(deployment)
+        else:
+            await self.docker.preflight(deployment)
+
+        self.jobs.transition(job_id, "staging")
+        try:
+            staged_name = await self.docker.stage_stateless(deployment, job_id)
+            deadline = asyncio.get_running_loop().time() + (
+                deployment.readiness_timeout_seconds
+            )
+            while True:
+                state = await self.docker.readiness(
+                    deployment, container_name=staged_name
+                )
+                if state == "ready":
+                    break
+                if state in (
+                    "stopped", "not_deployed", "unhealthy",
+                    "missing_healthcheck", "unmanaged_container_collision",
+                ) or asyncio.get_running_loop().time() >= deadline:
+                    raise ControllerError("Staged upgrade failed readiness checks")
+                await asyncio.sleep(1)
+        except (ControllerError, DockerError, OSError):
+            # A verified stage can be removed without affecting the old release.
+            try:
+                self.jobs.transition(job_id, "rolling_back")
+                await self.docker.discard_stateless_stage(deployment, job_id)
+            except (DockerError, OSError):
+                self.jobs.transition(
+                    job_id, "interrupted",
+                    "Candidate cleanup unverified; administrator review required",
+                )
+                return
+            self.jobs.transition(job_id, "failed", "Candidate not ready; old retained")
+            return
+
+        self.jobs.transition(job_id, "cutover")
+        try:
+            await self.docker.cutover_stateless(deployment, old_image, job_id)
+        except (DockerError, OSError):
+            self.jobs.transition(
+                job_id, "interrupted",
+                "Cutover failed; both containers need administrator review",
+            )
+            return
+
+        self.jobs.transition(job_id, "verifying")
+        deadline = asyncio.get_running_loop().time() + (
+            deployment.readiness_timeout_seconds
+        )
+        failed = False
+        while True:
+            try:
+                state = await self.docker.readiness(deployment)
+            except (DockerError, OSError):
+                failed = True
+                break
+            if state == "ready":
+                break
+            if state in (
+                "stopped", "not_deployed", "unhealthy",
+                "missing_healthcheck", "unmanaged_container_collision",
+            ) or asyncio.get_running_loop().time() >= deadline:
+                failed = True
+                break
+            await asyncio.sleep(1)
+        if failed:
+            self.jobs.transition(job_id, "rolling_back")
+            try:
+                await self.docker.restore_stateless(
+                    deployment, old_image, job_id
+                )
+            except (DockerError, OSError):
+                self.jobs.transition(
+                    job_id, "interrupted",
+                    "Restore not verified; administrator recovery required",
+                )
+                return
+            self.jobs.transition(
+                job_id, "failed", "New release not ready; original restored"
+            )
+            return
+
+        self.jobs.set_desired(
+            deployment.addon_id, deployment.version, deployment.image, "running"
+        )
+        self.jobs.transition(
+            job_id, "succeeded",
+            "Staged upgrade healthy; previous release kept stopped for recovery",
+        )
+
+    async def observed(self, addon_id: str) -> str:
+        if addon_id not in self.approved():
+            raise ControllerError("Add-on is not approved on this host")
+        try:
+            state = await self.docker.status(addon_id)
+        except DockerError as exc:
+            raise ControllerError("Could not verify Docker state") from exc
+        if state not in ("running", "stopped", "not_deployed", "unmanaged_container_collision"):
+            raise ControllerError("Unexpected Docker state")
+        return state
+
+    async def acknowledge(self, job_id: str, observed_state: str) -> dict:
+        """Require an operator-approved, freshly rechecked observation."""
+        async with self._lock:
+            job = self.jobs.get(job_id)
+            if job is None or job["status"] != "interrupted":
+                raise ControllerError("Job is not awaiting recovery review")
+            if job["action"] == "upgrade":
+                if observed_state != "running":
+                    raise ControllerError("Restored original must be running")
+                deployment = self.approved().get(job["addon_id"])
+                if deployment is None:
+                    raise ControllerError("Approved deployment no longer exists")
+                previous = job["plan"].get("previous") or {}
+                image = previous.get("image")
+                if not isinstance(image, str):
+                    raise ControllerError("Previous release identity unavailable")
+                try:
+                    clean = await self.docker.upgrade_recovery_clean(
+                        deployment, image, job_id
+                    )
+                except DockerError as exc:
+                    raise ControllerError(
+                        "Could not verify all upgrade container identities"
+                    ) from exc
+                if not clean:
+                    raise ControllerError(
+                        "Upgrade staging/rollback containers still require host "
+                        "reconciliation before acknowledgment"
+                    )
+                try:
+                    return self.jobs.acknowledge(
+                        job_id, "original release running; staged artifacts absent"
+                    )
+                except JobConflict as exc:
+                    raise ControllerError(str(exc)) from exc
+            actual = await self.observed(job["addon_id"])
+            if actual == "unmanaged_container_collision":
+                raise ControllerError("Cannot acknowledge an unowned Docker container")
+            if actual != observed_state:
+                raise ControllerError("Container state changed; review it again")
+            try:
+                return self.jobs.acknowledge(job_id, actual)
+            except JobConflict as exc:
+                raise ControllerError(str(exc)) from exc
+
+
+    async def upgrade_assessment(self, addon_id: str) -> dict:
+        """Read-only upgrade eligibility; execution rechecks immutable release policy."""
+        selected = self.approved().get(addon_id)
+        if selected is None:
+            raise ControllerError("Add-on is not approved on this host")
+        desired = next(
+            (row for row in self.jobs.desired() if row["addon_id"] == addon_id),
+            None,
+        )
+        observed = await self.observed(addon_id)
+        verified = False
+        if self.enable_stateless_upgrades:
+            try:
+                self.plan(addon_id, "upgrade")
+            except ControllerError:
+                verified = False
+            else:
+                verified = True
+        report = assess_upgrade(
+            desired, observed, selected,
+            UpgradePolicy(
+                data_migration=selected.upgrade_data_migration,
+                backup_required=selected.data_volume or selected.secret_volume,
+            ),
+            staged_stateless_approved=verified,
+        )
+        if selected.data_volume:
+            try:
+                if desired is None or desired["desired_state"] != "running":
+                    raise BackupError("No previous running release")
+                proof = await asyncio.to_thread(
+                    verify_bundle,
+                    self.stateful_backup_root / addon_id,
+                    addon_id=addon_id,
+                    version=desired["version"],
+                    image=desired["image"],
+                )
+            except (BackupError, OSError):
+                report["checks"].append({
+                    "name": "offline_backup",
+                    "status": "blocked",
+                    "explanation": (
+                        "No fresh verified offline backup for the previous release; "
+                        "stateful upgrade remains disabled"
+                    ),
+                })
+                report["backup_integrity"] = "not_verified"
+            else:
+                report["checks"].append({
+                    "name": "offline_backup",
+                    "status": "ready",
+                    "explanation": (
+                        "Offline backup file checksums verified; independent restore "
+                        "and live database consistency remain unverified"
+                    ),
+                })
+                report["backup_integrity"] = proof["status"]
+            report["can_execute"] = False
+            if selected.upgrade_data_migration == "requires_migration":
+                try:
+                    if desired is None or desired["desired_state"] != "running":
+                        raise MigrationError("Previous release is unavailable")
+                    contract = read_contract(
+                        self.migration_contract_root / f"{addon_id}.json"
+                    )
+                    if (
+                        contract.addon_id != addon_id
+                        or contract.source_version != desired["version"]
+                        or contract.source_image != desired["image"]
+                        or contract.target_version != selected.version
+                        or contract.target_image != selected.image
+                    ):
+                        raise MigrationError(
+                            "Migration contract does not match prior and target release"
+                        )
+                except (MigrationError, OSError):
+                    report["checks"].append({
+                        "name": "migration_contract",
+                        "status": "blocked",
+                        "explanation": (
+                            "No valid administrator-reviewed SQLite migration "
+                            "contract matches both pinned releases"
+                        ),
+                    })
+                    report["migration_contract"] = "not_verified"
+                else:
+                    report["checks"].append({
+                        "name": "migration_contract",
+                        "status": "ready",
+                        "explanation": (
+                            "Declarative migration identity validated; run a "
+                            "separate sandbox rehearsal before reviewing upgrade"
+                        ),
+                    })
+                    report["migration_contract"] = "identity_verified_only"
+                    try:
+                        signature = await asyncio.to_thread(
+                            verify_migration_attestation,
+                            contract,
+                            self.stateful_backup_root / addon_id / "manifest.json",
+                            self.migration_contract_root
+                            / f"{addon_id}.attestation.json",
+                            self.publisher_trust,
+                        )
+                    except (MigrationTrustError, OSError):
+                        report["checks"].append({
+                            "name": "migration_signature",
+                            "status": "blocked",
+                            "explanation": (
+                                "Migration contract and backup need a valid "
+                                "trusted publisher attestation"
+                            ),
+                        })
+                        report["migration_signature"] = "not_verified"
+                    else:
+                        report["checks"].append({
+                            "name": "migration_signature",
+                            "status": "ready",
+                            "explanation": (
+                                "Migration and backup digests have a verified "
+                                "non-revoked publisher signature; production "
+                                "migration remains disabled"
+                            ),
+                        })
+                        report["migration_signature"] = signature["status"]
+                report["can_execute"] = False
+        return report
+
+    async def inventory(self) -> list[dict]:
+        """Report expected vs observed status without mutating the host."""
+        rows = []
+        for item in self.jobs.desired():
+            try:
+                observed = await self.observed(item["addon_id"])
+            except ControllerError:
+                observed = "unavailable"
+            expected = (
+                "running" if item["desired_state"] == "running" else "not_deployed"
+            )
+            rows.append({
+                **item,
+                "observed_state": observed,
+                "drift": observed != expected,
+            })
+        return rows

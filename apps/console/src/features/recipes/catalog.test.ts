@@ -67,6 +67,8 @@ describe("parseChatStarter", () => {
       model: "yonder-chat",
       prompt: "hello",
       system: "sys",
+      desk: null,
+      coderWorkspace: false,
     });
   });
 
@@ -76,6 +78,8 @@ describe("parseChatStarter", () => {
       prompt: null,
       model: null,
       system: null,
+      desk: null,
+      coderWorkspace: false,
     });
   });
 });

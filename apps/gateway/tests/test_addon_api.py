@@ -1,13 +1,13 @@
 """End-to-end Gateway routes for bundled add-on installation and reporting."""
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-
-from app.services.addons import AddonRegistry
 from app.services.addon_service_registry import AddonServiceRegistry
+from app.services.addons import AddonRegistry
+from fastapi.testclient import TestClient
 
 
 def test_addon_api_bundled_activation(tmp_path, monkeypatch):
@@ -55,3 +55,62 @@ def test_addon_api_bundled_activation(tmp_path, monkeypatch):
         removed = client.post("/api/admin/addons/security-insights/uninstall")
         assert removed.status_code == 200
         assert removed.json()["installation"]["status"] == "not_installed"
+
+
+def test_gateway_proxies_scoped_setup_and_preflight(tmp_path, monkeypatch):
+    root = Path(__file__).resolve().parents[3]
+    monkeypatch.setenv(
+        "YONDER_CONFIG_FILE", str(root / "config/environments/development.yaml")
+    )
+    from app.main import create_app
+
+    class StubController:
+        def __init__(self):
+            self.requests = []
+
+        async def request(self, method, path, body=None):
+            self.requests.append((method, path, body))
+            if path.endswith("/preflight/security-insights"):
+                return {
+                    "addon_id": "security-insights",
+                    "checks": [{"name": "configuration", "status": "ready", "message": "OK"}],
+                    "can_submit": True,
+                }
+            if path.endswith("/setup/security-insights"):
+                return {
+                    "addon_id": "security-insights",
+                    "fields": [],
+                    "values": {},
+                    "configured": True,
+                    "note": "No credentials",
+                }
+            raise AssertionError("Unexpected route to external controller")
+
+    app = create_app()
+    app.state.addons = AddonRegistry(root / "addons", tmp_path / "addons.json")
+    app.state.addons.install("security-insights")
+    service = StubController()
+    app.state.addon_controller = service
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/admin/addons/security-insights/controller/setup"
+        )
+        assert response.status_code == 200
+        assert response.json()["configured"] is True
+        response = client.put(
+            "/api/admin/addons/security-insights/controller/setup",
+            json={"values": {}},
+        )
+        assert response.status_code == 200
+        response = client.get(
+            "/api/admin/addons/security-insights/controller/preflight"
+        )
+        assert response.status_code == 200
+        assert response.json()["can_submit"] is True
+        assert client.get(
+            "/api/admin/addons/workspaces/controller/preflight"
+        ).status_code == 400
+        assert len(service.requests) == 3
+        assert service.requests[1] == (
+            "PUT", "/v1/setup/security-insights", {"values": {}}
+        )

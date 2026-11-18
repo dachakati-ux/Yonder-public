@@ -121,7 +121,8 @@ def free_worker_gpus(gateway: str = "http://127.0.0.1:8080", worker: str = "work
                 "import sqlite3\n"
                 "con=sqlite3.connect('/var/lib/yonder/yonder.db')\n"
                 "cur=con.cursor()\n"
-                "n=cur.execute(\"update deployments set status='stopped', load_progress_percent=NULL, last_error=NULL where status='unloading'\").rowcount\n"
+                "n=cur.execute(\"update deployments set status='stopped', "
+                "load_progress_percent=NULL, last_error=NULL where status='unloading'\").rowcount\n"
                 "con.commit(); print('patched', n); con.close()\n"
                 "PY",
             ],

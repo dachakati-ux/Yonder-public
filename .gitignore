@@ -82,3 +82,11 @@ vendor/conversion-tools/wheels/**
 !vendor/conversion-tools/wheels/MANIFEST.sha256
 !vendor/conversion-tools/README.md
 nvidia-*.rpm
+
+# Local add-on controller approvals and secrets
+config/addon-deployments.json
+config/addon-controller-secrets.json
+
+# Local publisher trust and release approvals (operator-managed)
+config/addon-releases/
+config/addon-trust/
