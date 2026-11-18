@@ -7,6 +7,7 @@ NOT implemented.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -213,7 +214,23 @@ def rehearse_sqlite_migration(
         actual_revision = db.execute("PRAGMA user_version").fetchone()[0]
         if actual_revision != contract.target_db_revision:
             raise MigrationError("Result database revision does not match contract")
+    # These digests are a local unsigned rehearsal record, NOT a trusted
+    # release approval or proof that the target application can start.
+    canonical = json.dumps(
+        contract.model_dump(mode="json"), sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    digest = hashlib.sha256()
+    with db_path.open("rb") as migrated:
+        while block := migrated.read(1024 * 1024):
+            digest.update(block)
     return {
+        "rehearsal_contract_sha256": hashlib.sha256(canonical).hexdigest(),
+        "source_backup_manifest_sha256": hashlib.sha256(
+            (bundle / "manifest.json").read_bytes()
+        ).hexdigest(),
+        "sandbox_database_sha256": digest.hexdigest(),
+        "receipt_signed": False,
         "addon_id": contract.addon_id,
         "from_version": contract.source_version,
         "to_version": contract.target_version,
