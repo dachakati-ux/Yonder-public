@@ -125,3 +125,28 @@ def test_controller_plan_requires_trusted_publisher_when_enforced(
     release.unlink()
     with pytest.raises(ControllerError, match="publisher verification"):
         controller.plan("demo-addon", "install")
+
+
+def test_remote_pull_is_blocked_without_required_signatures(
+    tmp_path, monkeypatch
+):
+    deployment, release, trust = fixtures(tmp_path)
+    cfg = tmp_path / "deployments.json"
+    deployment = deployment.model_copy(update={
+        "image_acquisition": "signed_pull"
+    })
+    cfg.write_text(json.dumps({
+        "schema_version": 1,
+        "deployments": [deployment.model_dump()],
+    }))
+    monkeypatch.setenv("YONDER_CONTROLLER_REQUIRE_SIGNATURES", "false")
+    controller = Controller(cfg, tmp_path / "unsigned.db")
+    with pytest.raises(ControllerError, match="requires signed"):
+        controller.plan("demo-addon", "install")
+    monkeypatch.setenv("YONDER_CONTROLLER_REQUIRE_SIGNATURES", "true")
+    monkeypatch.setenv("YONDER_CONTROLLER_PUBLISHER_KEYS", str(trust))
+    monkeypatch.setenv("YONDER_CONTROLLER_RELEASE_ROOT", str(tmp_path))
+    verified = Controller(cfg, tmp_path / "signed.db")
+    result = verified.plan("demo-addon", "install")
+    assert result["image_acquisition"] == "signed_pull"
+    assert result["publisher_verification"] == "ed25519_valid"
