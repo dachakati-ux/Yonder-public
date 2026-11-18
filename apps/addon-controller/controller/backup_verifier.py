@@ -231,7 +231,7 @@ def verify_bundle(
                 raise BackupError("SQLite snapshot must use its dedicated file name")
             try:
                 with sqlite3.connect(
-                    (root / item.name).resolve().as_uri() + "?mode=ro",
+                    (root / item.name).resolve().as_uri() + "?mode=ro&immutable=1",
                     uri=True, timeout=10,
                 ) as sqlite_source:
                     result = sqlite_source.execute("PRAGMA quick_check").fetchone()
