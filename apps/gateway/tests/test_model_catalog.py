@@ -1,4 +1,5 @@
 """Model catalog behavior without network access or GPU assumptions."""
+
 from __future__ import annotations
 
 import pytest
