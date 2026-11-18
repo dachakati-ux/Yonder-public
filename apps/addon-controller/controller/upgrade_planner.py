@@ -12,6 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .models import ApprovedDeployment
+from .release_trust import parse_semver
 
 
 class UpgradePolicy(BaseModel):
@@ -68,7 +69,17 @@ def assess_upgrade(
                 "Release version and immutable image must both change",
             )
         else:
-            check("target_identity", "ready", "Version and immutable image differ")
+            try:
+                is_downgrade = parse_semver(candidate.version) < parse_semver(old_version)
+            except ValueError:
+                is_downgrade = False
+            if is_downgrade:
+                check(
+                    "target_identity", "blocked",
+                    f"Target version {candidate.version} is older than running {old_version}",
+                )
+            else:
+                check("target_identity", "ready", "Version and immutable image differ")
 
     if candidate.data_volume:
         check(

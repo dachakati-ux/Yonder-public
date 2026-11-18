@@ -288,3 +288,21 @@ async def test_stateful_backup_integrity_is_reported_but_never_enables_upgrade(
         item for item in second["checks"] if item["name"] == "offline_backup"
     )["status"] == "blocked"
     assert second["can_execute"] is False
+
+
+def test_upgrade_blocks_semver_downgrade():
+    result = assess_upgrade(
+        {
+            "addon_id": "demo-addon",
+            "version": "3.0.0",
+            "image": IMAGE,
+            "desired_state": "running",
+        },
+        "running",
+        deployment(persistent=False),  # version 2.0.0
+        UpgradePolicy(data_migration="none"),
+    )
+    checks = {item["name"]: item for item in result["checks"]}
+    assert checks["target_identity"]["status"] == "blocked"
+    assert "older than running" in checks["target_identity"]["explanation"]
+    assert result["can_execute"] is False

@@ -22,10 +22,18 @@ from .models import ApprovedDeployment
 
 KEY_ID = re.compile(r"^[a-z][a-z0-9_-]{2,63}$")
 IMAGE_DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
+SEMVER = re.compile(r"^([0-9]+)\.([0-9]+)\.([0-9]+)$")
 
 
 class ReleaseTrustError(ValueError):
     pass
+
+
+def parse_semver(raw: str) -> tuple[int, int, int]:
+    match = SEMVER.fullmatch(raw.strip())
+    if match is None:
+        raise ValueError("Version must be major.minor.patch")
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
 
 
 class ReleaseDescriptor(BaseModel):
@@ -36,6 +44,10 @@ class ReleaseDescriptor(BaseModel):
     image: str
     publisher_key_id: str
     signature_ed25519_base64: str = Field(min_length=80, max_length=100)
+    deprecated: bool = False
+    deprecation_reason: str = Field(default="", max_length=240)
+    min_core_version: str | None = None
+    max_core_version: str | None = None
 
     @model_validator(mode="after")
     def check_fields(self) -> ReleaseDescriptor:
@@ -44,15 +56,33 @@ class ReleaseDescriptor(BaseModel):
         )
         if not KEY_ID.fullmatch(self.publisher_key_id):
             raise ValueError("Invalid publisher key ID")
+        if self.min_core_version is not None:
+            parse_semver(self.min_core_version)
+        if self.max_core_version is not None:
+            parse_semver(self.max_core_version)
+        if (
+            self.min_core_version is not None
+            and self.max_core_version is not None
+            and parse_semver(self.min_core_version) > parse_semver(self.max_core_version)
+        ):
+            raise ValueError("min_core_version cannot exceed max_core_version")
         return self
 
     def signing_bytes(self) -> bytes:
-        payload = {
+        payload: dict[str, object] = {
             "schema_version": self.schema_version,
             "addon_id": self.addon_id,
             "version": self.version,
             "image": self.image,
         }
+        if self.deprecated:
+            payload["deprecated"] = True
+            if self.deprecation_reason:
+                payload["deprecation_reason"] = self.deprecation_reason
+        if self.min_core_version is not None:
+            payload["min_core_version"] = self.min_core_version
+        if self.max_core_version is not None:
+            payload["max_core_version"] = self.max_core_version
         return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
@@ -103,9 +133,13 @@ def _private_file(path: Path, *, max_bytes: int = 65_536) -> dict:
 
 
 def verify_release(
-    deployment: ApprovedDeployment, descriptor_path: Path, trust_path: Path
+    deployment: ApprovedDeployment,
+    descriptor_path: Path,
+    trust_path: Path,
+    *,
+    core_version: str | None = None,
 ) -> dict[str, str]:
-    """Validate publisher signature against installed trust roots, fail closed."""
+    """Validate publisher signature, deprecation, and core compatibility, fail closed."""
     try:
         descriptor = ReleaseDescriptor.model_validate(_private_file(descriptor_path))
         trust = ReleaseTrustStore.model_validate(_private_file(trust_path))
@@ -139,6 +173,24 @@ def verify_release(
         public_key.verify(signature, descriptor.signing_bytes())
     except (InvalidSignature, ValueError, binascii.Error) as exc:
         raise ReleaseTrustError("Release signature verification failed") from exc
+    if descriptor.deprecated:
+        detail = f": {descriptor.deprecation_reason}" if descriptor.deprecation_reason else ""
+        raise ReleaseTrustError(f"Signed release is deprecated{detail}")
+    effective_core = core_version or os.getenv("YONDER_CORE_VERSION", "0.1.0")
+    try:
+        current_core = parse_semver(effective_core)
+    except ValueError as exc:
+        raise ReleaseTrustError("Invalid Yonder Core version for compatibility check") from exc
+    if descriptor.min_core_version is not None:
+        if current_core < parse_semver(descriptor.min_core_version):
+            raise ReleaseTrustError(
+                f"Release requires Yonder Core >= {descriptor.min_core_version}"
+            )
+    if descriptor.max_core_version is not None:
+        if current_core > parse_semver(descriptor.max_core_version):
+            raise ReleaseTrustError(
+                f"Release requires Yonder Core <= {descriptor.max_core_version}"
+            )
     return {
         "publisher_key_id": descriptor.publisher_key_id,
         "addon_id": descriptor.addon_id,
@@ -146,3 +198,72 @@ def verify_release(
         "image": descriptor.image,
         "verification": "ed25519_valid",
     }
+
+
+def _write_trust_store(trust_path: Path, store: ReleaseTrustStore) -> None:
+    tmp = trust_path.with_name(f".{trust_path.name}.pending")
+    mode = trust_path.stat().st_mode & 0o777 if trust_path.exists() else 0o600
+    if mode & 0o022:
+        mode = 0o600
+    fd = os.open(tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, mode)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", closefd=True) as stream:
+            fd = -1
+            stream.write(json.dumps(store.model_dump(mode="json"), indent=2) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp, trust_path)
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        tmp.unlink(missing_ok=True)
+
+
+def revoke_trust_key(trust_path: Path, key_id: str) -> ReleaseTrustStore:
+    """Mark an existing trusted publisher key as revoked."""
+    try:
+        store = ReleaseTrustStore.model_validate(_private_file(trust_path))
+    except ValueError as exc:
+        raise ReleaseTrustError("Invalid trust store") from exc
+    updated: list[TrustedPublisher] = []
+    found = False
+    for pub in store.publishers:
+        if pub.key_id == key_id:
+            found = True
+            updated.append(pub.model_copy(update={"revoked": True}))
+        else:
+            updated.append(pub)
+    if not found:
+        raise ReleaseTrustError("Publisher key ID not found in trust store")
+    new_store = store.model_copy(update={"publishers": updated})
+    _write_trust_store(trust_path, new_store)
+    return new_store
+
+
+def rotate_trust_key(
+    trust_path: Path,
+    new_publisher: TrustedPublisher,
+    *,
+    revoke_key_id: str | None = None,
+) -> ReleaseTrustStore:
+    """Add a new publisher trust root and optionally revoke an older key atomically."""
+    try:
+        store = ReleaseTrustStore.model_validate(_private_file(trust_path))
+    except ValueError as exc:
+        raise ReleaseTrustError("Invalid trust store") from exc
+    updated: list[TrustedPublisher] = []
+    revoked_found = revoke_key_id is None
+    for pub in store.publishers:
+        if pub.key_id == new_publisher.key_id:
+            raise ReleaseTrustError("New publisher key ID already exists in trust store")
+        if revoke_key_id is not None and pub.key_id == revoke_key_id:
+            revoked_found = True
+            updated.append(pub.model_copy(update={"revoked": True}))
+        else:
+            updated.append(pub)
+    if not revoked_found:
+        raise ReleaseTrustError("Key ID to revoke was not found in trust store")
+    updated.append(new_publisher)
+    new_store = store.model_copy(update={"publishers": updated})
+    _write_trust_store(trust_path, new_store)
+    return new_store

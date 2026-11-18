@@ -522,6 +522,11 @@ Do **not** assume a `configured` credential is installed or active.
 - [x] Added `CredentialVault.record_sync_ack()` and `credentials_cli.py ack-sync`
   to transition `delivered_unverified` → `synced` with `sync_acknowledged`
   audit logging, invalidated on rotation.
+- [x] **M02.7 release lifecycle & compatibility pinning:** `ReleaseDescriptor`
+  now supports `deprecated` / `deprecation_reason` and `min_core_version` /
+  `max_core_version` semver pinning enforced by `verify_release()`; added
+  `rotate_trust_key()` / `revoke_trust_key()` trust-store helpers and semver
+  downgrade blocking in `assess_upgrade()`.
 - [ ] Full external KMS/Vault provider adapters and institutional multi-host
   deployment service packaging remain pending.
 

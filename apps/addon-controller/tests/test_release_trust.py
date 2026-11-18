@@ -185,3 +185,85 @@ def test_naive_expiration_is_rejected(tmp_path):
     trust.write_text(json.dumps(payload))
     with pytest.raises(ReleaseTrustError, match="Invalid signed"):
         verify_release(deployment, release, trust)
+
+
+def test_deprecated_and_incompatible_core_versions_fail_closed(tmp_path):
+    from controller.release_trust import TrustedPublisher, revoke_trust_key, rotate_trust_key
+
+    key = Ed25519PrivateKey.generate()
+    pub = key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
+    )
+    trust = tmp_path / "publishers.json"
+    trust.write_text(json.dumps({
+        "schema_version": 1,
+        "publishers": [{
+            "key_id": "yonder-official",
+            "public_key_ed25519_base64": base64.b64encode(pub).decode(),
+        }],
+    }))
+    deployment = ApprovedDeployment(addon_id="demo-addon", version="0.1.0", image=IMAGE)
+
+    # Deprecated release must be rejected even with a valid signature.
+    dep_unsigned = ReleaseDescriptor(
+        schema_version=1,
+        addon_id="demo-addon",
+        version="0.1.0",
+        image=IMAGE,
+        publisher_key_id="yonder-official",
+        signature_ed25519_base64=base64.b64encode(b"0" * 64).decode(),
+        deprecated=True,
+        deprecation_reason="Superseded by 0.2.0",
+    )
+    dep_signed = dep_unsigned.model_copy(update={
+        "signature_ed25519_base64": base64.b64encode(
+            key.sign(dep_unsigned.signing_bytes())
+        ).decode()
+    })
+    dep_path = tmp_path / "dep.json"
+    dep_path.write_text(dep_signed.model_dump_json())
+    with pytest.raises(ReleaseTrustError, match="deprecated"):
+        verify_release(deployment, dep_path, trust)
+
+    # Core version compatibility pinning.
+    pin_unsigned = ReleaseDescriptor(
+        schema_version=1,
+        addon_id="demo-addon",
+        version="0.1.0",
+        image=IMAGE,
+        publisher_key_id="yonder-official",
+        signature_ed25519_base64=base64.b64encode(b"0" * 64).decode(),
+        min_core_version="0.2.0",
+        max_core_version="0.5.0",
+    )
+    pin_signed = pin_unsigned.model_copy(update={
+        "signature_ed25519_base64": base64.b64encode(
+            key.sign(pin_unsigned.signing_bytes())
+        ).decode()
+    })
+    pin_path = tmp_path / "pin.json"
+    pin_path.write_text(pin_signed.model_dump_json())
+    with pytest.raises(ReleaseTrustError, match="Core >="):
+        verify_release(deployment, pin_path, trust, core_version="0.1.0")
+    assert verify_release(
+        deployment, pin_path, trust, core_version="0.3.0"
+    )["verification"] == "ed25519_valid"
+
+    # Key rotation + revocation helpers.
+    key2 = Ed25519PrivateKey.generate()
+    pub2 = key2.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
+    )
+    rotated = rotate_trust_key(
+        trust,
+        TrustedPublisher(
+            key_id="yonder-official-v2",
+            public_key_ed25519_base64=base64.b64encode(pub2).decode(),
+        ),
+        revoke_key_id="yonder-official",
+    )
+    assert len(rotated.publishers) == 2
+    with pytest.raises(ReleaseTrustError, match="revoked"):
+        verify_release(deployment, pin_path, trust, core_version="0.3.0")
+    revoked_v2 = revoke_trust_key(trust, "yonder-official-v2")
+    assert all(p.revoked for p in revoked_v2.publishers)
