@@ -11,6 +11,7 @@ export const YONDER_CONSOLE = {
     { href: "/models", label: "Models" },
     { href: "/hardware", label: "Hardware" },
     { href: "/operations", label: "Operations" },
+    { href: "/addons", label: "Add-ons" },
   ] as const,
 };
 
