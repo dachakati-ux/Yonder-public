@@ -1,10 +1,17 @@
 """Credential delivery tests: fake Docker volume, no daemon, no network."""
 from __future__ import annotations
 
+import json
 import os
+from types import SimpleNamespace
 
 import pytest
-from controller.credential_delivery import DeliveryError, deliver, remove_delivered
+from controller.credential_delivery import (
+    DeliveryError,
+    _volume_details,
+    deliver,
+    remove_delivered,
+)
 from controller.credential_vault import CredentialVault, VaultError, create_master_key
 
 
@@ -110,10 +117,6 @@ def test_delivery_refuses_cross_scope_and_path_traversal(tmp_path, monkeypatch):
 def test_docker_volume_policy_and_host_mountpoint_are_validated(
     tmp_path, monkeypatch
 ):
-    import json
-    from types import SimpleNamespace
-    from controller.credential_delivery import _volume_details
-
     directory = tmp_path / "secrets"
     directory.mkdir()
     details = {
