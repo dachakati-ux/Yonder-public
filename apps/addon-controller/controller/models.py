@@ -84,6 +84,7 @@ class ApprovedDeployment(BaseModel):
     public_settings: dict[str, str] = Field(default_factory=dict, max_length=24)
     setup_fields: list[SetupField] = Field(default_factory=list, max_length=24)
     secret_volume: bool = False
+    credential_names: list[str] = Field(default_factory=list, max_length=30)
     data_volume: bool = False
     provision_managed_resources: bool = False
     image_acquisition: Literal["preloaded", "signed_pull"] = "preloaded"
@@ -97,6 +98,15 @@ class ApprovedDeployment(BaseModel):
         if value != "none" and not NETWORK_NAME.fullmatch(value):
             raise ValueError("Only a pre-provisioned Yonder add-on network is allowed")
         return value
+
+    @field_validator("credential_names")
+    @classmethod
+    def valid_credential_names(cls, names: list[str]) -> list[str]:
+        if len(set(names)) != len(names):
+            raise ValueError("Duplicate credential names are not permitted")
+        if any(not NON_SECRET_KEY.fullmatch(name) for name in names):
+            raise ValueError("Credential names must be uppercase identifiers")
+        return names
 
     @field_validator("public_settings")
     @classmethod
@@ -113,6 +123,8 @@ class ApprovedDeployment(BaseModel):
 
     @model_validator(mode="after")
     def digest_only(self) -> ApprovedDeployment:
+        if self.credential_names and not self.secret_volume:
+            raise ValueError("Declared credentials require a secret volume")
         keys = [field.key for field in self.setup_fields]
         if len(keys) != len(set(keys)):
             raise ValueError("Duplicate setup fields")
@@ -142,6 +154,7 @@ class ApprovedDeployment(BaseModel):
             "configuration": {
                 "provision_managed_resources": self.provision_managed_resources,
                 "public_settings": self.public_settings,
+                "credential_names": self.credential_names,
                 "secret_volume": f"yonder-addon-secrets-{self.addon_id}"
                 if self.secret_volume else None,
                 "data_volume": f"yonder-addon-data-{self.addon_id}"
