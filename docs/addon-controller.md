@@ -698,6 +698,8 @@ For offline bundle packaging and sandbox recovery checks, see
 [Stateful Upgrade Backups](stateful-upgrade-backups.md). These tools verify
 content checksums but **do not** enable stateful upgrade execution.
 
+Migration contracts and sandbox rehearsal are documented in [SQLite Migration Rehearsal](sqlite-migration-rehearsal.md). The controller checks that an administrator-owned contract matches the old and target release identities but does **not** run the migration on production data.
+
 ## Stateful upgrade readiness assessment — draft M02.8
 
 An authenticated operator can now select **Review upgrade** in the
