@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "repository": "dachakati-ux/Yonder-public",
+  "addons": [
+    {
+      "id": "security-insights",
+      "path": "addons/security-insights/addon.json"
+    },
+    {
+      "id": "identity-security",
+      "path": "addons/identity-security/addon.json"
+    },
+    {
+      "id": "workspaces",
+      "path": "addons/workspaces/addon.json"
+    },
+    {
+      "id": "model-library",
+      "path": "addons/model-library/addon.json"
+    }
+  ]
+}
