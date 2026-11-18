@@ -19,6 +19,11 @@ class UpgradeDocker:
         self.fail_cutover = fail_cutover
         self.fail_health = fail_health
         self.switched = False
+        self.recovery_clean = False
+
+    async def upgrade_recovery_clean(self, deployment, old_image, job_id):
+        self.calls.append(("recovery_check", old_image))
+        return self.recovery_clean
 
     async def preflight(self, deployment):
         self.calls.append(("preflight", deployment.image))
