@@ -70,6 +70,81 @@ class BackupManifest(BaseModel):
         return self
 
 
+def create_offline_bundle(
+    source: Path, destination: Path, *,
+    addon_id: str, version: str, image: str,
+    backup_name: str = "database.dump",
+    kind: str = "database_export",
+    source_quiesced_acknowledged: bool = False,
+) -> dict:
+    """Copy one already-quiesced export into a new, private backup directory.
+
+    The operator must stop/quiesce their application independently. This
+    method cannot determine whether a database dump is transactionally safe.
+    """
+    if not source_quiesced_acknowledged:
+        raise BackupError("Explicit source quiescence acknowledgment is required")
+    if not _SAFE_NAME.fullmatch(backup_name) or backup_name.startswith("."):
+        raise BackupError("Invalid backup file name")
+    if backup_name == "manifest.json":
+        raise BackupError("Backup name is reserved")
+    if destination.is_symlink() or destination.exists():
+        raise BackupError("Backup destination must not exist")
+    with _open_regular(source) as input_file:
+        destination.mkdir(mode=0o700, parents=False)
+        try:
+            os.chmod(destination, 0o700)
+            written = 0
+            checksum = hashlib.sha256()
+            target_path = destination / backup_name
+            fd = os.open(
+                target_path,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                | getattr(os, "O_NOFOLLOW", 0), 0o600,
+            )
+            with os.fdopen(fd, "wb") as target:
+                while block := input_file.read(_CHUNK):
+                    written += len(block)
+                    if written > _MAX_TOTAL:
+                        raise BackupError("Export exceeds maximum backup size")
+                    target.write(block)
+                    checksum.update(block)
+                target.flush()
+                os.fsync(target.fileno())
+            manifest = BackupManifest(
+                schema_version=1,
+                addon_id=addon_id,
+                version=version,
+                image=image,
+                created_at=datetime.now(UTC),
+                source_quiesced=True,
+                backup_kind=kind,
+                files=[BackupEntry(
+                    name=backup_name, size=written,
+                    sha256=checksum.hexdigest(),
+                )],
+            )
+            record = destination / "manifest.json"
+            fd = os.open(
+                record, os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                | getattr(os, "O_NOFOLLOW", 0), 0o600,
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as manifest_file:
+                json.dump(manifest.model_dump(mode="json"), manifest_file, indent=2)
+                manifest_file.flush()
+                os.fsync(manifest_file.fileno())
+            return verify_bundle(
+                destination, addon_id=addon_id, version=version, image=image,
+            )
+        except Exception:
+            # A partially written bundle must never be mistaken for a valid
+            # backup. Only unlink names this method could create.
+            for name in (backup_name, "manifest.json"):
+                (destination / name).unlink(missing_ok=True)
+            destination.rmdir()
+            raise
+
+
 def _read_manifest(root: Path) -> BackupManifest:
     if root.is_symlink() or not root.is_dir():
         raise BackupError("Backup directory is missing or untrusted")
