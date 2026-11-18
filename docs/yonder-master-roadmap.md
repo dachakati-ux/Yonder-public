@@ -455,7 +455,10 @@ Status: planned | in_progress | draft_implemented | verified | released
   private empty-directory restore test is available.
 - [x] Read-only upgrade preview reports matching offline backup content proof,
   without marking live database consistency or stateful migration safe.
-- [ ] Database-native backup adapters, trusted/signed backup provenance,
+- [x] Draft SQLite online backup adapter and CLI with WAL-consistent snapshot,
+  database structural verification and offline restore test. Not yet
+  released or tested against real add-on databases.
+- [ ] Other database-native backup adapters, trusted/signed backup provenance,
   application-level restore acceptance, migration recovery, durable cutover,
   and real-host failure testing remain open.
 - [Guide](stateful-upgrade-backups.md) and [M02 tracking issue](https://github.com/dachakati-ux/Yonder-public/issues/7).
