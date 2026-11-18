@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -11,6 +12,7 @@ from pydantic import ValidationError
 
 from .docker_adapter import DockerAdapter, DockerError
 from .models import ApprovedDeployment, ControllerConfig
+from .release_trust import ReleaseTrustError, verify_release
 from .store import JobConflict, JobStore
 
 APPROVAL = re.compile(r"^[a-f0-9]{64}$")
@@ -47,6 +49,16 @@ class Controller:
         self.docker = adapter or DockerAdapter()
         self._tasks: dict[str, asyncio.Task] = {}
         self._lock = asyncio.Lock()
+        self.require_signed_releases = (
+            os.getenv("YONDER_CONTROLLER_REQUIRE_SIGNATURES", "false").lower()
+            in ("true", "1", "yes")
+        )
+        self.release_root = Path(
+            os.getenv("YONDER_CONTROLLER_RELEASE_ROOT", "/etc/yonder/releases")
+        )
+        self.publisher_trust = Path(
+            os.getenv("YONDER_CONTROLLER_PUBLISHER_KEYS", "/etc/yonder/publishers.json")
+        )
 
     def approved(self) -> dict[str, ApprovedDeployment]:
         return load_deployments(self.config)
@@ -57,7 +69,27 @@ class Controller:
         selected = self.approved().get(addon_id)
         if selected is None:
             raise ControllerError("Add-on is not approved for deployment on this host")
-        return selected.plan(action)
+        plan = selected.plan(action)
+        if action == "install":
+            if self.require_signed_releases:
+                try:
+                    proof = verify_release(
+                        selected,
+                        self.release_root / f"{addon_id}.json",
+                        self.publisher_trust,
+                    )
+                except ReleaseTrustError as exc:
+                    raise ControllerError("Add-on publisher verification failed") from exc
+                plan["publisher_key_id"] = proof["publisher_key_id"]
+                plan["publisher_verification"] = "ed25519_valid"
+            else:
+                plan["publisher_verification"] = "not_enforced"
+        else:
+            plan["publisher_verification"] = "not_applicable"
+        plan.pop("plan_sha256")
+        data = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()
+        plan["plan_sha256"] = hashlib.sha256(data).hexdigest()
+        return plan
 
     async def submit(
         self, addon_id: str, action: str, digest: str, key: str
@@ -93,7 +125,7 @@ class Controller:
             deployment = self.approved().get(job["addon_id"])
             if deployment is None:
                 raise ControllerError("Approved deployment is no longer available")
-            if deployment.plan(action)["plan_sha256"] != job["plan_sha256"]:
+            if self.plan(deployment.addon_id, action)["plan_sha256"] != job["plan_sha256"]:
                 raise ControllerError("Deployment changed before execution")
             if action == "install":
                 await self.docker.preflight(deployment)
