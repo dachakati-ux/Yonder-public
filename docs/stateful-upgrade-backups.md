@@ -116,6 +116,8 @@ or `PRAGMA integrity_check` is a useful structural check, but does not
 prove an upgraded application can read old records or safely roll back
 schema migrations. Stateful upgrade execution remains blocked.
 
+**New sandbox-only migration support:** see [Declarative SQLite Migration Rehearsal](sqlite-migration-rehearsal.md). It validates a version/digest-bound contract and exercises narrow schema changes only on a disposable restored SQLite backup. This does not authorize live upgrades.
+
 ## Controller integration
 
 The authenticated read-only upgrade assessment checks only a host-controlled
