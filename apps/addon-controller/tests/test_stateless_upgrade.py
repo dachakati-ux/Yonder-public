@@ -180,3 +180,23 @@ def test_stateless_upgrade_requires_operator_opt_in_signature_and_no_data(
     }
     with pytest.raises(ControllerError, match="stateless"):
         engine.plan("demo-addon", "upgrade")
+
+
+@pytest.mark.asyncio
+async def test_unexpected_cutover_error_remains_blocking(tmp_path, monkeypatch):
+    adapter = UpgradeDocker()
+    engine = controller_fixture(tmp_path, monkeypatch, adapter)
+    engine.enable_stateless_upgrades = True
+    engine.require_signed_releases = True
+
+    async def unexpected_error(*args):
+        raise RuntimeError("Unexpected host exception")
+
+    adapter.cutover_stateless = unexpected_error
+    plan = engine.plan("demo-addon", "upgrade")
+    job, _ = await engine.submit(
+        "demo-addon", "upgrade", plan["plan_sha256"], "unknown-error-upgrade-123"
+    )
+    await engine._tasks[job["id"]]
+    assert engine.jobs.get(job["id"])["status"] == "interrupted"
+    assert engine.jobs.desired()[0]["image"] == OLD_IMAGE
