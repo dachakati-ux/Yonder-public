@@ -58,6 +58,23 @@ A user should be able to:
   applicable rules and signed-off controls. Isolation and school role
   authorization require adversarial tests, not just UI hiding.
 
+## Live milestone issues
+
+Milestone checklists are tracked in GitHub Issues; the master roadmap retains
+the architecture, dependencies and acceptance criteria. Keep the issue and
+this document synchronized when evidence changes.
+
+| Milestone | Tracking issue |
+| --- | --- |
+| M01 Core | [#6](https://github.com/dachakati-ux/Yonder-public/issues/6) |
+| M02 Add-ons | [#7](https://github.com/dachakati-ux/Yonder-public/issues/7) |
+| M03 Identity & SSO | [#8](https://github.com/dachakati-ux/Yonder-public/issues/8) |
+| M04 Model Library | [#9](https://github.com/dachakati-ux/Yonder-public/issues/9) |
+| M05 Workspaces | [#10](https://github.com/dachakati-ux/Yonder-public/issues/10) |
+| M06 Academy | [#11](https://github.com/dachakati-ux/Yonder-public/issues/11) |
+| M07 Convyx | [#12](https://github.com/dachakati-ux/Yonder-public/issues/12) |
+| M08 Release Validation | [#13](https://github.com/dachakati-ux/Yonder-public/issues/13) |
+
 ## Tracking semantics
 
 - **Released** — merged, packaged, supported and actually deployment-tested.
