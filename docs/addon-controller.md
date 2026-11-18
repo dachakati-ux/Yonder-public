@@ -393,3 +393,26 @@ The default remains `provision_managed_resources: false`, which requires all
 referenced resources to already exist. Production/school environments should
 not use the Docker-socket controller prototype without a hardened deployment
 and security review.
+
+
+## Desired versus observed installation state
+
+After a successful, readiness-verified installation, the controller records
+`desired_state=running` alongside the exact approved add-on version and
+OCI digest in its SQLite database. After a successful removal, it records
+`desired_state=absent`. These records survive controller restarts.
+
+The new authenticated `GET /v1/inventory` API (also proxied through
+`GET /api/admin/addons/controller/inventory`) compares these desired
+records with the actual state of the dedicated Docker container. The Add-ons
+page displays **In sync** or **Review drift** for each known installation.
+
+**Drift detection is read-only.** If a running add-on disappears or stops,
+Yonder does not automatically reinstall, restart, or destroy resources.
+Investigate the discrepancy and explicitly approve a new plan or recovery.
+This preserves a foundation for a later reconciler without introducing
+unreviewed automatic infrastructure changes today.
+
+The inventory currently tracks deployments controlled by Yonder, not arbitrary
+Docker resources and not stateful database migration versions. It is not a
+substitute for independent backups or service monitoring.
