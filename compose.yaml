@@ -13,6 +13,7 @@ services:
     environment:
       YONDER_CONFIG_FILE: /app/config/environments/development.yaml
       YONDER_ENVIRONMENT: development
+      YONDER_BUILD_SHA: ${YONDER_BUILD_SHA:-unknown}
       YONDER_SECURITY__MODE: development
       # Docker network requires non-loopback bind inside the container.
       YONDER_GATEWAY__HOST: "0.0.0.0"
