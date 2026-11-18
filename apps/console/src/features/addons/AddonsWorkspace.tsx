@@ -65,6 +65,11 @@ type DeploymentPlan = {
   image_acquisition: "preloaded" | "signed_pull";
   limits: { memory_mb: number; cpus: number; pids: number; network: string };
   plan_sha256: string;
+  configuration: {
+    public_settings: Record<string, string>;
+    secret_volume: string | null;
+    data_volume: string | null;
+  };
   publisher_verification: string;
   publisher_key_id?: string;
   readiness: { mode: string; timeout_seconds: number; rollback_on_failure: boolean };
@@ -157,6 +162,9 @@ export function AddonsWorkspace() {
         "Memory: " + plan.limits.memory_mb + " MiB",
         "CPU limit: " + plan.limits.cpus,
         "Network: " + plan.limits.network,
+        "Configuration: " + JSON.stringify(plan.configuration.public_settings),
+        "Secrets volume: " + (plan.configuration.secret_volume ?? "not requested"),
+        "Persistent data volume: " + (plan.configuration.data_volume ?? "not requested"),
         "Publisher: " + plan.publisher_verification + (plan.publisher_key_id ? " (" + plan.publisher_key_id + ")" : ""),
         "Readiness: " + plan.readiness.mode + " (" + plan.readiness.timeout_seconds + "s)",
         "Rollback if unhealthy: " + (plan.readiness.rollback_on_failure ? "Yes" : "No"),
