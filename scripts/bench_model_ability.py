@@ -19,8 +19,8 @@ import re
 import time
 import urllib.error
 import urllib.request
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 NOT_REPORTED = "not_reported"
