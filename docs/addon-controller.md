@@ -480,3 +480,28 @@ Existing bundled add-ons without setup schemas have no editable fields.
 Credentials, provider secrets and private keys **must not** be supplied through
 this wizard. Their lifecycle requires the separate secret-manager integration
 and permissions audit planned for a later phase.
+
+
+## Read-only installation preflight
+
+The Add-ons page now provides **Check requirements** for controller-approved,
+installed add-ons. This calls the authenticated controller endpoint
+`GET /v1/preflight/{addon_id}`, which is available through Yonder Gateway
+only to operators with `operations.manage`.
+
+The checks report whether the setup wizard is complete, the publisher release
+and plan are valid, Docker is reachable, the approved image is present (or
+scheduled for signed acquisition), the separately provisioned secrets volume
+is trusted, and approved network/data resources are available or may be
+created from an authorized plan.
+
+Each check returns `ready`, `managed`, or `blocked`. `managed` means
+the controller is authorized to perform that preparation during the real
+installation; it is **not** proof that the eventual action will succeed.
+Missing required items block the Install action in the UI. The controller
+revalidates the complete plan and its trust policy at execution time.
+
+This endpoint is deliberately read-only: it does not pull images, start
+containers, create networks, initialize data volumes, or write secrets.
+A successful preflight is advisory, not a guarantee of runtime health or
+institutional compliance.
