@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 ACTIVE = ("queued", "preflight", "deploying", "verifying", "removing")
+BLOCKING = (*ACTIVE, "interrupted")
 
 
 def utcnow() -> str:
@@ -85,8 +86,8 @@ class JobStore:
                 return item, False
             pending = db.execute(
                 "SELECT id FROM jobs WHERE addon_id=? "
-                "AND status IN (" + ",".join("?" for _ in ACTIVE) + ")",
-                (addon_id, *ACTIVE),
+                "AND status IN (" + ",".join("?" for _ in BLOCKING) + ")",
+                (addon_id, *BLOCKING),
             ).fetchone()
             if pending:
                 raise JobConflict("An operation is already active for this add-on")
@@ -122,3 +123,17 @@ class JobStore:
                 "UPDATE jobs SET status=?, message=?, updated_at=? WHERE id=?",
                 (status, message[:400], utcnow(), job_id),
             )
+
+
+    def acknowledge(self, job_id: str, observed: str) -> dict:
+        """Operator explicitly reviews interrupted state before allowing new work."""
+        with self.lock, self._db() as db:
+            row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if row is None or row["status"] != "interrupted":
+                raise JobConflict("Only interrupted jobs may be acknowledged")
+            db.execute(
+                "UPDATE jobs SET status='acknowledged', message=?, updated_at=? WHERE id=?",
+                ("Administrator reviewed observed container state: " + observed, utcnow(), job_id),
+            )
+            after = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            return self._row(after)
