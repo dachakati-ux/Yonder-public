@@ -39,12 +39,17 @@ def test_offline_scoped_delivery_and_rotation(tmp_path, monkeypatch):
     assert target.read_bytes() == b"confidential-agent-token"
     assert target.stat().st_mode & 0o077 == 0
     assert (directory / "SERVICE_TOKEN").is_file()
+    assert vault.delivery_record("convyx", "SERVICE_TOKEN") == {
+        "status": "delivered_unverified", "delivered_revision": 1,
+    }
 
     vault.put("convyx", "SERVICE_TOKEN", b"replacement-agent-token")
+    assert vault.delivery_record("convyx", "SERVICE_TOKEN")["status"] == "stale_delivery"
     deliver(
         vault, "convyx", "SERVICE_TOKEN", approved_addon_ids={"convyx"}
     )
     assert target.read_bytes() == b"replacement-agent-token"
+    assert vault.delivery_record("convyx", "SERVICE_TOKEN")["status"] == "delivered_unverified"
     assert list(directory.iterdir()) == [target]
 
 
@@ -76,12 +81,14 @@ def test_revoke_removes_only_authorized_delivered_file(tmp_path, monkeypatch):
             vault, "convyx", "SERVICE_TOKEN", approved_addon_ids={"convyx"}
         )
     vault.revoke("convyx", "SERVICE_TOKEN")
+    assert vault.delivery_record("convyx", "SERVICE_TOKEN")["status"] == "revoked_cleanup_required"
     with pytest.raises(VaultError, match="revoked"):
         deliver(vault, "convyx", "SERVICE_TOKEN", approved_addon_ids={"convyx"})
     remove_delivered(
         vault, "convyx", "SERVICE_TOKEN", approved_addon_ids={"convyx"}
     )
     assert not (directory / "SERVICE_TOKEN").exists()
+    assert vault.delivery_record("convyx", "SERVICE_TOKEN")["status"] == "revoked_removed"
 
 
 def test_delivery_refuses_symlink_target_or_public_directory(tmp_path, monkeypatch):
