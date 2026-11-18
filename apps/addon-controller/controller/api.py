@@ -14,6 +14,11 @@ from .engine import Controller, ControllerError
 TOKEN_LENGTH = 32
 
 
+class RecoveryReview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    observed_state: Literal["running", "stopped", "not_deployed"]
+
+
 class JobRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -99,6 +104,24 @@ def create_app(
         except ControllerError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return {"job": job, "created": created}
+
+    @app.get("/v1/observed/{addon_id}", dependencies=[Depends(authenticate)])
+    async def observed(addon_id: str):
+        try:
+            value = await engine.observed(addon_id)
+        except ControllerError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {"addon_id": addon_id, "observed_state": value}
+
+    @app.post(
+        "/v1/jobs/{job_id}/acknowledge", dependencies=[Depends(authenticate)]
+    )
+    async def acknowledge(job_id: str, review: RecoveryReview):
+        try:
+            job = await engine.acknowledge(job_id, review.observed_state)
+        except ControllerError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {"job": job}
 
     return app
 
