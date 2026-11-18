@@ -14,8 +14,8 @@ from .backup_verifier import BackupError, verify_bundle
 from .credential_vault import CredentialVault, VaultError, read_master_key
 from .docker_adapter import DockerAdapter, DockerError
 from .models import ApprovedDeployment, ControllerConfig
-from .sqlite_migration import MigrationError, read_contract
 from .release_trust import ReleaseTrustError, verify_release
+from .sqlite_migration import MigrationError, read_contract
 from .store import JobConflict, JobStore
 from .upgrade_planner import UpgradePolicy, assess_upgrade
 
