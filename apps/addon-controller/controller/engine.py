@@ -14,6 +14,7 @@ from .backup_verifier import BackupError, verify_bundle
 from .credential_vault import CredentialVault, VaultError, read_master_key
 from .docker_adapter import DockerAdapter, DockerError
 from .models import ApprovedDeployment, ControllerConfig
+from .migration_trust import MigrationTrustError, verify_migration_attestation
 from .release_trust import ReleaseTrustError, verify_release
 from .sqlite_migration import MigrationError, read_contract
 from .store import JobConflict, JobStore
@@ -752,6 +753,36 @@ class Controller:
                         ),
                     })
                     report["migration_contract"] = "identity_verified_only"
+                    try:
+                        signature = await asyncio.to_thread(
+                            verify_migration_attestation,
+                            contract,
+                            self.stateful_backup_root / addon_id / "manifest.json",
+                            self.migration_contract_root
+                            / f"{addon_id}.attestation.json",
+                            self.publisher_trust,
+                        )
+                    except (MigrationTrustError, OSError):
+                        report["checks"].append({
+                            "name": "migration_signature",
+                            "status": "blocked",
+                            "explanation": (
+                                "Migration contract and backup need a valid "
+                                "trusted publisher attestation"
+                            ),
+                        })
+                        report["migration_signature"] = "not_verified"
+                    else:
+                        report["checks"].append({
+                            "name": "migration_signature",
+                            "status": "ready",
+                            "explanation": (
+                                "Migration and backup digests have a verified "
+                                "non-revoked publisher signature; production "
+                                "migration remains disabled"
+                            ),
+                        })
+                        report["migration_signature"] = signature["status"]
                 report["can_execute"] = False
         return report
 
