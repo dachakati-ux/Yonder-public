@@ -115,3 +115,27 @@ def test_audit_events_record_metadata_not_secret_values(tmp_path):
     assert "replacement-value" not in str(history)
     assert "super-private-value" not in db.read_bytes()
     assert vault.audit_events("workspaces") == []
+
+
+def test_encrypted_backup_and_restore_without_exporting_master_key(tmp_path):
+    vault, key, db = setup_vault(tmp_path)
+    value = b"never-export-plaintext-in-backup"
+    vault.put("convyx", "SERVICE_TOKEN", value)
+    target = tmp_path / "backups" / "credentials-snapshot.db"
+    vault.backup(target)
+    assert target.is_file()
+    assert value not in target.read_bytes()
+    assert key.read_bytes() not in target.read_bytes()
+    restored = CredentialVault(target, key)
+    assert restored.metadata("convyx")[0]["configured"] is True
+    assert len(restored.audit_events("convyx")) == 1
+    with pytest.raises(VaultError, match="already exists"):
+        vault.backup(target)
+
+
+def test_backup_requires_private_permissions(tmp_path):
+    vault, _, _ = setup_vault(tmp_path)
+    target = tmp_path / "backup.db"
+    vault.backup(target)
+    if os.name == "posix":
+        assert target.stat().st_mode & 0o077 == 0
