@@ -17,6 +17,10 @@
     {
       "id": "model-library",
       "path": "addons/model-library/addon.json"
+    },
+    {
+      "id": "convyx",
+      "path": "addons/convyx/addon.json"
     }
   ]
 }
