@@ -120,6 +120,28 @@ class DockerAdapter:
             raise DockerError("Refusing to remove an unowned container")
         await self._run("rm", "--force", name)
 
+    async def readiness(self, deployment: ApprovedDeployment) -> str:
+        """Inspect trusted Docker state; optional image-defined HEALTHCHECK."""
+        actual = await self._inspect(CONTAINER_PREFIX + deployment.addon_id)
+        if actual is None:
+            return "not_deployed"
+        if not self._owned(actual, deployment.addon_id):
+            return "unmanaged_container_collision"
+        state = actual.get("State", {})
+        if not state.get("Running"):
+            return "stopped"
+        if deployment.readiness == "running":
+            return "ready"
+        health = state.get("Health")
+        if not isinstance(health, dict):
+            return "missing_healthcheck"
+        result = health.get("Status", "")
+        if result == "healthy":
+            return "ready"
+        if result == "unhealthy":
+            return "unhealthy"
+        return "starting"
+
     async def status(self, addon_id: str) -> str:
         data = await self._inspect(CONTAINER_PREFIX + addon_id)
         if data is None:
