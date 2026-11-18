@@ -62,7 +62,7 @@ jobs:
       - name: Run add-on contract tests
         run: |
           cd apps/gateway
-          uv run pytest -q tests/test_addon_contract.py tests/test_addons.py tests/test_addon_services.py tests/test_addon_api.py
+          PYTHONPATH=. uv run pytest -q tests/test_addon_contract.py tests/test_addons.py tests/test_addon_services.py tests/test_addon_api.py
       - name: Lint framework sources
         run: |
           uv run ruff check apps/gateway/app/services/addon_contract.py apps/gateway/app/services/addons.py apps/gateway/app/api/addons.py apps/gateway/app/services/addon_service.py apps/gateway/app/services/addon_service_registry.py
