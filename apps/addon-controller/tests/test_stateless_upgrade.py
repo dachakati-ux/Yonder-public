@@ -1,4 +1,5 @@
 """Opt-in staged upgrades: enforce signature, isolation, and rollback boundaries."""
+
 from __future__ import annotations
 
 import json
@@ -162,10 +163,9 @@ def test_stateless_upgrade_requires_operator_opt_in_signature_and_no_data(
         engine.plan("demo-addon", "upgrade")
     engine.require_signed_releases = True
     assert engine.plan("demo-addon", "upgrade")["action"] == "upgrade"
+    old_policy = engine.approved()["demo-addon"]
     engine.approved = lambda: {
-        "demo-addon": engine.effective("demo-addon").model_copy(
-            update={"data_volume": True}
-        )
+        "demo-addon": old_policy.model_copy(update={"data_volume": True})
     }
     with pytest.raises(ControllerError, match="stateless"):
         engine.plan("demo-addon", "upgrade")
