@@ -36,8 +36,8 @@ from app.api import (
     ops,
     platform,
     speech,
-    v1,
     updates,
+    v1,
     workers,
 )
 from app.config.bootstrap import (

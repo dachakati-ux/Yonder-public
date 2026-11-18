@@ -2,8 +2,7 @@
 from __future__ import annotations
 
 import pytest
-
-from app.services.model_install import validate_request, trusted_url
+from app.services.model_install import trusted_url, validate_request
 
 
 @pytest.mark.parametrize(

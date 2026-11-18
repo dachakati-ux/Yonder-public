@@ -16,7 +16,7 @@ from app.api.model_catalog import _get_json
 from app.services.model_discovery import prepare_model_bundle
 
 REPO_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$")
-FILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+() -]*\\.gguf$", re.IGNORECASE)
+FILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+() -]*\.gguf$", re.IGNORECASE)
 REVISION = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 MAX_FILE_SIZE = 40 * 1024**3
