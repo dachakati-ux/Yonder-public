@@ -236,3 +236,46 @@ async def test_failed_rollback_blocks_followup_until_review(tmp_path):
         await engine.submit(
             "demo-addon", "install", plan["plan_sha256"], "new-request-1234"
         )
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"API_TOKEN": "should-not-be-here"},
+        {"ADMIN_PASSWORD": "never"},
+        {"DATABASE_SECRET": "example"},
+        {"__PYTHONPATH": "/host"},
+        {"ENV": "line\nbreak"},
+        {"SAFE_MODE": "x" * 300},
+    ],
+)
+def test_secret_or_unsafe_public_environment_rejected(settings):
+    with pytest.raises(ValidationError):
+        ApprovedDeployment(
+            addon_id="demo-addon", image=IMAGE, version="0.1.0",
+            public_settings=settings,
+        )
+
+
+def test_network_must_be_dedicated_and_not_host_or_bridge():
+    for network in ("host", "bridge", "yonder-addon-net-another-addon"):
+        with pytest.raises(ValidationError):
+            ApprovedDeployment(
+                addon_id="demo-addon", image=IMAGE, version="0.1.0",
+                network=network,
+            )
+
+
+def test_config_and_mounts_included_in_plan_approval_digest():
+    base = ApprovedDeployment(
+        addon_id="demo-addon", image=IMAGE, version="0.1.0"
+    )
+    a = base.model_copy(update={"public_settings": {"SAFE_MODE": "yes"}})
+    b = base.model_copy(update={"secret_volume": True})
+    c = base.model_copy(update={"data_volume": True})
+    d = base.model_copy(update={"network": "yonder-addon-net-demo-addon"})
+    original = base.plan("install")["plan_sha256"]
+    assert all(
+        version.plan("install")["plan_sha256"] != original
+        for version in (a, b, c, d)
+    )
