@@ -159,3 +159,33 @@ def test_controller_api_requires_authorization(tmp_path):
         assert response.json()["created"] is True
         assert client.get("/v1/jobs", headers=headers).status_code == 200
         assert client.post("/v1/jobs", json={}).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_interrupted_jobs_require_explicit_observed_state_review(tmp_path):
+    allowlist = config(tmp_path)
+    adapter = FakeDocker()
+    previous = Controller(allowlist, tmp_path / "state.db", adapter=adapter)
+    plan = previous.plan("demo-addon", "install")
+    job, created = previous.jobs.create(
+        "interrupted-op-12345", "demo-addon", "install", plan
+    )
+    assert created and job["status"] == "queued"
+
+    restarted = Controller(allowlist, tmp_path / "state.db", adapter=adapter)
+    assert restarted.jobs.get(job["id"])["status"] == "interrupted"
+    with pytest.raises(ControllerError, match="already active"):
+        await restarted.submit(
+            "demo-addon", "install", plan["plan_sha256"], "fresh-op-12345678"
+        )
+    with pytest.raises(ControllerError, match="changed"):
+        await restarted.acknowledge(job["id"], "running")
+
+    reviewed = await restarted.acknowledge(job["id"], "not_deployed")
+    assert reviewed["status"] == "acknowledged"
+    new_job, created = await restarted.submit(
+        "demo-addon", "install", plan["plan_sha256"], "fresh-op-12345678"
+    )
+    assert created
+    await restarted._tasks[new_job["id"]]
+    assert restarted.jobs.get(new_job["id"])["status"] == "succeeded"
