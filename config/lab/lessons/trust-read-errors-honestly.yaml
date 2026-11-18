@@ -1,0 +1,40 @@
+id: trust-read-errors-honestly
+track: trust
+title: Read errors honestly
+summary: not_ready, PROVIDER_FAILURE, and training_scenario are signals — never paper
+  over them with fake success.
+duration_minutes: 7
+objectives:
+- Map common Gateway error/readiness labels
+- Choose the honest UI behavior for each
+sections:
+- title: Labels over vibes
+  body: When an alias is not READY, Chat and Recipes must show that state. Lab may
+    fall back to labeled training_scenario mocks — never unlabeled fakes.
+- title: Capacity literacy
+  body: PROVIDER_FAILURE and not_ready are arguments for more capacity or better placement
+    — not for inventing green dashboards.
+glossary_term_ids:
+- ready
+- lab-live
+- not-reported
+try_it:
+  kind: recipe
+  label: Open Recipes readiness
+  href: /recipes
+  recipe_id: ticket-triage
+check:
+  kind: quiz
+  prompt: 'Alias not READY during a demo. Correct move?'
+  options:
+  - id: a
+    label: Show a fake successful chat completion
+  - id: b
+    label: Show honest not_ready / error (or labeled training_scenario in Lab)
+  - id: c
+    label: Hide the failure and retry forever
+  correct_option_id: b
+  explanation: Honest labels beat demo theater.
+completion: check_passed
+prerequisites:
+- trust-fail-closed-schemas

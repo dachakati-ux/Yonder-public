@@ -1,0 +1,4 @@
+id: chore-lint-unused
+kind: chore
+task: "ruff reports an unused import in strings.py. Remove it so ruff check passes."
+check_command: "ruff check"

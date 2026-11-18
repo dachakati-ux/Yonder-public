@@ -1,0 +1,37 @@
+[Unit]
+Description=Yonder llama.cpp runtime instance %i (loopback)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yonder
+Group=yonder
+EnvironmentFile=-/etc/yonder/llama-cpp-%i.env
+Environment=LD_LIBRARY_PATH=/opt/cuda-12.6/lib64:/opt/yonder/runtimes/llama.cpp-b10167-cuda-sm70/bin
+WorkingDirectory=/opt/yonder/runtimes/llama.cpp-b10167-cuda-sm70
+# Prefer the worker process manager for scheduled loads. This template is the
+# operator-managed escape hatch / migration path for a named deployment id.
+ExecStart=/opt/yonder/runtimes/llama.cpp-b10167-cuda-sm70/bin/llama-server \
+  --model ${LLAMA_ARG_MODEL} \
+  --alias ${LLAMA_ARG_ALIAS} \
+  --host ${LLAMA_ARG_HOST} \
+  --port ${LLAMA_ARG_PORT} \
+  --ctx-size ${LLAMA_ARG_CTX_SIZE} \
+  --n-gpu-layers ${LLAMA_ARG_N_GPU_LAYERS} \
+  --threads ${LLAMA_ARG_THREADS} \
+  --jinja \
+  --reasoning off
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=600
+TimeoutStopSec=60
+LimitNOFILE=65535
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/yonder /var/log/yonder /etc/yonder /srv/yonder-storage
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,43 @@
+# Stability AI SDXL-Turbo single-file FP16 checkpoint. Loaded via
+# StableDiffusionXLPipeline.from_single_file with offline
+# sdxl-turbo-diffusers-config. Loopback canary PASS on ai1 2026-08-02 (GPU 1).
+# Alias stays operator-gated after a successful placed load.
+id: yonder-sdxl-turbo
+display_name: SDXL Turbo FP16
+description: Fast SDXL-Turbo txt2img Diffusers pipeline for a single V100
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/sdxl-turbo-fp16/sd_xl_turbo_1.0_fp16.safetensors
+
+runtime:
+  provider: diffusers
+  profile: image
+  family: sdxl
+  model_identifier: sdxl-turbo-fp16
+  dtype: fp16
+  quantization: none
+  context_length: 77
+  tensor_parallel_size: 1
+
+requirements:
+  minimum_gpu_memory_gb: 12
+  supported_gpu_families:
+    - volta
+  placement_limits:
+    single_gpu:
+      max_context_length: 77
+      minimum_gpu_memory_gb: 12
+      evidence: research_estimate
+    two_gpu:
+      max_context_length: 77
+      minimum_gpu_memory_gb: 12
+      evidence: research_estimate
+
+defaults:
+  temperature: 1.0
+  top_p: 1.0
+  maximum_output_tokens: 1
+
+capabilities:
+  - image

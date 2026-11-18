@@ -1,0 +1,36 @@
+id: builder-tools-loop
+track: builder
+title: Tools loop
+summary: Plan to tool_call to tool_result to grounded answer — never invent tool results.
+duration_minutes: 8
+objectives:
+- Run the Lab tools ability
+- Describe the tool loop steps
+sections:
+- title: The loop
+  body: Models call structured tools when they need live or external data. Observe
+    the result, then answer.
+- title: Fail closed
+  body: If a tool fails, surface the failure. Do not invent a successful tool payload.
+glossary_term_ids:
+- tools
+try_it:
+  kind: lab_ability
+  label: Open Tools Lab
+  href: /lab/tools
+  ability: tools
+check:
+  kind: quiz
+  prompt: 'After a tool_call, what comes next?'
+  options:
+  - id: a
+    label: Invent a tool_result
+  - id: b
+    label: Observe the real tool_result, then answer
+  - id: c
+    label: Skip straight to billing
+  correct_option_id: b
+  explanation: Ground answers in real tool results.
+completion: check_passed
+prerequisites:
+- foundations-honest-readiness

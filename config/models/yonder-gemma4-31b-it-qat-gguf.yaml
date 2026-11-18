@@ -1,0 +1,44 @@
+# Measured GGUF on ai1 (2026-07-30): gemma-4-31B_q4_0-it.gguf + mmproj.
+# Loopback chat canary PASS on ai1 2026-08-02 (GPU 0, mmproj attached).
+# Alias yonder-gemma-qat is operator-enabled only after a successful placed load.
+id: yonder-gemma4-31b-it-qat-gguf
+display_name: Gemma 4 31B IT QAT GGUF
+description: Measured QAT GGUF chat model for llama.cpp on a single V100
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/gemma-4-31B-it-qat-gguf/gemma-4-31B_q4_0-it.gguf
+
+runtime:
+  provider: llama-cpp
+  profile: chat
+  model_identifier: gemma4-31b-it-qat-q4
+  dtype: fp16
+  quantization: int4
+  # 2026-08-08 measure: 1× READY through 65536 (~27440 MiB). Default 32K.
+  context_length: 65536
+  tensor_parallel_size: 1
+  mmproj_path: /srv/yonder-storage/model-bundles/gemma-4-31B-it-qat-gguf/gemma-4-31B-it-mmproj.gguf
+
+requirements:
+  minimum_gpu_memory_gb: 20
+  supported_gpu_families:
+    - volta
+  placement_limits:
+    single_gpu:
+      max_context_length: 98304
+      minimum_gpu_memory_gb: 20
+      evidence: measured
+    two_gpu:
+      max_context_length: 262144
+      minimum_gpu_memory_gb: 20
+      evidence: measured
+
+defaults:
+  temperature: 1.0
+  top_p: 0.95
+  maximum_output_tokens: 2048
+
+capabilities:
+  - chat
+  - streaming

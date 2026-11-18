@@ -1,0 +1,38 @@
+id: foundations-aliases-vs-gpus
+track: foundations
+title: Aliases vs GPUs
+summary: Clients use stable model aliases — never worker names, GPU indexes, or filesystem
+  paths.
+duration_minutes: 5
+objectives:
+- Distinguish aliases from hardware
+- Avoid naming GPUs in client prompts
+sections:
+- title: Aliases are the product surface
+  body: Apps call `yonder-chat` (or another alias). Placement maps that alias to a
+    deployment on some worker and GPU — operators own that mapping.
+- title: Hardware is operator territory
+  body: GPU indexes and worker IDs belong in Models / Hardware / Operations, not in
+    training prompts or app configs.
+glossary_term_ids:
+- alias
+- deployment
+try_it:
+  kind: playground
+  label: Open Models
+  href: /models
+check:
+  kind: quiz
+  prompt: 'What should an app put in the OpenAI `model` field?'
+  options:
+  - id: a
+    label: worker-ai1 / GPU 0
+  - id: b
+    label: A stable alias like yonder-chat
+  - id: c
+    label: The GGUF path on disk
+  correct_option_id: b
+  explanation: Clients use aliases; operators map aliases to deployments.
+completion: check_passed
+prerequisites:
+- foundations-gateway-only

@@ -1,0 +1,38 @@
+id: foundations-honest-readiness
+track: foundations
+title: Reading readiness honestly
+summary: 'Learn the labels: READY, not_ready, training_scenario, not_supported — and
+  never invent metrics.'
+duration_minutes: 6
+objectives:
+- Recognize honest availability labels
+- Refuse fabricated GPU metrics
+sections:
+- title: Labels over vibes
+  body: Lab demos prefer live aliases when READY. Otherwise they fall back to labeled
+    `training_scenario` mocks. Product generation may stay `not_supported` until a
+    worker exists.
+- title: Hardware honesty
+  body: Unavailable metrics use explicit states such as `not_reported`, `collection_failed`,
+    or `worker_disconnected` — never made-up temps or utilization.
+glossary_term_ids:
+- ready
+- lab-live
+try_it:
+  kind: recipe
+  label: Open Recipes
+  href: /recipes
+  recipe_id: ticket-triage
+check:
+  kind: eval_case
+  prompt: >-
+    In 2–4 sentences, explain when Lab uses training_scenario vs live inference,
+    and what you show when a GPU metric is unavailable. Include the words not_reported
+    and training_scenario.
+  expect_substrings:
+  - not_reported
+  - training_scenario
+  case_sensitive: false
+completion: check_passed
+prerequisites:
+- foundations-chat-streaming

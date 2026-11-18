@@ -1,0 +1,9 @@
+# Lab live runtime mapping — prefer these aliases when READY.
+# Falls back to training_scenario mocks when the alias is unavailable.
+# Generation stays mock / not_supported until a gen worker exists.
+
+chat_alias: yonder-chat
+rag_alias: yonder-chat
+structured_alias: yonder-chat
+tools_alias: yonder-chat
+generation_enabled: false

@@ -1,0 +1,152 @@
+"""Shared typed contracts for Yonder services."""
+
+from yonder_contracts.capabilities import CapabilityAvailability, ModalityCapability
+from yonder_contracts.embeddings import (
+    EmbeddingProvider,
+    EmbeddingRequest,
+    EmbeddingResult,
+    EmbeddingVector,
+)
+from yonder_contracts.errors import ErrorBody, ErrorCode, ErrorResponse
+from yonder_contracts.generation import (
+    GenerationAssetRef,
+    GenerationJob,
+    GenerationJobStatus,
+    GenerationMode,
+    GenerationProgress,
+    GenerationProvider,
+    GenerationRequest,
+    MediaKind,
+)
+from yonder_contracts.hardware import (
+    GpuMetrics,
+    HardwareInventory,
+    HostMetrics,
+    MetricAvailability,
+    MetricValue,
+    NetworkInterfaceMetrics,
+    StorageMetrics,
+    WorkerRuntimeStatus,
+)
+from yonder_contracts.inference import (
+    ChatChunk,
+    ChatMessage,
+    ChatRequest,
+    ChatUsage,
+    Deployment,
+    DeploymentSpec,
+    InferenceProvider,
+    ProviderHealth,
+    ProviderHealthStatus,
+    ProviderModel,
+)
+from yonder_contracts.model_bundles import (
+    BundleStatus,
+    BundleVerificationResult,
+    ModelBundleManifest,
+    verify_bundle_dir,
+)
+from yonder_contracts.placement import (
+    GpuPlacement,
+    PlacementMode,
+    UnloadConflict,
+    UnloadConflictReason,
+    VramFitAssessment,
+    VramFitStatus,
+    VramRequirement,
+    WorkerGpuCapacity,
+    assess_vram_fit,
+)
+from yonder_contracts.principal import RequestPrincipal
+from yonder_contracts.providers import RequestContextProvider
+from yonder_contracts.reranking import (
+    RerankingProvider,
+    RerankRequest,
+    RerankResult,
+    RerankResultItem,
+)
+from yonder_contracts.speech import (
+    SpeechKind,
+    SpeechProvider,
+    SynthesizeRequest,
+    SynthesizeResult,
+    TranscribeRequest,
+    TranscribeResult,
+)
+from yonder_contracts.structured import (
+    SchemaRegistryEntry,
+    StructuredResponseFormat,
+    StructuredValidationResult,
+)
+from yonder_contracts.tools import ToolCall, ToolDefinition, ToolResult
+from yonder_contracts.versioning import SERVICE_VERSION
+
+__all__ = [
+    "BundleStatus",
+    "BundleVerificationResult",
+    "CapabilityAvailability",
+    "ChatChunk",
+    "ChatMessage",
+    "ChatRequest",
+    "ChatUsage",
+    "Deployment",
+    "DeploymentSpec",
+    "EmbeddingProvider",
+    "EmbeddingRequest",
+    "EmbeddingResult",
+    "EmbeddingVector",
+    "ErrorBody",
+    "ErrorCode",
+    "ErrorResponse",
+    "GenerationAssetRef",
+    "GenerationJob",
+    "GenerationJobStatus",
+    "GenerationMode",
+    "GenerationProgress",
+    "GenerationProvider",
+    "GenerationRequest",
+    "GpuMetrics",
+    "GpuPlacement",
+    "HardwareInventory",
+    "HostMetrics",
+    "InferenceProvider",
+    "MediaKind",
+    "MetricAvailability",
+    "MetricValue",
+    "ModalityCapability",
+    "ModelBundleManifest",
+    "NetworkInterfaceMetrics",
+    "PlacementMode",
+    "ProviderHealth",
+    "ProviderHealthStatus",
+    "ProviderModel",
+    "RerankRequest",
+    "RerankResult",
+    "RerankResultItem",
+    "RerankingProvider",
+    "RequestContextProvider",
+    "RequestPrincipal",
+    "SERVICE_VERSION",
+    "SchemaRegistryEntry",
+    "SpeechKind",
+    "SpeechProvider",
+    "StorageMetrics",
+    "StructuredResponseFormat",
+    "StructuredValidationResult",
+    "SynthesizeRequest",
+    "SynthesizeResult",
+    "ToolCall",
+    "ToolDefinition",
+    "ToolResult",
+    "TranscribeRequest",
+    "TranscribeResult",
+    "UnloadConflict",
+    "UnloadConflictReason",
+    "VramFitAssessment",
+    "VramFitStatus",
+    "VramRequirement",
+    "WorkerGpuCapacity",
+    "WorkerRuntimeStatus",
+    "assess_vram_fit",
+    "verify_bundle_dir",
+]

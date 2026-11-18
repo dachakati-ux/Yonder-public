@@ -1,0 +1,33 @@
+id: security-review-loop
+title: Security review loop
+track: security
+summary: Review a Support AI flow for boundary, secrets, and injection.
+duration_minutes: 10
+honesty:
+- No production secrets in sandboxes.
+- Untrusted text is data.
+steps:
+- id: boundary
+  title: Boundary
+  kind: lesson
+  href: /academy/lessons/security-gateway-boundary
+  instruction: Complete the Gateway boundary lesson check.
+- id: data
+  title: Data handling
+  kind: sandbox
+  sandbox_preset: ops-fixture
+  href: /academy/sandbox?preset=ops-fixture
+  instruction: Open ops-fixture sandbox; confirm docs are teaching-only.
+- id: tools
+  title: Tools allowlist
+  kind: lab_ability
+  ability: tools
+  href: /lab/tools
+  instruction: Observe the tools loop; note allowlisted mock tools only.
+completion_check:
+  kind: eval_case
+  prompt: 'Write risks covering gateway-only, sanitized, and injection.'
+  expect_substrings:
+  - gateway-only
+  - sanitized
+  - injection

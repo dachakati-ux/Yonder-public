@@ -1,0 +1,43 @@
+id: operator-readiness-loop
+title: Operator readiness loop
+track: operator
+summary: Confirm Models and Capacity honesty before promising live try-it —
+  refuse invented READY.
+duration_minutes: 12
+honesty:
+- Readiness comes from Gateway route state only.
+- Never invent green for demos.
+- Clients use aliases, never GPU indexes.
+steps:
+- id: models
+  title: Inspect Models
+  kind: playground
+  href: /models
+  instruction: Open Models. Note which aliases are enabled and which deployments
+    report READY vs not.
+- id: capacity
+  title: Read Capacity panel
+  kind: playground
+  href: /academy/capacity
+  instruction: Open /academy/capacity. Record availability for teaching aliases
+    (ready / not_ready / not_reported).
+- id: recipe-badge
+  title: Check a Recipe readiness badge
+  kind: recipe
+  recipe_id: ticket-triage
+  href: /?recipe=ticket-triage
+  instruction: Open a Recipe and observe real readiness labeling — do not invent
+    live if the alias is not READY.
+- id: confirm
+  title: Confirm honesty
+  kind: check
+  href: /academy/missions/operator-readiness-loop
+  instruction: Submit a check that names READY or not_ready and refuses invention.
+completion_check:
+  kind: eval_case
+  prompt: >-
+    Summarize readiness using READY or not_ready and say you will not invent green.
+  expect_substrings:
+  - invent
+  - READY
+  case_sensitive: false

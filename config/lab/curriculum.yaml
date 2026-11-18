@@ -1,0 +1,118 @@
+version: 1
+tracks:
+- id: foundations
+  title: Foundations
+  summary: Gateway-only AI, aliases, streaming chat, and honest readiness labels.
+  audience: everyone
+  lesson_ids:
+  - foundations-gateway-only
+  - foundations-aliases-vs-gpus
+  - foundations-chat-streaming
+  - foundations-honest-readiness
+- id: trust
+  title: Trust & evaluation
+  summary: 'Anti-hype literacy: hallucinations, citations, fail-closed schemas, honest
+    errors.'
+  audience: everyone
+  lesson_ids:
+  - trust-hallucination-traps
+  - trust-citations-required
+  - trust-fail-closed-schemas
+  - trust-read-errors-honestly
+- id: site_ops
+  title: Site Ops
+  summary: Data center hardware literacy with Gateway-mediated AI — SEL, health, tickets,
+    RMA, parts.
+  audience: site_ops
+  lesson_ids:
+  - site-ops-gateway-only
+  - site-ops-reading-honesty
+  - site-ops-sel-triage
+  - site-ops-issue-event-schema
+  - site-ops-health-sweep
+  - site-ops-health-findings-schema
+  - site-ops-signal-to-ticket
+  - site-ops-runbook-rag
+  - site-ops-inventory-qa
+  - site-ops-rma-packet
+  - site-ops-parts-ledger
+  - site-ops-worker-agents
+  - site-ops-capstone
+  - site-ops-trust-check
+- id: support
+  title: Support
+  summary: Ticket triage, knowledge RAG, structured intake — Gateway-mediated Support
+    literacy.
+  audience: support
+  lesson_ids:
+  - support-gateway-only
+  - support-triage-basics
+  - support-knowledge-rag
+  - support-structured-intake
+  - support-capstone
+  - support-trust-check
+- id: security
+  title: Security
+  summary: Boundary, sanitized data, prompt-injection awareness for AI features.
+  audience: security
+  lesson_ids:
+  - security-gateway-boundary
+  - security-data-handling
+  - security-prompt-injection
+  - security-capstone
+- id: pm
+  title: Product
+  summary: Aliases, honest readiness, mission briefs for internal AI products.
+  audience: pm
+  lesson_ids:
+  - pm-aliases-not-gpus
+  - pm-honest-readiness
+  - pm-mission-briefs
+  - pm-capstone
+- id: managers
+  title: Managers
+  summary: What Yonder is, CPU vs GPU funding, trust over hype.
+  audience: managers
+  lesson_ids:
+  - mgr-what-yonder-is
+  - mgr-funding-cpu-gpu
+  - mgr-trust-over-hype
+  - mgr-capstone
+- id: capacity
+  title: Capacity & cost
+  summary: Aliases, context, CPU vs GPU, and reading real not_ready — no fake dashboards.
+  audience: builders_managers
+  lesson_ids:
+  - capacity-aliases-concurrency
+  - capacity-context-windows
+  - capacity-cpu-vs-gpu
+  - capacity-read-not-ready
+- id: operator
+  title: Operator
+  summary: Manifests, placement, alias lifecycle, and readiness honesty for operators.
+  audience: operators
+  lesson_ids:
+  - operator-manifests-placement
+  - operator-recipes-proof
+  - operator-alias-lifecycle
+  - operator-placement-limits
+  - operator-lab-live-vs-mock
+  - operator-admission-honesty
+- id: builder
+  title: Builder
+  summary: Tools, RAG, structured fail-closed, embeddings/rerank, and honest eval.
+  audience: builders
+  lesson_ids:
+  - builder-tools-loop
+  - builder-rag-citations
+  - builder-fixture-tools
+  - builder-structured-failclosed
+  - builder-embed-rerank
+  - builder-eval-expect-substrings
+sandbox:
+  max_sandboxes_per_principal: 3
+  max_documents_per_sandbox: 8
+  max_chars_per_document: 8000
+  max_chars_per_sandbox: 40000
+  max_retrieve_runs_per_sandbox: 40
+  max_parts_entries_per_sandbox: 50

@@ -1,0 +1,6 @@
+exfatprogs
+fuse
+fuse-common
+fuse-exfat
+fuse-libs
+which

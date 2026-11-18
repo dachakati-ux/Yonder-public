@@ -1,0 +1,24 @@
+# Node overlay notes for ai1 (control plane).
+# Apply via env file (.env.control-plane), not by merging this YAML automatically today.
+
+node: ai1
+role: gateway+console
+hostname: control-plane.example.internal
+ipv4: 192.0.2.10
+services:
+  - gateway
+  - console
+# Optional: postgres via compose persistence profile
+
+hints:
+  gateway_url_for_workers: http://control-plane.example.internal:8080
+  console_url: http://control-plane.example.internal:3000
+  cors_origins:
+    - http://control-plane.example.internal:3000
+    - http://192.0.2.10:3000
+  publish:
+    gateway: "0.0.0.0:8080"
+    console: "0.0.0.0:3000"
+  worker_allowlist:
+    - worker-ai3
+    - worker-ai7

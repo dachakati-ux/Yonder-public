@@ -1,0 +1,136 @@
+environment: development
+
+security:
+  mode: development
+  development_principal:
+    subject: yonder-local-developer
+    principal_type: user
+    capabilities:
+      - chat.use
+      - chat.experimental
+      - speech.use
+      - coder.use
+      - lab.use
+      - academy.instruct
+      - embeddings.use
+      - tools.use
+      - mcp.use
+      - rag.use
+      - rag.manage
+      - generation.use
+      - models.view
+      - models.manage
+      - hardware.view
+      - operations.view
+      - operations.manage
+      - workers.report
+
+gateway:
+  host: 127.0.0.1
+  port: 8080
+
+worker:
+  host: 127.0.0.1
+  port: 8090
+
+worker_id: local-dev-worker
+worker_display_name: Local Mac development worker
+gateway_url: http://127.0.0.1:8080
+console_origin: http://127.0.0.1:3000
+cors_origins:
+  - http://127.0.0.1:3000
+  - http://localhost:3000
+
+# Development security mode binds to localhost by default.
+allow_non_localhost_bind_in_development: false
+
+logging:
+  level: INFO
+  json_logs: true
+  log_prompt_and_response_content: false
+
+admission:
+  max_prompt_chars: 100000
+  max_output_tokens: 4096
+  max_active_requests_per_deployment: 8
+  max_queue_depth: 32
+  queue_timeout_seconds: 30
+  inference_timeout_seconds: 120
+
+worker_heartbeat_timeout_seconds: 30
+state_file: data/gateway-state.json
+
+# Durable control-plane + conversations + audit/ledger for local Mac work.
+database_url: sqlite:///./data/yonder.db
+
+conversations:
+  max_conversations_per_principal: 100
+  max_age_days: 30
+  max_messages_per_conversation: 500
+
+routing:
+  require_capability_for_experimental: true
+  experimental_capability: chat.experimental
+  default_lane: production
+
+worker_registration:
+  mode: allow_all
+  allowed_worker_ids: []
+  accept_untrusted: true
+
+workers: []
+
+# Gateway speech proxies to the local worker. Worker dry_run is for unit/smoke
+# only — lab should load real Whisper/Piper bundles before claiming READY.
+speech:
+  enabled: true
+  worker_base_url: http://127.0.0.1:8090
+  request_timeout_seconds: 120
+  stt_alias: yonder-stt
+  tts_alias: yonder-tts
+
+speech_runtime:
+  enabled: true
+  dry_run: true
+  allowed_model_roots:
+    - /srv/yonder-storage/model-bundles
+  output_root: data/generated
+  device: cpu
+
+coder:
+  enabled: true
+  cage_root: data/coder-cages
+  grantable_roots: []
+  max_read_bytes: 262144
+  write_unlock: false
+  # Agent budgets (live-only; no pretend mode). Tuned from the first live
+  # canary against a reasoning-heavy local model — see docs/coder-live-canary.md.
+  model_alias: yonder-coder
+  max_agent_turns: 6
+  max_fix_iterations: 3
+  max_output_tokens: 1200
+  context_budget_tokens: 5000
+  check_isolation: none
+  # Serena symbol tools only (fail closed). Requires mcp.enabled + serena server.
+  mcp_tools:
+    - mcp.serena.get_symbols_overview
+    - mcp.serena.find_symbol
+    - mcp.serena.find_referencing_symbols
+
+# MCP — Gateway client (/v1/mcp/*) + IDE yonder-mcp flag. Serena on loopback.
+# bridge_into_tool_executor stays false; coder uses coder.mcp_tools allowlist.
+# See docs/mcp.md.
+mcp:
+  enabled: true
+  server_enabled: true
+  server_bind: 127.0.0.1
+  server_port: 8095
+  bridge_into_tool_executor: false
+  http_url_allowlist:
+    - http://127.0.0.1:8900
+    - http://host.docker.internal:8900
+  servers:
+    - name: serena
+      transport: http
+      url: http://127.0.0.1:8900/mcp
+      enabled: true

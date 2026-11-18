@@ -1,0 +1,35 @@
+id: mgr-funding-cpu-gpu
+track: managers
+title: Funding CPU vs GPU
+summary: Learners and sandboxes stress CPU first; live try-it needs GPUs.
+duration_minutes: 6
+objectives:
+- Separate CPU vs GPU spend
+- Avoid buying GPUs for progress DB work
+sections:
+- title: CPU hosts
+  body: Progress DB, RAG indexes, console/Gateway headroom, sandbox quotas.
+- title: GPUs
+  body: READY chat/embed/rerank for concurrent Academy try-it.
+glossary_term_ids:
+- academy
+- ready
+try_it:
+  kind: playground
+  label: Hardware
+  href: /hardware
+check:
+  kind: quiz
+  prompt: 'Academy progress storage belongs on:'
+  options:
+  - id: a
+    label: GPU VRAM
+  - id: b
+    label: CPU hosts / control-plane storage
+  - id: c
+    label: User laptops only
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- mgr-what-yonder-is

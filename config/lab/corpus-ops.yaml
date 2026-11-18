@@ -1,0 +1,13 @@
+documents:
+- id: ops-change-window
+  title: Teaching change windows
+  text: 'Lab teaching policy: non-emergency changes weekday 10:00-16:00 local. Emergencies
+    follow incident commander. Not a production contract.'
+- id: ops-oncall
+  title: Teaching on-call notes
+  text: On-call acknowledges within teaching SLA of 15 minutes for lab sev simulations.
+    Do not invent page history.
+- id: ops-sanitized-note
+  title: Sanitized data reminder
+  text: Practice corpora are sanitized. Never paste production tokens, keys, or personal
+    data into Academy sandboxes.

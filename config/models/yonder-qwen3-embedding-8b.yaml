@@ -1,0 +1,48 @@
+# Derived GGUF converted on ai1 2026-07-30 from the untouched Qwen3-Embedding-8B
+# safetensors bundle (conversion.json records source, outtype, and sha256
+# a49e9c4fa812bd6c9a6b6acbc52a1e3b41eef7e112f7b9dc87e2c739dba41ebc).
+# Measured artifact: 8047105824 bytes. Loopback embedding canary PASS on GPU 0.
+# Alias yonder-embed-8b is operator-enabled only after a Gateway embedding canary.
+id: yonder-qwen3-embedding-8b
+display_name: Qwen3 Embedding 8B (derived GGUF)
+description: Derived Q8_0 GGUF embedding model for llama.cpp on a single V100
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/derived/qwen3-embedding-8b/20260730T193915Z/qwen3-embedding-8b.q8_0.gguf
+
+runtime:
+  provider: llama-cpp-embeddings
+  profile: embedding
+  model_identifier: qwen3-embedding-8b
+  dtype: fp16
+  quantization: q8_0
+  context_length: 8192
+  tensor_parallel_size: 1
+  pooling: last
+  embedding: true
+
+requirements:
+  # Measured weights are ~7.5 GiB; the remainder is context/KV headroom.
+  minimum_gpu_memory_gb: 10
+  supported_gpu_families:
+    - volta
+  # 2026-08-08 measured: 1× load OK 163840 (~31536 MiB, <2 GiB free) → safe 131072 (~26896).
+  # 2× confirmed READY @ 131072. Rejected 196608.
+  placement_limits:
+    single_gpu:
+      max_context_length: 131072
+      minimum_gpu_memory_gb: 10
+      evidence: measured
+    two_gpu:
+      max_context_length: 131072
+      minimum_gpu_memory_gb: 10
+      evidence: measured
+
+defaults:
+  temperature: 0.0
+  top_p: 1.0
+  maximum_output_tokens: 1
+
+capabilities:
+  - embeddings

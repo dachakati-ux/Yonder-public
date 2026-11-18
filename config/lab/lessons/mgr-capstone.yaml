@@ -1,0 +1,31 @@
+id: mgr-capstone
+track: managers
+title: Manager capstone
+summary: Walk the 15-minute Academy demo path and record what you would fund next.
+duration_minutes: 8
+objectives:
+- Complete the demo path narrative
+- State one CPU and one GPU ask
+sections:
+- title: Demo path
+  body: Foundations to Trust highlight to Site Ops Practice desk to Support mission
+    to Builder tools.
+- title: Ask
+  body: Fund CPU for Academy scale; GPUs for concurrent live try-it; content time
+    for role tracks.
+glossary_term_ids:
+- academy
+try_it:
+  kind: playground
+  label: Missions
+  href: /academy/missions
+check:
+  kind: eval_case
+  prompt: 'Name what you would fund next using the words CPU and GPU.'
+  expect_substrings:
+  - CPU
+  - GPU
+  case_sensitive: false
+completion: check_passed
+prerequisites:
+- mgr-trust-over-hype

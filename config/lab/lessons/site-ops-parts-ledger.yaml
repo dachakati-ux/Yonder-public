@@ -1,0 +1,37 @@
+id: site-ops-parts-ledger
+track: site_ops
+title: Parts ledger
+summary: Record part usage against an incident in a principal-scoped sandbox ledger.
+duration_minutes: 8
+objectives:
+- Add a parts ledger entry in the Practice desk
+- Keep entries scoped to your sandbox
+sections:
+- title: Sandbox ledger
+  body: Practice recording part number, quantity, and incident id. Quotas apply; reset
+    clears your sandbox only.
+- title: Not shared inventory
+  body: Sandbox ledgers never mutate shared teaching corpus or real warehouse systems.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: sandbox
+  label: Open Practice desk parts
+  href: /academy/sandbox?preset=site-ops-fixture
+  sandbox_preset: site-ops-fixture
+check:
+  kind: quiz
+  prompt: 'Whose parts ledger do you write to in Academy?'
+  options:
+  - id: a
+    label: The shared lab warehouse DB
+  - id: b
+    label: Your principal-scoped sandbox ledger
+  - id: c
+    label: A BMC NVRAM area
+  correct_option_id: b
+  explanation: See lesson sections for the honesty rule.
+completion: check_passed
+prerequisites:
+- site-ops-rma-packet

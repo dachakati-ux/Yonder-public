@@ -1,0 +1,437 @@
+# Yonder help glossary — authored definitions for the console helper search.
+# Do not invent hardware state here; describe platform concepts only.
+# Served by Gateway GET /v1/help/glossary. Console keeps a typed offline mirror
+# under apps/console/src/features/help/glossaryData.ts as fallback.
+
+terms:
+  - id: alias
+    term: Alias
+    aliases: [model alias, yonder-chat]
+    short: Stable client-facing name for a model route (not a GPU or path).
+    body: >
+      Clients and Recipes call models by alias (for example yonder-chat or
+      yonder-embed-4b). An alias points at a deployment. Prefer aliases over
+      worker names, GPU indexes, or filesystem paths.
+    related: [ready, deployment, gateway-only]
+    links:
+      - label: Models
+        href: /models
+      - label: Recipes
+        href: /recipes
+
+  - id: ready
+    term: READY
+    aliases: [ready, deployment ready, loaded]
+    short: Deployment status meaning the model is loaded and accepting requests.
+    body: >
+      A READY deployment has finished loading weights on a worker and can serve
+      inference through its bound alias. Loading, failed, drained, or unbound
+      aliases are not READY. Live Lab and playgrounds need READY aliases;
+      otherwise Lab falls back to labeled training mocks and Chat shows Gateway
+      errors honestly.
+    related: [alias, deployment, worker]
+    links:
+      - label: Models
+        href: /models
+      - label: Operations
+        href: /operations
+
+  - id: deployment
+    term: Deployment
+    aliases: [model deployment]
+    short: A loaded model instance on a specific worker and GPU set.
+    body: >
+      Operators load a model definition onto a worker with placement mode and GPU
+      indexes. The resulting deployment has a status (loading, ready, failed,
+      draining). Aliases bind to deployments so clients stay stable when hardware
+      changes.
+    related: [alias, ready, placement, worker]
+    links:
+      - label: Models
+        href: /models
+
+  - id: placement
+    term: Placement
+    aliases: [placement_limits, placement mode, single_gpu, two_gpu]
+    short: Rules for which GPUs and max context a model may use.
+    body: >
+      placement_mode is single_gpu or two_gpu. Manifest placement_limits set
+      max_context_length per mode. Caps should be measured before flipping
+      evidence to measured — never invent peak VRAM.
+    related: [ready, gauntlet, deployment]
+    links:
+      - label: Models
+        href: /models
+
+  - id: gateway-only
+    term: Gateway-only
+    aliases: [gateway boundary]
+    short: All inference traffic must go through Yonder Gateway.
+    body: >
+      Consoles and internal apps must never call an inference runtime or GPU
+      worker directly. The Gateway enforces aliases, admission, and trusted
+      request context.
+    related: [alias, request-principal, worker]
+    links:
+      - label: Lab
+        href: /lab
+
+  - id: request-principal
+    term: RequestPrincipal
+    aliases: [trusted principal, principal]
+    short: Normalized identity/capability context from upstream security.
+    body: >
+      Yonder does not authenticate corporate users. Upstream layers establish
+      identity; Yonder accepts a trusted RequestPrincipal through a replaceable
+      provider. Capabilities such as chat.use and lab.use gate APIs.
+    related: [gateway-only]
+    links:
+      - label: Lab security notes
+        href: /lab/rag
+
+  - id: not-reported
+    term: not_reported
+    aliases: [honest metrics, not_supported, not_ready]
+    short: Explicit state when a metric or capability is unavailable.
+    body: >
+      Yonder never invents GPU metrics or readiness. Unavailable values use
+      states such as not_reported, not_supported, permission_unavailable, or
+      worker_disconnected. Helper search and Recipes use the same honesty rule.
+    related: [ready, gateway-only]
+    links:
+      - label: Hardware
+        href: /hardware
+
+  - id: gauntlet
+    term: Fleet gauntlet
+    aliases: [gauntlet, context ladder]
+    short: Gateway-orchestrated measurement battery across hosts and models.
+    body: >
+      The fleet gauntlet runs context ladders, inference probes, and optional
+      stress via Gateway load/unload. It records measured results and never
+      auto-edits manifests. Promote placement caps only after human review.
+    related: [placement, ready]
+    links:
+      - label: Models
+        href: /models
+
+  - id: recipes
+    term: Recipes
+    aliases: [ops recipes]
+    short: Curated ops workflows with Chat deep-links and Copy curl.
+    body: >
+      Recipes prove how AI can streamline company operations (triage, runbook
+      Q&A, structured intake, and more). Cards show honest readiness and can
+      open Chat, Lab, or playgrounds.
+    related: [alias, ready, lab-live]
+    links:
+      - label: Recipes
+        href: /recipes
+
+  - id: lab-live
+    term: Lab live mode
+    aliases: [training_scenario, live lab]
+    short: Lab prefers a READY chat alias; otherwise labeled training mocks.
+    body: >
+      When the configured Lab chat alias is READY, /v1/lab/run executes live
+      (mode live). If not, demos fall back to training_scenario mocks and say so.
+      Image/video generation uses Diffusers when yonder-image / yonder-video
+      are READY; otherwise jobs report not_supported honestly.
+    related: [ready, alias, recipes, generation-studio]
+    links:
+      - label: Lab
+        href: /lab
+
+  - id: generation-studio
+    term: Generation (Chat + Studio)
+    aliases: [studio, txt2img, yonder-image, yonder-video]
+    short: Explicit Chat Image/Video mode and Studio create Gateway generation jobs.
+    body: >
+      Chat composer modes Chat | Image | Video keep text chat separate from
+      Diffusers jobs. Image/Video call /v1/generation/jobs and show artifacts
+      inline. Studio adds advanced controls (negatives, seed, img2img). Never
+      invent READY — load a Diffusers model on Models first.
+    related: [gateway-only, ready, alias]
+    links:
+      - label: Chat
+        href: /
+      - label: Studio
+        href: /studio
+      - label: Models
+        href: /models
+
+  - id: worker
+    term: Worker
+    aliases: [GPU worker, worker-ai1]
+    short: Host process that owns GPUs and runs inference under Gateway control.
+    body: >
+      Workers register with the control plane and report hardware. Clients never
+      address workers for inference; they use aliases. worker-ai1, worker-ai3,
+      and worker-ai7 are lab examples — not model names.
+    related: [deployment, gateway-only, alias]
+    links:
+      - label: Hardware
+        href: /hardware
+      - label: Operations
+        href: /operations
+
+  - id: model-definition
+    term: Model definition
+    aliases: [model, model manifest]
+    short: Catalog entry describing artifacts, capabilities, and placement limits.
+    body: >
+      A model definition is configuration (manifest), not a running process. You
+      load a definition onto a worker to create a deployment, then bind an alias.
+    related: [deployment, alias, placement]
+    links:
+      - label: Models
+        href: /models
+
+  - id: streaming
+    term: Streaming
+    aliases: [chat streaming, SSE]
+    short: Tokens arrive incrementally over a Gateway-mediated stream.
+    body: >
+      Chat completions can stream through the Gateway as server-sent events.
+      Streaming still uses aliases and trusted request context — it is not a
+      side channel to workers.
+    related: [alias, gateway-only, ready]
+    links:
+      - label: Chat
+        href: /
+
+  - id: tools
+    term: Tool use
+    aliases: [tools loop, tool_call]
+    short: Plan → tool_call → tool_result → grounded answer.
+    body: >
+      Models call structured tools when they need live or external data. Never
+      invent tool results. Lab tools demos show the loop through the Gateway.
+    related: [gateway-only, lab-live]
+    links:
+      - label: Tools Lab
+        href: /lab/tools
+
+  - id: rag
+    term: RAG
+    aliases: [retrieval augmented generation]
+    short: Retrieve trusted chunks, then generate with citations.
+    body: >
+      Retrieval-augmented generation injects retrieved documents into the prompt.
+      Answers should stay grounded in those chunks and show citations.
+    related: [citation, lab-live, gateway-only]
+    links:
+      - label: RAG Lab
+        href: /lab/rag
+      - label: Practice desk
+        href: /academy/sandbox
+
+  - id: citation
+    term: Citation
+    aliases: [citations, grounded citation]
+    short: Pointer to a retrieved document or chunk that supports a claim.
+    body: >
+      Citations make grounding checkable. Academy and Lab RAG demos should show
+      which teaching documents were used — not confidence scores alone.
+    related: [rag, not-reported]
+    links:
+      - label: RAG Lab
+        href: /lab/rag
+
+  - id: academy
+    term: Academy
+    aliases: [training lab curriculum, interactive training]
+    short: Ordered curriculum with progress keyed to RequestPrincipal.subject.
+    body: >
+      Academy sits on top of Lab and Recipes. Progress and practice sandboxes are
+      principal-scoped and auth-ready. Yonder does not create local user accounts.
+    related: [gateway-only, request-principal, recipes, mission, cohort, capacity, workbench]
+    links:
+      - label: Academy
+        href: /academy
+      - label: Practice desk
+        href: /academy/sandbox
+
+  - id: mission
+    term: Mission
+    aliases: [workflow studio, academy mission]
+    short: Multi-step Gateway-mediated practice with authored honesty rules.
+    body: >
+      Missions walk Recipes, Practice desk, and Lab abilities in order. Steps and
+      checks never invent customers, serials, or readiness.
+    related: [academy, recipes]
+    links:
+      - label: Missions
+        href: /academy/missions
+
+  - id: cohort
+    term: Cohort
+    aliases: [challenge, academy cohort]
+    short: Time-boxed challenge with criteria met or missed — never a vanity score.
+    body: >
+      Cohorts group challenges with honest rubrics. Completions boards list
+      principals who met criteria without ranks or invented scores.
+    related: [academy, mission]
+    links:
+      - label: Cohorts
+        href: /academy/cohorts
+
+  - id: capacity
+    term: Capacity
+    aliases: [cpu vs gpu, funding literacy]
+    short: Alias readiness and CPU-first vs GPU concurrency literacy from live Gateway state.
+    body: >
+      Capacity panels report alias availability as ready, not_ready, or
+      not_reported. Fund CPU for Academy scale; GPUs for concurrent live try-it.
+    related: [academy, ready, alias]
+    links:
+      - label: Capacity
+        href: /academy/capacity
+
+  - id: workbench
+    term: Workbench
+    aliases: [academy notes, personal notes]
+    short: Principal-scoped notes for mission evidence and export.
+    body: >
+      Workbench notes stay tied to RequestPrincipal.subject. Export is for the
+      learner — not a shared leaderboard.
+    related: [academy, mission]
+    links:
+      - label: Workbench
+        href: /academy/workbench
+
+  - id: speech-to-text
+    term: Speech-to-text (STT)
+    aliases: [STT, transcribe, voice input]
+    short: Gateway-mediated transcription via worker speech runtime.
+    body: >
+      The console uploads mic audio to POST /v1/speech/transcribe. Workers run
+      Whisper-class models when loaded; otherwise availability is not_supported
+      or not_configured — never invent a transcript as ready.
+    related: [text-to-speech, wake-word, gateway-only]
+    links:
+      - label: Chat
+        href: /
+
+  - id: text-to-speech
+    term: Text-to-speech (TTS)
+    aliases: [TTS, synthesize, voice reply]
+    short: Gateway-mediated speech synthesis for assistant replies.
+    body: >
+      Chat can call POST /v1/speech/synthesize and play the returned artifact.
+      Piper (or dry_run mock) must be READY; mute/auto-play is a console preference.
+    related: [speech-to-text, gateway-only]
+    links:
+      - label: Chat
+        href: /
+
+  - id: wake-word
+    term: Wake word
+    aliases: [Yonder command, voice command]
+    short: Leading “Yonder” on a transcript gates navigation commands.
+    body: >
+      After STT, only transcripts that start with Yonder may run the allowlisted
+      command router (open Academy, Studio, Recipes, or let’s chat). Mid-sentence
+      mentions do not command. “Yonder let’s chat” asks new vs existing — never
+      silently creates a conversation.
+    related: [speech-to-text]
+    links:
+      - label: Chat
+        href: /
+
+  - id: coder-assistant
+    term: Coder assistant
+    aliases: [yonder-coder, Phase A coder]
+    short: Coding chat on alias yonder-coder — propose diffs; workspace tools are separate.
+    body: >
+      Phase A of the internal coder track. Humans paste code; the model reviews and
+      may emit PROPOSED ONLY unified diffs. It must not claim execution, repo access,
+      or applied patches. Alias readiness comes from Capacity — never invent READY.
+    related: [coder-agent, coder-workspace, coder-pipeline, gateway-only, ready]
+    links:
+      - label: Coder desk
+        href: /coder
+      - label: Coder docs
+        href: /help#coder-assistant
+
+  - id: coder-agent
+    term: Coder agent
+    aliases: [Phase B coder, sandboxed coder]
+    short: Gateway-orchestrated tool loop inside a path-jailed workspace.
+    body: >
+      Read tools (list_dir, read_file, search) always. apply_patch and run_check only
+      when write_unlock is on and the pipeline stage allows writes. No free-form shell.
+    related: [coder-assistant, coder-workspace, coder-pipeline, path-jail]
+    links:
+      - label: Coder desk
+        href: /coder
+
+  - id: coder-workspace
+    term: Coder workspace
+    aliases: [coder cage, path grant, local clone]
+    short: Principal-scoped cage, grant, or local git clone under policy.
+    body: >
+      Cages live under coder.cage_root. Grants and local clones require the source
+      path to sit under configured grantable roots. Tools never leave the jail;
+      secret-like paths are denied for read and write.
+    related: [coder-agent, path-jail, coder-pipeline]
+    links:
+      - label: Coder desk
+        href: /coder
+
+  - id: coder-pipeline
+    term: Coder pipeline
+    aliases: [coder run, dual-agent gate]
+    short: Staged run — explore, plan, implement, check, dual verify, local push.
+    body: >
+      Push requires two independent approve verdicts. Forgejo PR is not enabled yet.
+      write_unlock stays false until proof gates pass. See docs/coder.md.
+    related: [coder-agent, coder-workspace, gateway-only]
+    links:
+      - label: Coder desk
+        href: /coder
+      - label: Coder docs
+        href: /help#coder-pipeline
+
+  - id: path-jail
+    term: Path jail
+    aliases: [workspace jail, path escape]
+    short: realpath must stay under the granted workspace root.
+    body: >
+      Coder read tools resolve paths under the workspace root and reject .. escapes,
+      absolute paths, and secret-like names. Failures are explicit — never silently
+      rewrite to another tree.
+    related: [coder-workspace, gateway-only]
+    links:
+      - label: Coder desk
+        href: /coder
+
+  - id: mcp
+    term: MCP (Model Context Protocol)
+    aliases: [Model Context Protocol, yonder-mcp, mcp.use]
+    short: Gateway-mediated tool bridge for IDEs and allowlisted external MCP servers.
+    body: >
+      Cursor/Claude Desktop talk to the local yonder-mcp process (stdio or loopback
+      HTTP), which calls Gateway APIs only — the Console never speaks MCP. The
+      Gateway may also act as an MCP client to named servers in config when
+      mcp.enabled is true; tools are named mcp.server.tool. Defaults stay off;
+      HTTP URLs must match http_url_allowlist. See docs/mcp.md.
+    related: [gateway-only, coder-agent]
+    links:
+      - label: Help
+        href: /help#mcp
+
+  - id: forgejo-lab
+    term: Lab Forgejo
+    aliases: [Forgejo, local forge, yonder-forgejo]
+    short: Loopback git forge on ai1 for company tooling repos (SSH tunnel access).
+    body: >
+      Forgejo runs on ai1 at 127.0.0.1:3001 only. Operators reach it with
+      ssh -L 3001:127.0.0.1:3001 ai1. It is separate from Yonder Gateway auth and
+      is not wired to the coder ForgejoAdapter yet. LAB ONLY — pending security
+      review. See docs/forgejo-lab.md.
+    related: [coder-pipeline, gateway-only]
+    links:
+      - label: Help
+        href: /help#forgejo-lab
+

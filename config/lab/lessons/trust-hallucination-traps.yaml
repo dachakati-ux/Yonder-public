@@ -1,0 +1,37 @@
+id: trust-hallucination-traps
+track: trust
+title: Hallucination traps
+summary: Recognize when a fluent answer is inventing facts — and refuse to ship it.
+duration_minutes: 7
+objectives:
+- Spot invented serials, SLAs, and sensor readings
+- Prefer explicit unknown over a plausible lie
+sections:
+- title: Fluency is not evidence
+  body: Models can sound sure while inventing warranty dates, ticket owners, or GPU
+    temps. In Yonder, that is a product failure — not a clever completion.
+- title: Trap drill
+  body: If evidence is missing, say not_reported or unknown. Never fill schema fields
+    with guesses to 'help' the form validate.
+glossary_term_ids:
+- not-reported
+- gateway-only
+try_it:
+  kind: playground
+  label: Open Lab eval playground
+  href: /lab/eval
+check:
+  kind: quiz
+  prompt: 'A schema requires warranty_end but docs are silent. Best action?'
+  options:
+  - id: a
+    label: Guess five years from ship date so the form submits
+  - id: b
+    label: Leave blank / not_reported and fail closed if required
+  - id: c
+    label: Copy another host's warranty date
+  correct_option_id: b
+  explanation: Never invent warranty dates.
+completion: check_passed
+prerequisites:
+- foundations-honest-readiness

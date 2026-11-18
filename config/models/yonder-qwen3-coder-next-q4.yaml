@@ -1,0 +1,43 @@
+# GGUF coder lane (two-GPU recommended on V100-32GB).
+# Alias yonder-coder is operator-enabled after a successful placed load.
+id: yonder-qwen3-coder-next-q4
+display_name: Qwen3 Coder Next Q4
+description: Quantized coding MoE GGUF for llama.cpp; typically needs two V100s
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/Qwen3-Coder-Next-GGUF/Qwen3-Coder-Next-UD-Q4_K_XL.gguf
+
+runtime:
+  provider: llama-cpp
+  profile: chat
+  model_identifier: qwen3-coder-next-q4
+  dtype: fp16
+  quantization: int4
+  # 2026-08-08 measure: 2× READY through 65536 (~25842+24424 MiB). Default 32K.
+  context_length: 131072
+  tensor_parallel_size: 2
+
+requirements:
+  minimum_gpu_memory_gb: 24
+  supported_gpu_families:
+    - volta
+  # ~45–53 GB Q4 weights: single 32GB V100 cannot hold the model (max_context=0).
+  placement_limits:
+    single_gpu:
+      max_context_length: 0
+      minimum_gpu_memory_gb: 48
+      evidence: measured
+    two_gpu:
+      max_context_length: 262144
+      minimum_gpu_memory_gb: 24
+      evidence: measured
+
+defaults:
+  temperature: 0.2
+  top_p: 0.9
+  maximum_output_tokens: 4096
+
+capabilities:
+  - chat
+  - streaming

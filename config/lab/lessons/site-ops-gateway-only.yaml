@@ -1,0 +1,37 @@
+id: site-ops-gateway-only
+track: site_ops
+title: Gateway-only Site Ops
+summary: Why Site Ops tools talk to BMCs and collectors only through Gateway patterns
+  — never from the browser.
+duration_minutes: 8
+objectives:
+- State the Gateway-only rule for hardware tooling
+- Explain why BMC access is not a console side channel
+sections:
+- title: Same boundary, different tools
+  body: Site Ops AI still goes through the Gateway. Collectors and BMCs are backend
+    concerns. The console never SSHs or talks IPMI directly.
+- title: Trust boundary
+  body: Trusted request context decides who may run lab/site-ops abilities. Yonder
+    does not invent corporate login.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: playground
+  label: Review Gateway-only Foundations
+  href: /academy/lessons/foundations-gateway-only
+check:
+  kind: quiz
+  prompt: 'Where should a Site Ops console send an IPMI SEL request?'
+  options:
+  - id: a
+    label: Browser to BMC directly
+  - id: b
+    label: Console to Gateway to allowlisted collector/tool
+  - id: c
+    label: Email the vendor with guessed SEL text
+  correct_option_id: b
+  explanation: See lesson sections for the honesty rule.
+completion: check_passed
+prerequisites: []

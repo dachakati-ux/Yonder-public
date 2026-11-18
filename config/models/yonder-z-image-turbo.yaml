@@ -1,0 +1,42 @@
+# Tongyi Z-Image-Turbo Diffusers tree on ai1. Loopback canary PASS on ai1
+# 2026-08-02 (GPU 1, Diffusers 0.39 / torch 2.6.0+cu126). Alias stays
+# operator-gated after a successful placed load.
+id: yonder-z-image-turbo
+display_name: Z-Image Turbo
+description: Diffusers FP16 image pipeline for txt2img on a single V100
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/Z-Image-Turbo
+
+runtime:
+  provider: diffusers
+  profile: image
+  family: z-image
+  model_identifier: z-image-turbo
+  dtype: fp16
+  quantization: none
+  context_length: 1024
+  tensor_parallel_size: 1
+
+requirements:
+  minimum_gpu_memory_gb: 20
+  supported_gpu_families:
+    - volta
+  placement_limits:
+    single_gpu:
+      max_context_length: 1024
+      minimum_gpu_memory_gb: 20
+      evidence: research_estimate
+    two_gpu:
+      max_context_length: 1024
+      minimum_gpu_memory_gb: 20
+      evidence: research_estimate
+
+defaults:
+  temperature: 1.0
+  top_p: 1.0
+  maximum_output_tokens: 1
+
+capabilities:
+  - image

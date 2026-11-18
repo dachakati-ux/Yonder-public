@@ -1,0 +1,18 @@
+# Worker node — worker-01.example.internal
+# Copy values into .env.worker on that host.
+# Registration + hardware inventory work now; real inference waits on Phase 3.
+
+node: ai3
+role: worker
+worker_id: worker-ai3
+display_name: ai3 (lab worker)
+hostname: worker-01.example.internal
+ipv4: 192.0.2.11
+gateway_url: http://control-plane.example.internal:8080
+worker_public_endpoint: http://worker-01.example.internal:8090
+bind:
+  host: 0.0.0.0
+  port: 8090
+notes:
+  - Run scripts/inspect-host.sh on this machine and record evidence in docs/v100-bootstrap.md
+  - Do not invent GPU metrics; unavailable values stay explicit

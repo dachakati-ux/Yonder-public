@@ -1,0 +1,43 @@
+id: support-ticket-loop
+title: Support ticket loop
+track: support
+summary: Triage → knowledge RAG → structured intake for a fixture ticket.
+duration_minutes: 12
+honesty:
+- Do not invent customers, SLAs, or outage scope.
+- Cite retrieved docs for policy claims.
+steps:
+- id: triage
+  title: Triage
+  kind: recipe
+  recipe_id: ticket-triage
+  href: /?recipe=ticket-triage
+  instruction: Open the ticket triage Recipe and produce summary, urgency, owner,
+    steps from the sample only.
+- id: rag
+  title: Knowledge retrieve
+  kind: sandbox
+  sandbox_preset: support-fixture
+  href: /academy/sandbox?preset=support-fixture
+  instruction: In Practice desk (support-fixture), retrieve access-policy guidance
+    and note citations.
+- id: intake
+  title: Structured intake
+  kind: lab_ability
+  ability: structured
+  href: /lab/structured
+  instruction: Emit a structured intake; fail closed if required ids are missing.
+- id: confirm
+  title: Confirm honesty
+  kind: check
+  href: /academy/missions/support-ticket-loop
+  instruction: Confirm you did not invent customers or SLAs, then submit the mission
+    check.
+completion_check:
+  kind: eval_case
+  prompt: 'Summarize your loop: triage, citations, intake. Include the words triage,
+    citation, and intake.'
+  expect_substrings:
+  - triage
+  - citation
+  - intake

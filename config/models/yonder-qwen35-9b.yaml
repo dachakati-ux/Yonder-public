@@ -1,0 +1,46 @@
+# Derived GGUF converted on ai1 2026-07-30 from the untouched Qwen3.5-9B
+# safetensors bundle (conversion.json records source, outtype, and sha256
+# e03ba14675a89524373401929aba1335df88173c5469bf91689ea0e8317e4b11).
+# Measured artifact: 9786060544 bytes. Loopback chat canary PASS on GPU 0.
+# Alias is operator-enabled only after a Gateway chat canary.
+id: yonder-qwen35-9b
+display_name: Qwen3.5 9B (derived GGUF)
+description: Derived Q8_0 GGUF chat model for llama.cpp on a single V100
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/derived/qwen35-9b/20260730T194228Z/qwen35-9b.q8_0.gguf
+
+runtime:
+  provider: llama-cpp
+  profile: chat
+  model_identifier: qwen35-9b
+  dtype: fp16
+  quantization: q8_0
+  context_length: 8192
+  tensor_parallel_size: 1
+
+requirements:
+  # Measured weights are ~9.1 GiB; the remainder is context/KV headroom.
+  minimum_gpu_memory_gb: 12
+  supported_gpu_families:
+    - volta
+  # 2026-08-08 measured on V100: 1×/2× READY through 262144 (~17392 / ~9442+10258 MiB).
+  placement_limits:
+    single_gpu:
+      max_context_length: 262144
+      minimum_gpu_memory_gb: 12
+      evidence: measured
+    two_gpu:
+      max_context_length: 262144
+      minimum_gpu_memory_gb: 12
+      evidence: measured
+
+defaults:
+  temperature: 0.7
+  top_p: 0.9
+  maximum_output_tokens: 2048
+
+capabilities:
+  - chat
+  - streaming

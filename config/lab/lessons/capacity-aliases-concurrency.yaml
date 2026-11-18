@@ -1,0 +1,37 @@
+id: capacity-aliases-concurrency
+track: capacity
+title: Aliases and concurrency
+summary: Aliases share Gateway admission — 6 GPUs are not infinite concurrent chats.
+duration_minutes: 7
+objectives:
+- Explain admission/queue pressure
+- Prefer aliases over hoping for free GPUs
+sections:
+- title: Shared lanes
+  body: READY aliases admit work under max_active_requests and queue depth. When full,
+    clients see honest capacity errors — never invent success.
+- title: Academy load
+  body: Many sandboxes are CPU-cheap; concurrent live try-it burns GPU aliases.
+glossary_term_ids:
+- alias
+- ready
+- academy
+try_it:
+  kind: playground
+  label: Capacity panel
+  href: /academy/capacity
+check:
+  kind: quiz
+  prompt: 'When a deployment queue is full, Yonder should:'
+  options:
+  - id: a
+    label: Invent a successful reply
+  - id: b
+    label: Return an honest capacity/queue error
+  - id: c
+    label: SSH and kill random jobs
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- foundations-honest-readiness

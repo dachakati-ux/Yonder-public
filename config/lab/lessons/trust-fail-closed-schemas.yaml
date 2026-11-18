@@ -1,0 +1,39 @@
+id: trust-fail-closed-schemas
+track: trust
+title: Fail-closed schemas
+summary: Invalid JSON or missing required fields must fail — never soft-accept invented
+  structure.
+duration_minutes: 8
+objectives:
+- Use structured Lab with a schema
+- Explain fail-closed validation
+sections:
+- title: Schemas are contracts
+  body: Structured output is validated against a registered schema. Extra fields or
+    missing required keys fail closed.
+- title: Why it matters
+  body: Soft-accepting bad JSON trains operators to trust broken automations. Yonder
+    prefers an explicit validation error.
+glossary_term_ids:
+- recipes
+- gateway-only
+try_it:
+  kind: lab_ability
+  label: Open structured Lab
+  href: /lab/structured
+  ability: structured
+check:
+  kind: quiz
+  prompt: 'Structured validation should:'
+  options:
+  - id: a
+    label: Silently drop invalid fields and continue
+  - id: b
+    label: Fail closed with clear validation errors
+  - id: c
+    label: Invent missing required fields
+  correct_option_id: b
+  explanation: Fail closed keeps automations honest.
+completion: check_passed
+prerequisites:
+- trust-citations-required

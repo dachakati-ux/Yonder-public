@@ -1,0 +1,38 @@
+id: pm-honest-readiness
+track: pm
+title: Honest readiness for stakeholders
+summary: Demo scripts must show not_ready instead of theater.
+duration_minutes: 7
+objectives:
+- Script a demo with honest failure
+- Explain training_scenario labels
+sections:
+- title: Stakeholder trust
+  body: A labeled mock beats a silent fake. Status cards show progress counts — not
+    invented scores.
+- title: CPU vs GPU
+  body: More learners hit CPU (progress/RAG) first; live try-it needs GPUs.
+glossary_term_ids:
+- ready
+- lab-live
+- academy
+try_it:
+  kind: recipe
+  label: Open Recipes
+  href: /recipes
+  recipe_id: ticket-triage
+check:
+  kind: quiz
+  prompt: 'When alias is not READY in a stakeholder demo:'
+  options:
+  - id: a
+    label: Fake success
+  - id: b
+    label: Show honest not_ready / labeled mock
+  - id: c
+    label: Hide the UI
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- pm-aliases-not-gpus

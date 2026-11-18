@@ -1,0 +1,37 @@
+id: builder-rag-citations
+track: builder
+title: RAG with citations
+summary: Retrieve teaching chunks, generate a grounded answer, and show citations.
+duration_minutes: 8
+objectives:
+- Run Lab RAG
+- Require citations for grounded claims
+sections:
+- title: Retrieve then generate
+  body: RAG pulls relevant chunks into the prompt. Answers should stay inside those
+    chunks.
+- title: Citations
+  body: Always show citations so trainees can verify grounding.
+glossary_term_ids:
+- rag
+- citation
+try_it:
+  kind: lab_ability
+  label: Open RAG Lab
+  href: /lab/rag
+  ability: rag
+check:
+  kind: quiz
+  prompt: 'A grounded RAG demo should show:'
+  options:
+  - id: a
+    label: Citations to retrieved chunks
+  - id: b
+    label: No sources, only confidence
+  - id: c
+    label: Hidden worker filesystem paths
+  correct_option_id: a
+  explanation: Citations make grounding checkable.
+completion: check_passed
+prerequisites:
+- builder-tools-loop

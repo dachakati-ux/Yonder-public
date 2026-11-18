@@ -1,0 +1,36 @@
+id: pm-aliases-not-gpus
+track: pm
+title: Aliases not GPUs
+summary: PMs specify product aliases and outcomes — not GPU indexes.
+duration_minutes: 6
+objectives:
+- Prefer aliases in requirements
+- Leave placement to operators
+sections:
+- title: Product surface
+  body: Requirements should say yonder-chat, not worker-ai1 GPU 0.
+- title: Capacity asks
+  body: Ask for READY capacity honestly; never demand fake green demos.
+glossary_term_ids:
+- alias
+- ready
+- placement
+try_it:
+  kind: playground
+  label: Open Models
+  href: /models
+check:
+  kind: quiz
+  prompt: 'A PM requirement should name:'
+  options:
+  - id: a
+    label: GPU 0 on ai1
+  - id: b
+    label: A stable alias like yonder-chat
+  - id: c
+    label: A GGUF path
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- foundations-aliases-vs-gpus

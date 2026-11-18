@@ -1,0 +1,49 @@
+id: builder-structured-ops-loop
+title: Builder structured ops loop
+track: builder
+summary: Fixture ticket → evidence → structured intake → Workbench note —
+  Gateway-only, fail closed.
+duration_minutes: 15
+honesty:
+- Tools return fixture data only.
+- Structured fields stay empty when evidence is missing.
+- Console never calls ticketing systems directly.
+steps:
+- id: fetch-ticket
+  title: Fetch fixture ticket
+  kind: lab_ability
+  ability: tools
+  href: /lab/tools
+  instruction: Call yonder_fixture_get_ticket for FIX-1001. Note impact is
+    not_reported.
+- id: sandbox
+  title: Retrieve supporting context
+  kind: playground
+  href: /academy/sandbox?preset=ops-fixture
+  sandbox_preset: ops-fixture
+  instruction: Open Practice desk with ops-fixture (or eng-fixture) and retrieve
+    related teaching docs. Cite titles only from hits.
+- id: structured
+  title: Structured intake
+  kind: lab_ability
+  ability: structured
+  href: /lab/structured
+  instruction: Fill yonder.siteops.incident_intake.v1 (or lab rubric) from evidence
+    only — leave unknowns empty.
+- id: workbench
+  title: Save Workbench note
+  kind: playground
+  href: /academy/workbench
+  instruction: Save ticket id, citation titles, and unknowns to your Workbench.
+- id: confirm
+  title: Confirm
+  kind: check
+  href: /academy/missions/builder-structured-ops-loop
+  instruction: Submit check including FIX-1001 and not_reported.
+completion_check:
+  kind: eval_case
+  prompt: Summarize including FIX-1001 and not_reported.
+  expect_substrings:
+  - FIX-1001
+  - not_reported
+  case_sensitive: false

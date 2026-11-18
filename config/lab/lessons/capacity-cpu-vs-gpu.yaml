@@ -1,0 +1,31 @@
+id: capacity-cpu-vs-gpu
+track: capacity
+title: CPU vs GPU spend
+summary: Progress DB and RAG indexes fit CPU hosts; live try-it needs READY GPUs.
+duration_minutes: 6
+objectives:
+- Map Academy features to CPU vs GPU
+- Write an honest funding ask
+sections:
+- title: CPU
+  body: Curriculum APIs, progress, sandboxes, missions, prompt library, console.
+- title: GPU
+  body: Concurrent chat/embed/rerank for live lessons. not_ready is a real signal
+    to fund GPUs — not a bug to paper over.
+glossary_term_ids:
+- academy
+- ready
+try_it:
+  kind: playground
+  label: Capacity panel
+  href: /academy/capacity
+check:
+  kind: eval_case
+  prompt: 'Say what CPU and GPU each fund for Academy.'
+  expect_substrings:
+  - CPU
+  - GPU
+  case_sensitive: false
+completion: check_passed
+prerequisites:
+- capacity-context-windows

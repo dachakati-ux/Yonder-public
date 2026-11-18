@@ -1,0 +1,37 @@
+id: support-gateway-only
+track: support
+title: Gateway-only Support
+summary: Support assistants still go through Yonder Gateway — never straight to workers
+  or ticket DBs from the browser.
+duration_minutes: 6
+objectives:
+- State the Gateway-only rule for Support copilots
+- Name what must stay behind Gateway tools
+sections:
+- title: Same door
+  body: Ticket triage and knowledge answers are Gateway-mediated. The console never
+    opens a side channel to production systems.
+- title: Why
+  body: Trusted request context, allowlists, and honest failures live at the Gateway.
+glossary_term_ids:
+- gateway-only
+- recipes
+try_it:
+  kind: playground
+  label: Foundations reminder
+  href: /academy/lessons/foundations-gateway-only
+check:
+  kind: quiz
+  prompt: 'Support Chat should call:'
+  options:
+  - id: a
+    label: The ticket DB directly from the browser
+  - id: b
+    label: Yonder Gateway only
+  - id: c
+    label: A worker SSH session
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- foundations-honest-readiness

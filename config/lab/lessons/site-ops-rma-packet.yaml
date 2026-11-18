@@ -1,0 +1,38 @@
+id: site-ops-rma-packet
+track: site_ops
+title: Warranty / RMA packet
+summary: Build a structured RMA packet from a known failure — no fake vendor APIs.
+duration_minutes: 8
+objectives:
+- Populate RMA fields from evidence
+- Avoid inventing warranty end dates
+sections:
+- title: Packet fields
+  body: Part, failure summary, evidence refs, and contact notes. Warranty dates only
+    if present in teaching docs.
+- title: No fake APIs
+  body: Academy does not call real vendor portals. You practice the packet shape humans
+    or later tools will submit.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: recipe
+  label: Open RMA packet Recipe
+  href: /recipes
+  recipe_id: rma-packet
+check:
+  kind: quiz
+  prompt: 'Warranty end date missing from docs. You should:'
+  options:
+  - id: a
+    label: Guess five years from ship date
+  - id: b
+    label: Leave blank / not_reported
+  - id: c
+    label: Use today's date
+  correct_option_id: b
+  explanation: See lesson sections for the honesty rule.
+completion: check_passed
+prerequisites:
+- site-ops-inventory-qa

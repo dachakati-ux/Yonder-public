@@ -1,0 +1,37 @@
+# Offline model bundle schema (Yonder)
+#
+# Operators assemble bundles on a connected machine, verify checksums, then copy
+# the directory onto the USB pack. RHEL hosts never download weights.
+#
+# Directory layout:
+#   vendor/model-bundles/<bundle-id>/
+#     bundle.yaml          # this schema
+#     files/...            # weight / tokenizer / config blobs
+#
+# This example is intentionally incomplete (no real files) and must NOT be loaded.
+
+id: example-chat-bundle
+display_name: Example Chat Bundle
+version: "0.0.0"
+modality: chat
+aliases:
+  - yonder-chat
+capabilities:
+  - chat
+  - streaming
+license: "UNSPECIFIED — replace before import"
+provenance: "operator-supplied; not downloaded by Yonder"
+runtime:
+  # Do not select a concrete runtime until docs/v100-bootstrap.md is complete.
+  provider: not_selected
+  notes: "Pending V100 host evidence (driver, CUDA, VRAM, storage)."
+hardware_constraints:
+  min_gpu_memory_gb: null
+  supported_gpu_families: []
+  status: not_reported
+files:
+  - path: files/weights.safetensors
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    size_bytes: 0
+    required: true
+status: not_bundled

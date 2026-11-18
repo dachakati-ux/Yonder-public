@@ -1,0 +1,34 @@
+id: site-ops-runbook-rag
+track: site_ops
+title: Runbook RAG
+summary: Answer common DC fault questions grounded in teaching runbooks with citations.
+duration_minutes: 8
+objectives:
+- Retrieve runbook chunks before answering
+- Cite sources; refuse to invent policy
+sections:
+- title: Grounded answers
+  body: Ask about change windows, RMA thresholds, or SEL follow-ups using the Site
+    Ops corpus. Answers must cite retrieved docs.
+- title: Out of corpus
+  body: If the runbook does not say it, say you do not know from the corpus — do not
+    invent vendor policy.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: sandbox
+  label: Practice desk RAG
+  href: /academy/sandbox?preset=site-ops-fixture
+  sandbox_preset: site-ops-fixture
+check:
+  kind: eval_case
+  prompt: >-
+    What must a grounded runbook answer include, and what do you do when the
+    corpus is silent? Mention citations.
+  expect_substrings:
+  - citation
+  case_sensitive: false
+completion: check_passed
+prerequisites:
+- site-ops-signal-to-ticket

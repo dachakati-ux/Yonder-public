@@ -1,0 +1,39 @@
+id: builder-eval-expect-substrings
+track: builder
+title: Eval packs without vanity scores
+summary: Light eval uses authored expect_substrings — pass/fail evidence, not
+  leaderboard theater.
+duration_minutes: 8
+objectives:
+- Run /lab/eval against authored cases
+- Prefer criteria met/missed language
+sections:
+- title: Authored checks
+  body: Eval cases declare substrings or options. Results are correct/incorrect —
+    not invented composite scores.
+- title: Engineering corpus
+  body: Teaching notes in eng fixtures remind builders that demos must stay
+    Gateway-mediated and fail closed.
+glossary_term_ids:
+- academy
+- gateway-only
+try_it:
+  kind: lab_ability
+  label: Open Eval Lab
+  href: /lab/eval
+  ability: eval
+check:
+  kind: quiz
+  prompt: 'Academy challenges and eval packs should report:'
+  options:
+  - id: a
+    label: A vanity 0–100 score for each learner
+  - id: b
+    label: Criteria met or missed from authored checks
+  - id: c
+    label: Random ranks for motivation
+  correct_option_id: b
+  explanation: Criteria evidence only — no invented scores.
+completion: check_passed
+prerequisites:
+- builder-embed-rerank

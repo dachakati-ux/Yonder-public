@@ -1,0 +1,38 @@
+id: foundations-chat-streaming
+track: foundations
+title: Chat streaming
+summary: How streaming chat feels in the console and what a stream means operationally.
+duration_minutes: 6
+objectives:
+- Start a streaming chat through the Gateway
+- Recognize that streaming still uses aliases
+sections:
+- title: Try Chat
+  body: Open Chat, pick a READY alias, and send a short message. Tokens arrive as
+    a stream — still one Gateway-mediated request.
+- title: When it is not READY
+  body: If the alias is not READY, the UI must show an honest state — never invent
+    a successful reply.
+glossary_term_ids:
+- streaming
+- alias
+try_it:
+  kind: chat_starter
+  label: Open Chat with a starter
+  href: /?prompt=Say%20hello%20in%20one%20sentence.&model=yonder-chat
+  chat_prompt: Say hello in one sentence.
+check:
+  kind: quiz
+  prompt: 'If Chat cannot reach a READY alias, what should happen?'
+  options:
+  - id: a
+    label: Show a fake successful answer so the demo continues
+  - id: b
+    label: Show an honest not-ready / error state
+  - id: c
+    label: SSH to the worker and print nvidia-smi
+  correct_option_id: b
+  explanation: Yonder never fabricates success when capacity or readiness is missing.
+completion: check_passed
+prerequisites:
+- foundations-aliases-vs-gpus

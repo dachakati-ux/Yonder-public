@@ -1,0 +1,32 @@
+id: support-trust-check
+track: support
+title: Support trust check
+summary: 'Quiz: never invent customers, SLAs, or outage scope.'
+duration_minutes: 5
+objectives:
+- Pass the trust quiz
+sections:
+- title: Trust
+  body: Support AI is useful only when it refuses to lie about customers and SLAs.
+glossary_term_ids:
+- not-reported
+- citation
+try_it:
+  kind: playground
+  label: Academy
+  href: /academy
+check:
+  kind: quiz
+  prompt: 'Which violates Support training?'
+  options:
+  - id: a
+    label: Cite a knowledge chunk
+  - id: b
+    label: Invent a VIP customer to force priority
+  - id: c
+    label: Mark impact unknown when silent
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- support-capstone

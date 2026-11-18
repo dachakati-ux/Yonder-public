@@ -1,0 +1,38 @@
+id: operator-admission-honesty
+track: operator
+title: Admission and concurrency honesty
+summary: Queues and max_active_requests protect GPUs — operators explain limits
+  instead of inventing capacity.
+duration_minutes: 8
+objectives:
+- Name admission as a control-plane concern
+- Tie CPU Academy scale vs GPU concurrent try-it
+sections:
+- title: Admission gate
+  body: Gateway admission limits concurrent active requests. When saturated, fail
+    closed or queue — do not invent spare VRAM for the slide deck.
+- title: Fund the right tier
+  body: Academy progress and sandboxes are CPU-first. GPUs matter when many learners
+    hit live try-it at once — check Capacity first.
+glossary_term_ids:
+- ready
+- gateway-only
+try_it:
+  kind: playground
+  label: Capacity + Recipes
+  href: /academy/capacity
+check:
+  kind: quiz
+  prompt: 'GPUs are saturated. An honest operator should:'
+  options:
+  - id: a
+    label: Tell leadership everything is READY anyway
+  - id: b
+    label: Report not_ready / admission pressure from Gateway evidence
+  - id: c
+    label: Hide the Capacity panel
+  correct_option_id: b
+  explanation: Honesty beats demo theater.
+completion: check_passed
+prerequisites:
+- operator-lab-live-vs-mock

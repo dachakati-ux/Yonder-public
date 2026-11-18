@@ -1,0 +1,15 @@
+# Top-level OS packages required by Yonder installers on a fresh RHEL 8.10 minimal host.
+# Dependency closure is fetched into vendor/rhel8-rpms/ (see fetch-system-rpms.sh).
+curl
+rsync
+tar
+gzip
+which
+findutils
+hostname
+procps-ng
+iproute
+shadow-utils
+ca-certificates
+openssl
+diffutils

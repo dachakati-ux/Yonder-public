@@ -1,0 +1,39 @@
+id: site-ops-reading-honesty
+track: site_ops
+title: Reading honesty
+summary: Practice available / not_reported / collection_failed — never invent sensor
+  readings.
+duration_minutes: 8
+objectives:
+- Map each availability state to the right UI behavior
+- Refuse invented serials and temperatures
+sections:
+- title: Three honest states
+  body: '`available` means you have evidence. `not_reported` means the field was never
+    collected. `collection_failed` means a probe ran and failed — show the failure,
+    do not fill gaps with guesses.'
+- title: Fail closed
+  body: Structured Site Ops packets reject invented fields. If SEL is missing, say
+    so.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: playground
+  label: Open Hardware
+  href: /hardware
+check:
+  kind: quiz
+  prompt: 'A SMART report field is missing from the collector. What do you show?'
+  options:
+  - id: a
+    label: A plausible temperature so the form validates
+  - id: b
+    label: not_reported (or omit with an explicit gap)
+  - id: c
+    label: Yesterday's value from another host
+  correct_option_id: b
+  explanation: See lesson sections for the honesty rule.
+completion: check_passed
+prerequisites:
+- site-ops-gateway-only

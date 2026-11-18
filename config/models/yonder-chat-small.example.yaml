@@ -1,0 +1,32 @@
+# Example model manifest — placeholder only.
+# Do not load until V100 host/runtime compatibility is documented.
+id: yonder-chat-small
+display_name: Yonder Chat Small
+description: General internal chat model for the initial V100 worker
+
+source:
+  type: local
+  path: /models/yonder-chat-small
+
+runtime:
+  provider: vllm
+  model_identifier: /models/yonder-chat-small
+  dtype: auto
+  quantization: auto
+  context_length: 8192
+  tensor_parallel_size: 1
+
+requirements:
+  minimum_gpu_memory_gb: 20
+  supported_gpu_families:
+    - volta
+    - ampere
+
+defaults:
+  temperature: 0.6
+  top_p: 0.9
+  maximum_output_tokens: 2048
+
+capabilities:
+  - chat
+  - streaming

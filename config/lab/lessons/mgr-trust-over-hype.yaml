@@ -1,0 +1,36 @@
+id: mgr-trust-over-hype
+track: managers
+title: Trust over hype
+summary: Reward honest not_ready over theatrical demos.
+duration_minutes: 6
+objectives:
+- Prefer labeled mocks
+- Reject invented metrics in reviews
+sections:
+- title: Review bar
+  body: 'Ask: did we invent readiness? Did we invent serials or SLAs?'
+- title: Trust track
+  body: Point teams at Trust and evaluation Academy track.
+glossary_term_ids:
+- not-reported
+- lab-live
+- academy
+try_it:
+  kind: playground
+  label: Academy gallery
+  href: /academy
+check:
+  kind: quiz
+  prompt: 'A good management review celebrates:'
+  options:
+  - id: a
+    label: Fake green dashboards
+  - id: b
+    label: Honest not_ready and fail-closed schemas
+  - id: c
+    label: Hidden failures
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- mgr-funding-cpu-gpu

@@ -1,0 +1,41 @@
+id: ticket-tool-loop
+title: Ticket tool loop
+track: builder
+summary: Call fixture ticketing/runbook tools through Gateway — company-shaped APIs,
+  not browser side channels.
+duration_minutes: 12
+honesty:
+- Tools return fixture data only.
+- Never invent ticket fields beyond tool results.
+- Console never calls ticket systems directly.
+steps:
+- id: tools-lab
+  title: Open Tools Lab
+  kind: lab_ability
+  ability: tools
+  href: /lab/tools
+  instruction: Observe the tool loop. Note allowlisted tools only.
+- id: fetch-ticket
+  title: Fetch fixture ticket
+  kind: playground
+  href: /academy/workbench
+  instruction: From Workbench or Tools, call yonder_fixture_get_ticket for ticket
+    FIX-1001 and save the result as a note.
+- id: runbook
+  title: Fetch runbook
+  kind: playground
+  href: /academy/workbench
+  instruction: Call yonder_fixture_get_runbook for topic vpn-flap. Cite the returned
+    title.
+- id: confirm
+  title: Confirm
+  kind: check
+  href: /academy/missions/ticket-tool-loop
+  instruction: Submit the mission check with ticket id and runbook evidence.
+completion_check:
+  kind: eval_case
+  prompt: 'Summarize tool results including FIX-1001 and vpn or runbook.'
+  expect_substrings:
+  - FIX-1001
+  - vpn
+  case_sensitive: false

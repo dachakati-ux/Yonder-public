@@ -1,0 +1,27 @@
+[Unit]
+Description=Yonder Worker Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yonder
+Group=yonder
+EnvironmentFile=/etc/yonder/worker.env
+WorkingDirectory=/opt/yonder/repo
+ExecStart=/opt/yonder/venv/bin/yonder-worker
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+LimitNOFILE=65535
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# Model bundles may live under /srv/yonder-storage (NFS, often read-only on
+# remote workers). Diffusers output_root is per-host under /var/lib/yonder/generated.
+# ProtectSystem=strict makes /srv read-only unless listed here.
+ReadWritePaths=/var/lib/yonder /var/log/yonder /etc/yonder /srv/yonder-storage
+
+[Install]
+WantedBy=multi-user.target

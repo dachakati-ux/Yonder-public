@@ -1,0 +1,32 @@
+# Production template — DO NOT use development security mode.
+environment: production
+
+security:
+  mode: trusted_ingress
+  trusted_subject_header: X-Yonder-Trusted-Subject
+  trusted_principal_type_header: X-Yonder-Trusted-Principal-Type
+  trusted_capabilities_header: X-Yonder-Trusted-Capabilities
+  trusted_request_id_header: X-Request-Id
+
+gateway:
+  # In production, bind only on the approved private network interface.
+  # Do not expose Yonder directly to ordinary clients.
+  host: 0.0.0.0
+  port: 8080
+
+worker:
+  host: 0.0.0.0
+  port: 8090
+
+logging:
+  level: INFO
+  json_logs: true
+  log_prompt_and_response_content: false
+
+# Fail closed until approved production worker identities are configured.
+worker_registration:
+  mode: allowlist
+  allowed_worker_ids: []
+  accept_untrusted: false
+
+workers: []

@@ -1,0 +1,37 @@
+id: operator-manifests-placement
+track: operator
+title: Manifests and placement
+summary: Model manifests declare capabilities; placement maps aliases onto workers
+  and GPUs.
+duration_minutes: 8
+objectives:
+- Open the Models workspace with intent
+- Explain alias to deployment to worker
+sections:
+- title: Manifests
+  body: Each model YAML declares runtime, context, and capabilities. Operators validate
+    before load.
+- title: Placement
+  body: The scheduler places deployments on workers/GPUs. Clients still only see aliases.
+glossary_term_ids:
+- model-definition
+- placement
+try_it:
+  kind: playground
+  label: Open Models
+  href: /models
+check:
+  kind: quiz
+  prompt: 'Who maps an alias onto a worker GPU?'
+  options:
+  - id: a
+    label: Each chat user in the prompt
+  - id: b
+    label: Operators / placement via the control plane
+  - id: c
+    label: The browser WebGL stack
+  correct_option_id: b
+  explanation: Placement is operator-owned; clients use aliases.
+completion: check_passed
+prerequisites:
+- foundations-honest-readiness

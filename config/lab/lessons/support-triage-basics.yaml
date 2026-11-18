@@ -1,0 +1,38 @@
+id: support-triage-basics
+track: support
+title: Ticket triage basics
+summary: Turn a messy inbound ticket into urgency, summary, and owner — without inventing
+  outage facts.
+duration_minutes: 7
+objectives:
+- List triage fields
+- Refuse invented severity
+sections:
+- title: Triage shape
+  body: Summary, urgency, suggested owner role, first investigation steps. Only use
+    facts in the ticket text.
+- title: No drama
+  body: If the ticket is silent on impact, say unknown — do not invent customer counts.
+glossary_term_ids:
+- recipes
+- not-reported
+try_it:
+  kind: recipe
+  label: Ticket triage Recipe
+  href: /recipes
+  recipe_id: ticket-triage
+check:
+  kind: quiz
+  prompt: 'Missing impact details. Urgency should be:'
+  options:
+  - id: a
+    label: critical by default
+  - id: b
+    label: derived only from stated facts / unknown if silent
+  - id: c
+    label: copied from last week's SEV1
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- support-gateway-only

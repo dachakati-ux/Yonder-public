@@ -1,0 +1,4 @@
+id: feature-fizzbuzz
+kind: feature
+task: "Implement fizzbuzz(n): 'Fizz' if divisible by 3, 'Buzz' by 5, 'FizzBuzz' by both, else str(n)."
+check_command: "python -m pytest"

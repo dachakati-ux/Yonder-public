@@ -1,0 +1,37 @@
+id: site-ops-worker-agents
+track: site_ops
+title: Worker / agent mental model
+summary: Collectors report; Gateway decides — analogy to Yonder workers.
+duration_minutes: 8
+objectives:
+- Explain reporter vs control-plane roles
+- Map the idea to Yonder workers
+sections:
+- title: Reporters
+  body: OS agents and BMC collectors gather facts. They should not invent policy or
+    bypass Gateway.
+- title: Control plane
+  body: Yonder workers register and heartbeats; the Gateway admits work and maps aliases.
+    Site Ops tooling should follow the same pattern.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: playground
+  label: Open Operations
+  href: /operations
+check:
+  kind: quiz
+  prompt: 'In the Yonder analogy, who admits inference work?'
+  options:
+  - id: a
+    label: The browser
+  - id: b
+    label: The Gateway control plane
+  - id: c
+    label: Each GPU by itself
+  correct_option_id: b
+  explanation: See lesson sections for the honesty rule.
+completion: check_passed
+prerequisites:
+- site-ops-parts-ledger

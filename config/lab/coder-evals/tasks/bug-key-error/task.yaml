@@ -1,0 +1,4 @@
+id: bug-key-error
+kind: bugfix
+task: "get_count(counts, key) raises KeyError for missing keys. Return 0 instead."
+check_command: "python -m pytest"

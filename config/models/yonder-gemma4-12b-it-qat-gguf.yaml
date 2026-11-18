@@ -1,0 +1,44 @@
+# Official Google QAT GGUF. Loopback chat canary PASS on ai1 2026-08-02
+# (GPU 0, mmproj attached). Caps remain research_estimate until host measure.
+# Alias stays operator-gated after a successful placed load.
+id: yonder-gemma4-12b-it-qat-gguf
+display_name: Gemma 4 12B IT QAT GGUF
+description: Smaller Gemma 4 QAT chat/multimodal GGUF for a single V100
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/gemma-4-12B-it-qat-gguf/gemma-4-12b-it-qat-q4_0.gguf
+
+runtime:
+  provider: llama-cpp
+  profile: chat
+  model_identifier: gemma4-12b-it-qat-q4
+  dtype: fp16
+  quantization: int4
+  context_length: 16384
+  tensor_parallel_size: 1
+  mmproj_path: /srv/yonder-storage/model-bundles/gemma-4-12B-it-qat-gguf/mmproj-gemma-4-12b-it-qat-q4_0.gguf
+
+requirements:
+  minimum_gpu_memory_gb: 16
+  supported_gpu_families:
+    - volta
+  # 2026-08-08 measured on V100: 1×/2× READY through 262144 (~13264 / ~7748+7882 MiB).
+  placement_limits:
+    single_gpu:
+      max_context_length: 262144
+      minimum_gpu_memory_gb: 16
+      evidence: measured
+    two_gpu:
+      max_context_length: 262144
+      minimum_gpu_memory_gb: 16
+      evidence: measured
+
+defaults:
+  temperature: 1.0
+  top_p: 0.95
+  maximum_output_tokens: 2048
+
+capabilities:
+  - chat
+  - streaming

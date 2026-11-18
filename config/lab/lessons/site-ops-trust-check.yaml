@@ -1,0 +1,36 @@
+id: site-ops-trust-check
+track: site_ops
+title: Trust check
+summary: 'Quiz: never invent serials, sensors, or warranty dates.'
+duration_minutes: 5
+objectives:
+- Pass the trust quiz
+- Explain why fabrication fails closed
+sections:
+- title: Trust is the product
+  body: Site Ops AI is useful only when it refuses to lie. Fabricated serials and
+    warranty dates create bad RMAs and bad audits.
+- title: Pass the check
+  body: Answer the quiz from the honesty rules you practiced.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: playground
+  label: Review Academy gallery
+  href: /academy
+check:
+  kind: quiz
+  prompt: 'Which action violates Yonder Site Ops training rules?'
+  options:
+  - id: a
+    label: Mark a missing SMART field as not_reported
+  - id: b
+    label: Invent a disk serial so the RMA form submits
+  - id: c
+    label: Cite a runbook chunk for a change-window answer
+  correct_option_id: b
+  explanation: See lesson sections for the honesty rule.
+completion: check_passed
+prerequisites:
+- site-ops-capstone

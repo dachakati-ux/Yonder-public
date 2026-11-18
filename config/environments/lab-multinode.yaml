@@ -1,0 +1,205 @@
+# Shared lab multi-node environment defaults.
+#
+# LAB ONLY — PENDING SECURITY REVIEW / REVISION
+# ---------------------------------------------
+# `security.mode=development` supplies a non-production mock RequestPrincipal
+# for bring-up. This is NOT production identity. Corporate auth cutover
+# (trusted ingress) replaces this principal. Application bind may be 0.0.0.0;
+# reachability remains controlled by host firewall / approved ACLs (YAKL).
+# Do not treat this file as a production security baseline.
+#
+# Host inventory:
+#   control-plane.example.internal (192.0.2.10) — control plane
+#   worker-01.example.internal (192.0.2.11) — worker-ai3
+#   worker-03.example.internal (192.0.2.13) — worker-ai7
+#   worker-02.example.internal (192.0.2.12) — abandoned (GPU enumeration never recovered)
+# Override hosts, CORS, and allowlists via .env.control-plane / .env.worker.
+environment: lab
+
+security:
+  mode: development
+  development_principal:
+    subject: yonder-lab-operator
+    principal_type: user
+    capabilities:
+      - chat.use
+      - chat.experimental
+      - speech.use
+      - coder.use
+      - lab.use
+      - academy.instruct
+      - embeddings.use
+      - tools.use
+      - mcp.use
+      - rag.use
+      - rag.manage
+      - generation.use
+      - models.view
+      - models.manage
+      - hardware.view
+      - operations.view
+      - operations.manage
+      - workers.report
+
+gateway:
+  host: 0.0.0.0
+  port: 8080
+
+worker:
+  host: 0.0.0.0
+  port: 8090
+
+worker_id: placeholder-worker
+worker_display_name: Placeholder (override per node)
+gateway_url: http://control-plane.example.internal:8080
+console_origin: http://control-plane.example.internal:3000
+cors_origins:
+  - http://control-plane.example.internal:3000
+  - http://192.0.2.10:3000
+  - http://127.0.0.1:3000
+  - http://localhost:3000
+
+allow_non_localhost_bind_in_development: true
+
+logging:
+  level: INFO
+  json_logs: true
+  log_prompt_and_response_content: false
+
+admission:
+  # Sized for the pinned yonder-chat 64K window: ~4 chars/token heuristic
+  # covers ~70% of 65536 tokens without the temporary 800k fill-suite value.
+  max_prompt_chars: 200000
+  max_output_tokens: 4096
+  max_active_requests_per_deployment: 8
+  max_queue_depth: 32
+  queue_timeout_seconds: 30
+  inference_timeout_seconds: 300
+
+context_window:
+  enabled: true
+  soft_ratio: 0.70
+  chars_per_token_estimate: 4
+  keep_recent_messages: 12
+  summary_max_tokens: 512
+
+worker_heartbeat_timeout_seconds: 30
+state_file: data/gateway-state.json
+database_url: sqlite:///./data/yonder.db
+
+llama_cpp:
+  # Opt in on the control-plane host after the loopback runtime is installed.
+  enabled: false
+  base_url: http://127.0.0.1:8000
+  served_model: qwen3.6-35b-a3b-q4
+  worker_id: worker-ai1
+  request_timeout_seconds: 300
+
+# Image/video Diffusers path (worker-owned pipelines). Soft multi-lane: up to
+# capacity.max_lanes_per_gpu deployments may share a GPU when measured VRAM fits.
+diffusers:
+  enabled: true
+  worker_base_url: http://127.0.0.1:8090
+  request_timeout_seconds: 600
+
+diffusers_runtime:
+  enabled: true
+  dry_run: false
+  max_lanes_per_gpu: 3
+  allowed_model_roots:
+    - /srv/yonder-storage/model-bundles
+  # Per-host local path: ai3/ai7 mount /srv/yonder-storage read-only over NFS.
+  # Gateway fetches artifacts over HTTP; outputs need not be on shared storage.
+  output_root: /var/lib/yonder/generated
+  device: cuda
+  dtype: float16
+
+capacity:
+  max_lanes_per_gpu: 3
+  idle_evict_seconds: 60
+  chat_protect_sole_lane: true
+  chat_alias: yonder-chat
+  # Largest → smallest chat GGUFs present on the lab fleet. EnsureReady walks
+  # down this list when the sole yonder-chat lane must yield VRAM for Diffusers.
+  chat_demotion_ladder:
+    - yonder-qwen36-35b-a3b-q4
+    - yonder-gemma4-31b-it-qat-gguf
+    - yonder-qwen36-27b-q4
+    - yonder-gemma4-26b-a4b-it-qat-gguf
+    - yonder-bonsai-27b-ternary
+    - yonder-gemma4-12b-it-qat-gguf
+    - yonder-qwen35-9b
+    - yonder-nemotron-3-nano-4b
+  never_evict_aliases:
+    - yonder-chat
+  ensure_ready_enabled: true
+
+conversations:
+  max_conversations_per_principal: 100
+  max_age_days: 30
+  max_messages_per_conversation: 500
+
+routing:
+  require_capability_for_experimental: true
+  experimental_capability: chat.experimental
+  default_lane: production
+
+worker_registration:
+  mode: allowlist
+  allowed_worker_ids:
+    - worker-ai1
+    - worker-ai3
+    - worker-ai7
+  accept_untrusted: false
+
+workers: []
+
+# STT/TTS via worker speech runtime (Gateway only). Leave dry_run false —
+# without loaded Whisper/Piper bundles, endpoints fail closed (not_configured).
+speech:
+  enabled: true
+  worker_base_url: http://127.0.0.1:8090
+  request_timeout_seconds: 120
+  stt_alias: yonder-stt
+  tts_alias: yonder-tts
+
+speech_runtime:
+  enabled: true
+  dry_run: false
+  allowed_model_roots:
+    - /srv/yonder-storage/model-bundles
+  output_root: /var/lib/yonder/generated
+  # CPU is enough for whisper-small + Piper; avoids needing a CUDA ctranslate2 build.
+  device: cpu
+  whisper_model_path: /srv/yonder-storage/model-bundles/whisper-small
+  piper_model_path: /srv/yonder-storage/model-bundles/piper/en_US-lessac-medium.onnx
+  piper_binary: /srv/yonder-storage/model-bundles/piper/runtime/piper
+
+coder:
+  enabled: true
+  cage_root: /var/lib/yonder/coder-cages
+  grantable_roots: []
+  max_read_bytes: 262144
+  write_unlock: false
+  # Serena symbol tools only (fail closed). Requires mcp.enabled + serena server.
+  mcp_tools:
+    - mcp.serena.get_symbols_overview
+    - mcp.serena.find_symbol
+    - mcp.serena.find_referencing_symbols
+
+# MCP — Gateway client (/v1/mcp/*) + IDE yonder-mcp flag. Serena on loopback.
+# bridge_into_tool_executor stays false; coder uses coder.mcp_tools allowlist.
+# See docs/mcp.md.
+mcp:
+  enabled: true
+  server_enabled: true
+  server_bind: 127.0.0.1
+  server_port: 8095
+  bridge_into_tool_executor: false
+  http_url_allowlist:
+    - http://127.0.0.1:8900
+  servers:
+    - name: serena
+      transport: http
+      url: http://127.0.0.1:8900/mcp
+      enabled: true

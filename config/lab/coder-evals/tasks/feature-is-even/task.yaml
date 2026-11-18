@@ -1,0 +1,4 @@
+id: feature-is-even
+kind: feature
+task: "Add an is_even(n) function to nums.py returning True for even integers."
+check_command: "python -m pytest"

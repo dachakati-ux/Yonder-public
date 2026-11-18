@@ -1,0 +1,4 @@
+id: bug-off-by-one
+kind: bugfix
+task: "last_n(items, n) drops the last element (off-by-one slice). Fix it."
+check_command: "python -m pytest"

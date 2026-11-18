@@ -1,0 +1,37 @@
+id: operator-recipes-proof
+track: operator
+title: Recipes as ops proof
+summary: Use Recipes to show how Gateway-mediated AI streamlines real ops workflows.
+duration_minutes: 7
+objectives:
+- Run a Recipe deep-link
+- Explain readiness badges
+sections:
+- title: Recipes gallery
+  body: 'Recipes are curated starters: triage, runbook Q&A, structured intake. They
+    deep-link into Chat or Lab.'
+- title: Proof, not theater
+  body: Readiness badges reflect real alias state. Do not demo a green path when the
+    alias is not READY.
+glossary_term_ids:
+- recipes
+try_it:
+  kind: recipe
+  label: Open ticket triage Recipe
+  href: /recipes
+  recipe_id: ticket-triage
+check:
+  kind: quiz
+  prompt: 'Recipe readiness should come from:'
+  options:
+  - id: a
+    label: Hardcoded always-green badges
+  - id: b
+    label: Real route/model readiness from Gateway
+  - id: c
+    label: Random optimism
+  correct_option_id: b
+  explanation: Never invent readiness for demos.
+completion: check_passed
+prerequisites:
+- operator-manifests-placement

@@ -1,0 +1,32 @@
+id: security-capstone
+track: security
+title: Security capstone
+summary: Review a fixture Support flow for boundary and injection risks.
+duration_minutes: 10
+objectives:
+- List three risks and mitigations
+- Cite Gateway-only and allowlists
+sections:
+- title: Mission
+  body: Complete the security review mission covering Gateway-only, sanitized corpus,
+    and prompt-injection handling.
+glossary_term_ids:
+- gateway-only
+- academy
+try_it:
+  kind: playground
+  label: Security mission
+  href: /academy/missions/security-review-loop
+check:
+  kind: eval_case
+  prompt: >-
+    List Gateway-only, sanitized corpus, and prompt-injection in your review.
+    Include gateway-only, sanitized, and injection.
+  expect_substrings:
+  - gateway-only
+  - sanitized
+  - injection
+  case_sensitive: false
+completion: check_passed
+prerequisites:
+- security-prompt-injection

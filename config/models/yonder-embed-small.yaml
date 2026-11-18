@@ -1,0 +1,29 @@
+# Mock embedding-lane manifest. Deterministic vectors only — not a trained model.
+id: yonder-embed-small
+display_name: Yonder Embed Small
+description: Mock embedding alias for Gateway /v1/embeddings wiring (pending real model selection)
+
+source:
+  type: local
+  path: /models/yonder-embed-small
+
+runtime:
+  provider: mock
+  model_identifier: mock-embed
+  dtype: auto
+  quantization: auto
+  context_length: 8192
+  tensor_parallel_size: 1
+
+requirements:
+  minimum_gpu_memory_gb: 1
+  supported_gpu_families:
+    - mock
+
+defaults:
+  temperature: 0.0
+  top_p: 1.0
+  maximum_output_tokens: 1
+
+capabilities:
+  - embeddings

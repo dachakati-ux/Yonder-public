@@ -1,0 +1,34 @@
+# Local STT (Whisper-class). READY only after a real worker speech load.
+# Until the bundle exists under allowed roots, APIs report not_supported /
+# not_configured — never invent transcripts.
+id: yonder-stt
+display_name: Yonder STT
+description: Gateway-mediated speech-to-text via worker Whisper runtime
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/whisper-small
+
+runtime:
+  provider: speech
+  profile: speech
+  speech_kind: stt
+  model_identifier: whisper-small
+  dtype: auto
+  quantization: auto
+  context_length: 1
+  tensor_parallel_size: 1
+
+requirements:
+  minimum_gpu_memory_gb: 2
+  supported_gpu_families:
+    - volta
+    - mock
+
+defaults:
+  temperature: 0.0
+  top_p: 1.0
+  maximum_output_tokens: 1
+
+capabilities:
+  - speech_to_text

@@ -1,0 +1,38 @@
+[project]
+name = "yonder"
+version = "0.1.0"
+description = "Yonder — Intelligence beyond search. Internal AI platform control plane."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Yonder Contributors" }]
+
+[tool.uv.workspace]
+members = [
+  "packages/contracts",
+  "packages/configuration",
+  "packages/telemetry",
+  "apps/gateway",
+  "apps/worker",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "httpx>=0.27.0",
+  "ruff>=0.8.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Gateway and worker both use a top-level `app` package (per repo layout).
+# Run their suites separately via `make test` to avoid import collisions.
+# Integration/e2e suites live under tests/ and are run via make test-integration / test-e2e.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

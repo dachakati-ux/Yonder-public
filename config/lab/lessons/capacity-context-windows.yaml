@@ -1,0 +1,38 @@
+id: capacity-context-windows
+track: capacity
+title: Context windows and condense
+summary: Long threads consume context; auto-condense is an ops tool, not free infinity.
+duration_minutes: 7
+objectives:
+- Describe soft pressure / condense
+- Avoid stuffing huge prompts casually
+sections:
+- title: Meters
+  body: Chat can show context pressure from estimates or provider usage. Soft pressure
+    may auto-condense when enabled.
+- title: Cost of length
+  body: Huge prompts raise latency and failure risk. Prefer concise Academy try-it
+    inputs.
+glossary_term_ids:
+- alias
+- streaming
+try_it:
+  kind: chat_starter
+  label: Open Chat
+  href: /?prompt=In%20one%20sentence%2C%20what%20is%20a%20context%20window%3F&model=yonder-chat
+  chat_prompt: In one sentence, what is a context window?
+check:
+  kind: quiz
+  prompt: 'Auto-condense exists to:'
+  options:
+  - id: a
+    label: Hide that the model failed
+  - id: b
+    label: Reduce context pressure while keeping recent messages
+  - id: c
+    label: Delete the conversation silently
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- capacity-aliases-concurrency

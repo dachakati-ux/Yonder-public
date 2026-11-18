@@ -1,0 +1,60 @@
+# Training Lab corpus — deterministic snippets for RAG demos.
+# Answers must cite these documents; do not invent facts beyond them.
+
+documents:
+  - id: arch-gateway
+    title: Yonder Gateway boundary
+    text: >
+      All inference traffic in Yonder goes through the Gateway. Consoles and
+      internal apps must never call an inference runtime or GPU worker directly.
+      Clients use stable model aliases, never worker names or GPU indexes.
+  - id: arch-security
+    title: Security context
+    text: >
+      Yonder does not authenticate corporate users. Authentication and
+      authorization occur upstream. The Gateway accepts only a trusted,
+      normalized RequestPrincipal through a replaceable RequestContextProvider.
+  - id: arch-metrics
+    title: Honest hardware metrics
+    text: >
+      Yonder never fabricates GPU metrics. Unavailable values are reported with
+      explicit states such as not_supported, not_reported, permission_unavailable,
+      worker_disconnected, or collection_failed.
+  - id: rag-practice
+    title: RAG practice notes
+    text: >
+      Retrieval-augmented generation retrieves relevant chunks, injects them into
+      the prompt as context, then generates an answer that should stay grounded
+      in those chunks. Always show citations so trainees can verify grounding.
+  - id: tools-practice
+    title: Tool use practice notes
+    text: >
+      Tool use lets a model call structured functions when it needs live or
+      external data. The loop is plan, emit a tool call, observe the tool result,
+      then answer. Never invent tool results in production demos.
+  - id: generation-practice
+    title: Generation practice notes
+    text: >
+      Image and video generation are job-shaped abilities. Clients submit a prompt
+      through the Gateway, which queues work to a generation worker, then returns
+      asset metadata and previews. Until a real worker exists, Lab demos use
+      explicit placeholders labeled as training scenarios.
+  - id: ops-change-windows
+    title: Change windows (lab teaching)
+    text: >
+      Production change windows for the lab control plane are Tuesday and Thursday
+      18:00–21:00 local. Emergency changes require dual approval from on-call and
+      the platform owner. Do not invent additional windows beyond this document.
+  - id: ops-oncall
+    title: On-call ownership (lab teaching)
+    text: >
+      Primary on-call owns Gateway availability and worker registration. Secondary
+      owns storage and NFS model roots. Page primary for inference outages; page
+      secondary for mount or pack failures. Escalate after 15 minutes without ack.
+  - id: ops-access-policy
+    title: Console access policy (lab teaching)
+    text: >
+      Lab teaching policy only — not a production contract. The Yonder console
+      is internal lab access only. Authentication happens in the upstream
+      corporate layer. Do not add local passwords or permanent API-key bypasses.
+      Reachability is limited by approved network controls.

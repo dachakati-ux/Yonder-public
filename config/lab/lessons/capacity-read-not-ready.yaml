@@ -1,0 +1,38 @@
+id: capacity-read-not-ready
+track: capacity
+title: Reading not_ready for real
+summary: Use the capacity panel’s real alias readiness — never fabricate green.
+duration_minutes: 6
+objectives:
+- Open the capacity panel
+- Interpret READY vs not_ready from Gateway
+sections:
+- title: Panel
+  body: Academy capacity panel lists aliases from Gateway routes/models. Availability
+    is reported, never invented.
+- title: Action
+  body: If teaching aliases are not_ready, Lab falls back to labeled training_scenario
+    or Chat errors honestly.
+glossary_term_ids:
+- ready
+- lab-live
+- not-reported
+try_it:
+  kind: playground
+  label: Capacity panel
+  href: /academy/capacity
+check:
+  kind: quiz
+  prompt: 'Capacity panel readiness should come from:'
+  options:
+  - id: a
+    label: Hardcoded always-green badges
+  - id: b
+    label: Gateway route/model state
+  - id: c
+    label: Wishful thinking
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- capacity-cpu-vs-gpu

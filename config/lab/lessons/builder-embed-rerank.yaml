@@ -1,0 +1,40 @@
+id: builder-embed-rerank
+track: builder
+title: Embeddings and rerank
+summary: Retrieval quality uses Gateway embeddings and rerank aliases when READY —
+  never invent scores.
+duration_minutes: 10
+objectives:
+- Open embeddings and rerank playgrounds
+- Treat relevance scores as model outputs only when aliases are READY
+sections:
+- title: Embeddings
+  body: Vectors come from Gateway embedding aliases. If not READY, Lab labels
+    mocks — do not invent cosine quality for leadership slides.
+- title: Rerank
+  body: Rerank reorders candidates for a query. Availability follows the same
+    honest READY / not_ready rule as chat.
+glossary_term_ids:
+- rag
+- ready
+- gateway-only
+try_it:
+  kind: lab_ability
+  label: Open Embeddings
+  href: /lab/embeddings
+  ability: embeddings
+check:
+  kind: quiz
+  prompt: 'Embedding alias is not_ready. You should:'
+  options:
+  - id: a
+    label: Fabricate vectors in the browser
+  - id: b
+    label: Show mock/not_ready honestly and wait for READY
+  - id: c
+    label: Pretend RAG is live production
+  correct_option_id: b
+  explanation: Honesty over invented retrieval quality.
+completion: check_passed
+prerequisites:
+- builder-structured-failclosed

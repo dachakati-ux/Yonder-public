@@ -1,0 +1,84 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+*.egg
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+.env.control-plane
+.env.worker
+!.env.example
+secrets/
+*.pem
+*.key
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Runtime / local data
+data/
+*.db
+*.sqlite3
+logs/
+tmp/
+.cache/
+
+# Coverage / tooling
+coverage/
+.uv/
+uv.lock.bak
+.tools/
+
+# Large vendor binaries (keep on USB / local disk; included by offline pack builder)
+*.rpm
+vendor/nvidia/
+vendor/cuda/**
+!vendor/cuda/README.md
+vendor/runtimes/**
+!vendor/runtimes/README.md
+vendor/rhel8-rpms/repo/
+vendor/rhel8-rpms/base/
+vendor/rhel8-rpms/nvidia-build/
+vendor/rhel8-rpms/nvidia-os-deps/
+vendor/rhel8-rpms/epel-gpg/
+vendor/exfat-rpms/repo/
+vendor/exfat-rpms/gpg/
+vendor/model-bundles/**
+!vendor/model-bundles/.gitkeep
+vendor/model-bundles-stage/
+vendor/llama.cpp-prismml/
+# Conversion wheels stay on USB / host disk (torch alone exceeds GitHub file limit)
+vendor/conversion-tools/wheels/**
+!vendor/conversion-tools/wheels/MANIFEST.sha256
+!vendor/conversion-tools/README.md
+nvidia-*.rpm

@@ -1,0 +1,7 @@
+# Development / Mac-local alias map (no GPU runtime).
+# Lab hosts with llama_cpp.enabled bootstrap yonder-chat to the real deployment instead.
+aliases:
+  yonder-chat:
+    deployment: yonder-chat-mock-primary
+    enabled: true
+    experimental: true

@@ -1,0 +1,4 @@
+id: chore-rename-func
+kind: chore
+task: "Rename the function `calc_total` to `total` in billing.py and its call in test."
+check_command: "python -m pytest"

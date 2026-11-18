@@ -1,0 +1,42 @@
+# Wan-AI Wan2.2-TI2V-5B Diffusers tree. Loopback short-clip canary PASS on ai1
+# 2026-08-02 (GPU 1, 9 frames / 256²). Alias stays operator-gated after a
+# successful placed load.
+id: yonder-wan22-ti2v-5b
+display_name: Wan 2.2 TI2V 5B
+description: Diffusers FP16 text/image-to-video pipeline for short clips on a V100
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/Wan2.2-TI2V-5B-Diffusers
+
+runtime:
+  provider: diffusers
+  profile: video
+  family: wan
+  model_identifier: wan22-ti2v-5b
+  dtype: fp16
+  quantization: none
+  context_length: 512
+  tensor_parallel_size: 1
+
+requirements:
+  minimum_gpu_memory_gb: 24
+  supported_gpu_families:
+    - volta
+  placement_limits:
+    single_gpu:
+      max_context_length: 512
+      minimum_gpu_memory_gb: 24
+      evidence: research_estimate
+    two_gpu:
+      max_context_length: 512
+      minimum_gpu_memory_gb: 24
+      evidence: research_estimate
+
+defaults:
+  temperature: 1.0
+  top_p: 1.0
+  maximum_output_tokens: 1
+
+capabilities:
+  - video

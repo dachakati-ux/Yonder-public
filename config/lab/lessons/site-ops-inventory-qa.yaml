@@ -1,0 +1,37 @@
+id: site-ops-inventory-qa
+track: site_ops
+title: Inventory Q&A
+summary: Ask only what inventory contains; refuse invention of serials and FRUs.
+duration_minutes: 8
+objectives:
+- Answer from authored inventory only
+- Refuse questions when inventory is silent
+sections:
+- title: Inventory is evidence
+  body: Training inventory YAML lists hosts and installed parts. Questions about missing
+    fields get an honest miss.
+- title: No BOM fantasies
+  body: Never invent disk serials, NIC MACs, or GPU counts.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: sandbox
+  label: Open Practice desk
+  href: /academy/sandbox?preset=site-ops-fixture
+  sandbox_preset: site-ops-fixture
+check:
+  kind: quiz
+  prompt: 'Inventory has no NIC entry for a host. What is the honest answer?'
+  options:
+  - id: a
+    label: Assume dual 25GbE
+  - id: b
+    label: not_reported / not in inventory
+  - id: c
+    label: Copy from a sibling host
+  correct_option_id: b
+  explanation: See lesson sections for the honesty rule.
+completion: check_passed
+prerequisites:
+- site-ops-runbook-rag

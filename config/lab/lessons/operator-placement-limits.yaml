@@ -1,0 +1,39 @@
+id: operator-placement-limits
+track: operator
+title: Placement limits and context caps
+summary: Manifests and placement declare GPU counts and context ceilings —
+  operators must not invent headroom.
+duration_minutes: 10
+objectives:
+- Read placement limits from manifests
+- Distinguish single-GPU vs two-GPU placements
+sections:
+- title: Limits are authored
+  body: Model manifests declare context, GPU needs, and placement constraints.
+    Measured ceilings from gauntlets refine ops practice — they are not invented
+    green lights.
+- title: One GPU vs two
+  body: Some models fit a single V100; others need two-GPU placement. Clients still
+    only see aliases — never GPU indexes in product prompts.
+glossary_term_ids:
+- placement
+- model-definition
+try_it:
+  kind: playground
+  label: Open Models
+  href: /models
+check:
+  kind: quiz
+  prompt: 'Where do GPU count and context caps for a model come from?'
+  options:
+  - id: a
+    label: The chat UI guesses from prompt length
+  - id: b
+    label: Authored manifests / placement configuration
+  - id: c
+    label: Random nvidia-smi scraping in the browser
+  correct_option_id: b
+  explanation: Operators read authored limits; they do not invent them.
+completion: check_passed
+prerequisites:
+- operator-alias-lifecycle

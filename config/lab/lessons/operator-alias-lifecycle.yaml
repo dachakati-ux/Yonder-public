@@ -1,0 +1,39 @@
+id: operator-alias-lifecycle
+track: operator
+title: Alias lifecycle after load
+summary: Loading a deployment does not auto-enable client aliases — operators own
+  the enablement step.
+duration_minutes: 8
+objectives:
+- Separate load from alias enablement
+- Use Models workspace to read alias state honestly
+sections:
+- title: Load is not enable
+  body: A successful load makes a deployment READY on a worker. Clients still cannot
+    call it until an alias points at that deployment and is enabled.
+- title: Operator checklist
+  body: Validate manifest → place/load → confirm READY → enable alias. Never invent
+    READY for demos.
+glossary_term_ids:
+- alias
+- deployment
+- ready
+try_it:
+  kind: playground
+  label: Open Models
+  href: /models
+check:
+  kind: quiz
+  prompt: 'After a deployment loads READY, can clients call it immediately?'
+  options:
+  - id: a
+    label: Yes — load auto-registers every alias
+  - id: b
+    label: No — an enabled alias must target that deployment
+  - id: c
+    label: Only if the browser caches the GPU index
+  correct_option_id: b
+  explanation: Aliases are an explicit operator step after load.
+completion: check_passed
+prerequisites:
+- operator-manifests-placement

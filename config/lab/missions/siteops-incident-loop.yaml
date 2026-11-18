@@ -1,0 +1,58 @@
+id: siteops-incident-loop
+title: Site Ops live desk
+track: site_ops
+summary: Golden path for a DC incident — SEL → retrieve → health → incident →
+  RMA honesty for fixture lab-host-a.
+duration_minutes: 18
+honesty:
+- No invented serials, sensors, or warranty dates.
+- Unknown stays unknown.
+- Packet advances only with evidence; fail closed on gaps.
+steps:
+- id: sel
+  title: SEL triage
+  kind: recipe
+  recipe_id: sel-triage
+  href: /?recipe=sel-triage
+  instruction: Run SEL triage Recipe on the fixture excerpt. Quote SEL lines only.
+- id: sandbox
+  title: Fixture retrieve
+  kind: sandbox
+  sandbox_preset: site-ops-fixture
+  href: /academy/sandbox?preset=site-ops-fixture&fromMission=siteops-incident-loop
+  instruction: Retrieve DIMM A1 / lab-host-a evidence from site-ops-fixture. Cite
+    document titles from hits.
+- id: health
+  title: Health findings
+  kind: lab_ability
+  ability: structured
+  href: /lab/structured?fromMission=siteops-incident-loop
+  instruction: Emit health findings using good/bad/unknown/not_reported only —
+    never invent sensor values.
+- id: incident
+  title: Incident intake
+  kind: recipe
+  recipe_id: dc-incident-structured
+  href: /?recipe=dc-incident-structured
+  instruction: Produce structured incident fields from evidence only. Leave unknowns
+    empty.
+- id: rma
+  title: RMA packet
+  kind: recipe
+  recipe_id: rma-packet
+  href: /?recipe=rma-packet
+  instruction: Draft RMA with warranty_end not_reported if unknown. Save evidence to
+    Workbench before submitting the mission check.
+- id: workbench
+  title: Save Workbench evidence
+  kind: playground
+  href: /academy/workbench?fromMission=siteops-incident-loop
+  instruction: Save SEL citations, health unknowns, and RMA honesty notes to your
+    Workbench.
+completion_check:
+  kind: eval_case
+  prompt: 'Confirm lab-host-a, DIMM, and not_reported appear in your packet notes.'
+  expect_substrings:
+  - lab-host-a
+  - DIMM
+  - not_reported

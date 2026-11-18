@@ -1,0 +1,37 @@
+id: security-gateway-boundary
+track: security
+title: Security + Gateway boundary
+summary: Security reviews still respect Gateway-only inference and no Yonder-owned
+  auth.
+duration_minutes: 7
+objectives:
+- Explain Gateway-only for security tooling
+- State that Yonder does not store corporate passwords
+sections:
+- title: Boundary
+  body: Security copilots call Gateway. Yonder accepts RequestPrincipal from upstream
+    — it does not invent login pages.
+- title: Fail closed
+  body: Missing trusted context fails closed in production modes.
+glossary_term_ids:
+- gateway-only
+- request-principal
+try_it:
+  kind: playground
+  label: 'Glossary: RequestPrincipal'
+  href: /help#request-principal
+check:
+  kind: quiz
+  prompt: 'Yonder should:'
+  options:
+  - id: a
+    label: Store employee passwords
+  - id: b
+    label: Accept trusted RequestPrincipal only
+  - id: c
+    label: Hardcode admin keys in the console
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- trust-read-errors-honestly

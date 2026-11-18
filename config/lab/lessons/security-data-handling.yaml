@@ -1,0 +1,37 @@
+id: security-data-handling
+track: security
+title: Data handling honesty
+summary: Sanitized teaching corpora only — never paste production secrets into sandboxes.
+duration_minutes: 7
+objectives:
+- Refuse production secrets in Practice desk
+- Prefer sanitized fixtures
+sections:
+- title: Sandbox rules
+  body: Practice desks are for sanitized docs. Quotas and isolation do not make prod
+    secrets safe.
+- title: Redact
+  body: Teaching tickets strip tokens, keys, and personal data.
+glossary_term_ids:
+- academy
+- not-reported
+try_it:
+  kind: sandbox
+  label: Ops fixture desk
+  href: /academy/sandbox?preset=ops-fixture
+  sandbox_preset: ops-fixture
+check:
+  kind: quiz
+  prompt: 'Production API keys belong in:'
+  options:
+  - id: a
+    label: Academy sandbox paste
+  - id: b
+    label: Approved secret stores — not Practice desk
+  - id: c
+    label: Chat prompts for convenience
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- security-gateway-boundary

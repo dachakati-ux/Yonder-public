@@ -1,0 +1,90 @@
+version: 1
+cohorts:
+- id: lab-wave-aug2026
+  title: Lab enablement — Aug 2026
+  summary: Time-boxed practice cohort for early Academy adopters. Completion criteria
+    only — no vanity scores.
+  starts_at: '2026-08-01'
+  ends_at: '2026-08-31'
+  challenge_ids:
+  - grounded-runbook
+  - support-triage-honest
+  - capacity-literacy
+challenges:
+- id: grounded-runbook
+  title: Best grounded runbook answer
+  summary: Retrieve Site Ops or Ops fixture docs and answer with citations. Rubric
+    is evidence met/not met — not a leaderboard score.
+  track_hint: site_ops
+  sandbox_preset: ops-fixture
+  mission_id: siteops-incident-loop
+  criteria:
+  - id: cited
+    label: Answer includes the word citation or cites a document title
+  - id: no_invent
+    label: Answer refuses invention (mentions not_reported, unknown, or corpus)
+  - id: grounded
+    label: Answer references change window or on-call teaching content
+  completion_check:
+    kind: eval_case
+    prompt: Paste your grounded answer. Include citation, and either not_reported
+      or unknown or corpus, and mention change or on-call.
+    expect_substrings:
+    - citation
+    any_of_groups:
+    - - not_reported
+      - unknown
+      - corpus
+    - - change
+      - on-call
+      - oncall
+    case_sensitive: false
+- id: support-triage-honest
+  title: Honest Support triage
+  summary: Triage the fixture VPN ticket without inventing customers or critical severity.
+  track_hint: support
+  sandbox_preset: support-fixture
+  mission_id: support-ticket-loop
+  criteria:
+  - id: triage
+    label: Mentions triage or urgency
+  - id: unknown_impact
+    label: Mentions not_reported or unknown for impact
+  - id: no_vip
+    label: Does not invent VIP (must not claim VIP escalation)
+  completion_check:
+    kind: eval_case
+    prompt: Paste triage notes including triage and not_reported or unknown. Do not
+      claim VIP.
+    expect_substrings:
+    - triage
+    any_of_groups:
+    - - not_reported
+      - unknown
+    forbid_substrings:
+    - VIP
+    case_sensitive: false
+- id: capacity-literacy
+  title: Capacity literacy check
+  summary: Explain CPU vs GPU for Academy using real readiness language.
+  track_hint: capacity
+  sandbox_preset: null
+  mission_id: null
+  criteria:
+  - id: cpu
+    label: Mentions CPU for progress/RAG
+  - id: gpu
+    label: Mentions GPU for live try-it
+  - id: ready
+    label: Mentions READY or not_ready honestly
+  completion_check:
+    kind: eval_case
+    prompt: Explain what you would fund using CPU, GPU, and READY or not_ready.
+    expect_substrings:
+    - CPU
+    any_of_groups:
+    - - GPU
+    - - READY
+      - not_ready
+      - ready
+    case_sensitive: false

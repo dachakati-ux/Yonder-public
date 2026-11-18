@@ -1,0 +1,37 @@
+id: site-ops-health-sweep
+track: site_ops
+title: Health sweep
+summary: Turn fixture SMART / PCIe / GPU / memory reports into good / bad / unknown.
+duration_minutes: 8
+objectives:
+- Build a findings table from fixture reports
+- Mark unknown when evidence is missing
+sections:
+- title: Findings, not vibes
+  body: Each component gets good, bad, or unknown based on the report text. Unknown
+    is a first-class outcome.
+- title: No invention
+  body: If the GPU section is absent, the GPU row is unknown — not green.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: lab_ability
+  label: Open structured Lab
+  href: /lab/structured
+  ability: structured
+check:
+  kind: quiz
+  prompt: 'GPU section missing from a health report. GPU status should be:'
+  options:
+  - id: a
+    label: good
+  - id: b
+    label: bad
+  - id: c
+    label: unknown
+  correct_option_id: c
+  explanation: See lesson sections for the honesty rule.
+completion: check_passed
+prerequisites:
+- site-ops-sel-triage

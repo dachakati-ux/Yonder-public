@@ -1,0 +1,37 @@
+id: pm-capstone
+track: pm
+title: PM capstone
+summary: Brief a Support ticket-loop mission for stakeholders without promising fake
+  readiness.
+duration_minutes: 8
+objectives:
+- Produce a stakeholder-ready brief
+- Call out CPU vs GPU spend
+sections:
+- title: Capstone
+  body: Point stakeholders at /academy/missions/support-ticket-loop. Success = completed
+    steps with honest labels.
+- title: Budget ask
+  body: CPU hosts for Academy; GPUs for concurrent live try-it.
+glossary_term_ids:
+- academy
+- ready
+try_it:
+  kind: playground
+  label: Support mission
+  href: /academy/missions/support-ticket-loop
+check:
+  kind: quiz
+  prompt: 'Academy progress/RAG scale primarily needs:'
+  options:
+  - id: a
+    label: More fake demos
+  - id: b
+    label: CPU capacity (+ GPUs for live try-it)
+  - id: c
+    label: Browser WebGL
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- pm-mission-briefs

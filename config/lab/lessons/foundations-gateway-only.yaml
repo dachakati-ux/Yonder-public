@@ -1,0 +1,37 @@
+id: foundations-gateway-only
+track: foundations
+title: Gateway-only AI
+summary: Why every inference call goes through Yonder Gateway — never straight to
+  a worker.
+duration_minutes: 5
+objectives:
+- Explain the Gateway-only rule
+- Name what clients must never call directly
+sections:
+- title: One door
+  body: 'Yonder keeps a hard boundary: consoles and internal apps talk only to the
+    Gateway. Inference runtimes and GPU workers are never called from the UI.'
+- title: Why it matters
+  body: The Gateway enforces trusted request context, admission, aliases, and honest
+    failure modes. Skipping it breaks the security and operations model.
+glossary_term_ids:
+- gateway-only
+- alias
+try_it:
+  kind: lab_ability
+  label: Open Lab gallery
+  href: /lab
+  ability: guided
+check:
+  kind: quiz
+  prompt: 'Where should the console send chat requests?'
+  options:
+  - id: a
+    label: Directly to the GPU worker HTTP port
+  - id: b
+    label: Only through Yonder Gateway
+  - id: c
+    label: Straight to llama.cpp on the host
+  correct_option_id: b
+  explanation: All inference traffic goes through the Gateway.
+completion: check_passed

@@ -1,0 +1,39 @@
+id: site-ops-issue-event-schema
+track: site_ops
+title: Issue event schema
+summary: Structure SEL-derived issue events with yonder.siteops.issue_event.v1 —
+  evidence only.
+duration_minutes: 8
+objectives:
+- Name the issue event schema
+- Practice via Recipe sel-triage / structured Lab
+sections:
+- title: Schema shape
+  body: Issue events capture severity, FRU hints, and evidence quotes from fixture
+    SEL — never invent extra log lines.
+- title: Practice path
+  body: Use Recipe sel-triage or Structured Lab against the registered Site Ops
+    schemas. Console never talks to BMCs directly.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: recipe
+  label: Open SEL triage Recipe
+  href: /recipes
+  recipe_id: sel-triage
+check:
+  kind: quiz
+  prompt: 'Issue event fields without evidence should be:'
+  options:
+  - id: a
+    label: Filled with typical SEL noise for realism
+  - id: b
+    label: Left unknown / omitted until evidence exists
+  - id: c
+    label: Copied from another customer's ticket
+  correct_option_id: b
+  explanation: Fail closed on missing evidence.
+completion: check_passed
+prerequisites:
+- site-ops-sel-triage

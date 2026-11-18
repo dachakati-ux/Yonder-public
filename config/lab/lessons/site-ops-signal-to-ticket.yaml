@@ -1,0 +1,40 @@
+id: site-ops-signal-to-ticket
+track: site_ops
+title: From signal to ticket
+summary: Turn messy ops notes into a structured incident intake schema.
+duration_minutes: 8
+objectives:
+- Fill required incident fields from evidence
+- Leave optional fields empty rather than invent
+sections:
+- title: Structured intake
+  body: Incidents need host id, summary, severity, evidence refs, and next action.
+    Fail closed on schema validation.
+- title: Messy notes in
+  body: Practice converting free-form notes into fields. Quotes from SEL/health become
+    evidence — not new facts.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: lab_ability
+  label: Open structured Lab
+  href: /lab/structured
+  ability: structured
+check:
+  kind: quiz
+  prompt: >-
+    What should you do when the ticket schema requires a host id you do not
+    have?
+  options:
+  - id: a
+    label: Invent a hostname that looks right
+  - id: b
+    label: Fail closed / mark missing until inventory provides it
+  - id: c
+    label: Reuse another incident's host
+  correct_option_id: b
+  explanation: See lesson sections for the honesty rule.
+completion: check_passed
+prerequisites:
+- site-ops-health-sweep

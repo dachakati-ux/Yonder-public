@@ -1,0 +1,35 @@
+# Worker-only agent for CPU/GPU hosts.
+# Run on each worker server (not on the control-plane host unless debugging).
+#
+#   cp .env.worker.example .env.worker   # set gateway URL + public endpoint + worker id
+#   docker compose -f compose.worker.yaml --env-file .env.worker up --build
+
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file:
+      - path: .env.worker
+        required: false
+    environment:
+      YONDER_CONFIG_FILE: ${YONDER_CONFIG_FILE:-/app/config/environments/lab-multinode.yaml}
+      YONDER_ENVIRONMENT: ${YONDER_ENVIRONMENT:-lab}
+      YONDER_SECURITY__MODE: ${YONDER_SECURITY__MODE:-development}
+      YONDER_SECURITY__WORKER_SHARED_SECRET: ${YONDER_SECURITY__WORKER_SHARED_SECRET:-}
+      YONDER_WORKER__HOST: "0.0.0.0"
+      YONDER_WORKER__PORT: "8090"
+      YONDER_ALLOW_NON_LOCALHOST_BIND_IN_DEVELOPMENT: "true"
+      YONDER_GATEWAY_URL: ${YONDER_GATEWAY_URL:?Set YONDER_GATEWAY_URL to the control-plane Gateway}
+      YONDER_WORKER_ID: ${YONDER_WORKER_ID:?Set YONDER_WORKER_ID}
+      YONDER_WORKER_DISPLAY_NAME: ${YONDER_WORKER_DISPLAY_NAME:-Yonder worker}
+      # Must be reachable FROM the Gateway (not 0.0.0.0).
+      YONDER_WORKER_PUBLIC_ENDPOINT: ${YONDER_WORKER_PUBLIC_ENDPOINT:?Set YONDER_WORKER_PUBLIC_ENDPOINT e.g. http://192.168.10.21:8090}
+    ports:
+      - "${YONDER_PUBLISH_WORKER:-0.0.0.0:8090}:8090"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8090/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s

@@ -1,0 +1,38 @@
+id: mgr-what-yonder-is
+track: managers
+title: What Yonder is
+summary: Gateway-mediated internal AI — not a consumer chatbot island.
+duration_minutes: 5
+objectives:
+- Explain Gateway-only in one sentence
+- Name Academy vs Lab
+sections:
+- title: Product
+  body: 'Yonder is an internal AI platform: Gateway, workers, Console. Academy teaches
+    safe use.'
+- title: Security story
+  body: Auth is upstream. Progress is principal-scoped and ready for corporate
+    auth cutover (trusted ingress).
+glossary_term_ids:
+- gateway-only
+- academy
+- request-principal
+try_it:
+  kind: playground
+  label: Open Academy
+  href: /academy
+check:
+  kind: quiz
+  prompt: 'Where does Console send inference?'
+  options:
+  - id: a
+    label: Direct to GPUs
+  - id: b
+    label: Only through Yonder Gateway
+  - id: c
+    label: Personal API keys
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- foundations-gateway-only

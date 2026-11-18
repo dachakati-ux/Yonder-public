@@ -1,0 +1,14 @@
+# Extra OS packages for NVIDIA driver (DKMS) on GPU workers.
+# Requires EPEL for dkms when fetching (handled by fetch-system-rpms.sh).
+dkms
+gcc
+gcc-c++
+make
+elfutils-libelf-devel
+kernel-headers
+kernel-devel
+perl
+cpio
+unzip
+zip
+file

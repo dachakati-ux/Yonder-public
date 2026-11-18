@@ -1,0 +1,80 @@
+# Control plane only: Gateway + Console (no co-located worker).
+# Use on the main app server. Point workers at this Gateway via YONDER_GATEWAY_URL.
+#
+#   cp .env.control-plane.example .env.control-plane   # edit hosts
+#   docker compose -f compose.control-plane.yaml --env-file .env.control-plane up --build
+#
+# Optional Postgres:
+#   docker compose -f compose.control-plane.yaml -f compose.persistence.yaml \
+#     --env-file .env.control-plane --profile persistence up --build
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    env_file:
+      - path: .env.control-plane
+        required: false
+    environment:
+      YONDER_CONFIG_FILE: ${YONDER_CONFIG_FILE:-/app/config/environments/lab-multinode.yaml}
+      YONDER_ENVIRONMENT: ${YONDER_ENVIRONMENT:-lab}
+      YONDER_SECURITY__MODE: ${YONDER_SECURITY__MODE:-development}
+      YONDER_SECURITY__WORKER_SHARED_SECRET: ${YONDER_SECURITY__WORKER_SHARED_SECRET:-}
+      YONDER_GATEWAY__HOST: "0.0.0.0"
+      YONDER_GATEWAY__PORT: "8080"
+      YONDER_ALLOW_NON_LOCALHOST_BIND_IN_DEVELOPMENT: "true"
+      YONDER_CONSOLE_ORIGIN: ${YONDER_CONSOLE_ORIGIN:-http://127.0.0.1:3000}
+      YONDER_STATE_FILE: /app/data/gateway-state.json
+      YONDER_DATABASE_URL: ${YONDER_DATABASE_URL:-sqlite:////app/data/yonder.db}
+      YONDER_WORKER_REGISTRATION__MODE: ${YONDER_WORKER_REGISTRATION__MODE:-allowlist}
+      YONDER_WORKER_REGISTRATION__ALLOWED_WORKER_IDS: ${YONDER_WORKER_REGISTRATION__ALLOWED_WORKER_IDS:-worker-ai3,worker-ai7}
+      YONDER_WORKER_REGISTRATION__ACCEPT_UNTRUSTED: ${YONDER_WORKER_REGISTRATION__ACCEPT_UNTRUSTED:-false}
+    ports:
+      # Lab multi-host: publish on all interfaces so remote workers can reach Gateway.
+      # Tighten with firewall / private NIC in production.
+      - "${YONDER_PUBLISH_GATEWAY:-0.0.0.0:8080}:8080"
+    volumes:
+      - yonder_cp_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  console:
+    build:
+      context: apps/console
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_YONDER_GATEWAY_URL: ${NEXT_PUBLIC_YONDER_GATEWAY_URL:-http://127.0.0.1:8080}
+    environment:
+      NEXT_PUBLIC_YONDER_GATEWAY_URL: ${NEXT_PUBLIC_YONDER_GATEWAY_URL:-http://127.0.0.1:8080}
+    ports:
+      - "${YONDER_PUBLISH_CONSOLE:-0.0.0.0:3000}:3000"
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: yonder
+      POSTGRES_PASSWORD: yonder
+      POSTGRES_DB: yonder
+    ports:
+      - "${YONDER_PUBLISH_POSTGRES:-127.0.0.1:5432}:5432"
+    volumes:
+      - yonder_cp_pg:/var/lib/postgresql/data
+    profiles:
+      - persistence
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yonder -d yonder"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  yonder_cp_data:
+  yonder_cp_pg:

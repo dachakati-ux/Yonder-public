@@ -1,0 +1,37 @@
+id: support-structured-intake
+track: support
+title: Structured intake
+summary: Emit fail-closed intake JSON from messy notes.
+duration_minutes: 8
+objectives:
+- Name required intake fields
+- Fail closed on missing ids
+sections:
+- title: Schema
+  body: Practice structured Lab with clear required fields. Soft-accepting bad JSON
+    is forbidden.
+- title: Messy notes
+  body: Map free text into fields; leave blanks rather than invent IDs.
+glossary_term_ids:
+- recipes
+- gateway-only
+try_it:
+  kind: lab_ability
+  label: Structured Lab
+  href: /lab/structured
+  ability: structured
+check:
+  kind: quiz
+  prompt: 'Invalid structured intake should:'
+  options:
+  - id: a
+    label: Fail closed
+  - id: b
+    label: Auto-fill fake IDs
+  - id: c
+    label: Be silently accepted
+  correct_option_id: a
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- support-knowledge-rag

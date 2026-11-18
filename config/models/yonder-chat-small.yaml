@@ -1,0 +1,35 @@
+# Active mock-lane manifest for Mac-local Phase 5.
+# This is an explicit mock runtime definition — not a fabricated V100 deployment.
+id: yonder-chat-small
+display_name: Yonder Chat Small
+description: General internal chat model (mock provider until V100 runtime is selected)
+
+source:
+  type: local
+  path: /models/yonder-chat-small
+
+runtime:
+  provider: mock
+  model_identifier: mock-chat
+  dtype: auto
+  quantization: auto
+  context_length: 8192
+  tensor_parallel_size: 1
+
+requirements:
+  minimum_gpu_memory_gb: 1
+  supported_gpu_families:
+    - mock
+    - volta
+    - ampere
+
+defaults:
+  temperature: 0.6
+  top_p: 0.9
+  maximum_output_tokens: 2048
+
+capabilities:
+  - chat
+  - streaming
+  - tools
+  - structured

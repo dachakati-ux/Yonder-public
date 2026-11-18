@@ -1,0 +1,34 @@
+[Unit]
+Description=Serena MCP server for Yonder Gateway client (loopback HTTP)
+Documentation=file:///opt/yonder/repo/docs/mcp.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yonder
+Group=yonder
+Environment=HOME=/var/lib/yonder
+Environment=UV_CACHE_DIR=/var/lib/yonder/uv-cache
+Environment=SERENA_HOST=127.0.0.1
+Environment=SERENA_PORT=8900
+# Prefer the installed control-plane tree; override via /etc/yonder/serena-mcp.env
+Environment=SERENA_PROJECT=/opt/yonder/repo
+Environment=SERENA_CONTEXT=ide-assistant
+EnvironmentFile=-/etc/yonder/serena-mcp.env
+WorkingDirectory=/var/lib/yonder
+# start-lab-serena-mcp.sh refuses non-loopback hosts and validates project path.
+ExecStart=/opt/yonder/repo/scripts/start-lab-serena-mcp.sh --foreground
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=65535
+NoNewPrivileges=true
+ProtectSystem=strict
+# Project may live under /home (operator override); keep home readable.
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/var/lib/yonder /var/log/yonder /etc/yonder
+
+[Install]
+WantedBy=multi-user.target

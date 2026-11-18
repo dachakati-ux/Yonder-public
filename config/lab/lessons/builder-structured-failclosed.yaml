@@ -1,0 +1,39 @@
+id: builder-structured-failclosed
+track: builder
+title: Structured output fail-closed
+summary: Schemas reject inventing fields — builders practice Gateway structured
+  Lab against authored contracts.
+duration_minutes: 10
+objectives:
+- Use /lab/structured with a registered schema
+- Prefer empty/unknown over invented IDs
+sections:
+- title: Schemas as contracts
+  body: Registered schemas (lab rubrics, Site Ops intake) constrain JSON shape.
+    Missing evidence stays empty or not_reported — never invent serials.
+- title: Fail closed
+  body: Validation failure is success for trust. Retry with evidence, not creative
+    filler.
+glossary_term_ids:
+- schema
+- gateway-only
+try_it:
+  kind: lab_ability
+  label: Open Structured Lab
+  href: /lab/structured
+  ability: structured
+check:
+  kind: quiz
+  prompt: 'Required field has no evidence. The builder should:'
+  options:
+  - id: a
+    label: Invent a plausible value so JSON validates
+  - id: b
+    label: Leave unknown / fail closed until evidence exists
+  - id: c
+    label: Skip the Gateway and write files locally
+  correct_option_id: b
+  explanation: Fail-closed beats invented fields.
+completion: check_passed
+prerequisites:
+- builder-fixture-tools

@@ -1,0 +1,48 @@
+# Ternary Bonsai 27B (PrismML) — Q2_0_g128 GGUF of Qwen3.6-27B.
+# Requires the PrismML llama.cpp fork (custom ternary + hybrid-attention
+# kernels). Do not point the global worker binary at this runtime.
+id: yonder-bonsai-27b-ternary
+display_name: Bonsai 27B Ternary
+description: PrismML Ternary Bonsai 27B GGUF (Q2_0) via PrismML llama.cpp on V100
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/Ternary-Bonsai-27B-GGUF/Ternary-Bonsai-27B-Q2_0.gguf
+
+runtime:
+  provider: llama-cpp
+  profile: chat
+  model_identifier: bonsai-27b-ternary
+  dtype: fp16
+  quantization: q2_0
+  context_length: 32768
+  tensor_parallel_size: 1
+  binary_path: /opt/yonder/runtimes/llama.cpp-prismml-cuda-sm70/bin/llama-server
+  mmproj_path: /srv/yonder-storage/model-bundles/Ternary-Bonsai-27B-GGUF/Ternary-Bonsai-27B-mmproj-Q8_0.gguf
+
+requirements:
+  minimum_gpu_memory_gb: 10
+  supported_gpu_families:
+    - volta
+  placement_limits:
+    single_gpu:
+      max_context_length: 262144
+      minimum_gpu_memory_gb: 10
+      evidence: measured
+      # ai1 GPU0 2026-08-08: 32k=10510; 64k=12590; 96k=14670; 128k=16750;
+      # 160k=18830; 192k=20910; 224k=22990; 256k=25070 MiB
+      # TSV: …/20260808-bonsai-metrics/yonder-ctx-measure-…-single_gpu-20260808T171339Z.tsv
+    two_gpu:
+      max_context_length: 262144
+      minimum_gpu_memory_gb: 10
+      evidence: measured
+      # ai1 2026-08-08 two_gpu totals: 64k=13596; 128k=18204; 192k=22812; 256k=27424 MiB
+
+defaults:
+  temperature: 0.7
+  top_p: 0.95
+  maximum_output_tokens: 2048
+
+capabilities:
+  - chat
+  - streaming

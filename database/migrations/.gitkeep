@@ -1,0 +1,2 @@
+# Database migrations will live here (Alembic) once persistence is enabled.
+# Phase 0/1 uses in-memory worker registry only.

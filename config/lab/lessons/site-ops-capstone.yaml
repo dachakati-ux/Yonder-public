@@ -1,0 +1,37 @@
+id: site-ops-capstone
+track: site_ops
+title: Capstone mission
+summary: SEL + health + RAG to structured incident + RMA for a fixture host (general
+  DC incident).
+duration_minutes: 8
+objectives:
+- Complete an end-to-end fixture incident packet
+- Use Practice desk without polluting shared corpus
+sections:
+- title: Mission
+  body: Use fixture SEL and health snippets in the Practice desk. Produce an incident
+    intake and an RMA packet. Cite runbook RAG where you claim policy.
+- title: Honesty bar
+  body: Unknown stays unknown. No invented serials, sensors, or warranty dates.
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: sandbox
+  label: Open Practice desk
+  href: /academy/sandbox?preset=site-ops-fixture
+  sandbox_preset: site-ops-fixture
+check:
+  kind: eval_case
+  prompt: 'Describe your fixture incident packet for lab-host-a: cite SEL/DIMM evidence,
+    name one unknown (e.g. GPU), and state that you will not invent serials. Include:
+    lab-host-a, DIMM, unknown, not invent.'
+  expect_substrings:
+  - lab-host-a
+  - DIMM
+  - unknown
+  - invent
+  case_sensitive: false
+completion: check_and_try_it
+prerequisites:
+- site-ops-worker-agents

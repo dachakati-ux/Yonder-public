@@ -1,0 +1,5 @@
+# Example alias map — clients use stable aliases.
+aliases:
+  yonder-chat:
+    deployment: yonder-chat-v100-primary
+    enabled: true

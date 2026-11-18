@@ -1,0 +1,111 @@
+import { YONDER_CONSOLE } from "@/lib/brand";
+import type { AppHit } from "./types";
+
+/** Light in-app navigation catalog for helper search. */
+export const APP_HITS: AppHit[] = [
+  ...YONDER_CONSOLE.nav.map((item) => ({
+    id: `nav-${item.href}`,
+    label: item.label,
+    href: item.href,
+    keywords: [item.label.toLowerCase(), item.href.replace(/^\//, "")],
+    section: "In app" as const,
+  })),
+  {
+    id: "app-academy",
+    label: "Academy",
+    href: "/academy",
+    keywords: ["academy", "training", "curriculum", "lessons", "site ops", "cohort", "capacity", "workbench", "instructor"],
+    section: "In app",
+  },
+  {
+    id: "app-academy-missions",
+    label: "Academy Missions",
+    href: "/academy/missions",
+    keywords: ["missions", "workflow", "studio", "capstone"],
+    section: "In app",
+  },
+  {
+    id: "app-academy-prompts",
+    label: "Prompt library",
+    href: "/academy/prompts",
+    keywords: ["prompts", "patterns", "library"],
+    section: "In app",
+  },
+  {
+    id: "app-academy-sandbox",
+    label: "Academy Practice desk",
+    href: "/academy/sandbox",
+    keywords: ["sandbox", "practice", "parts ledger", "site ops", "support"],
+    section: "In app",
+  },
+  {
+    id: "app-academy-cohorts",
+    label: "Academy Cohorts",
+    href: "/academy/cohorts",
+    keywords: ["cohorts", "challenges", "rubric", "cohort"],
+    section: "In app",
+  },
+  {
+    id: "app-academy-workbench",
+    label: "Academy Workbench",
+    href: "/academy/workbench",
+    keywords: ["workbench", "notes", "export"],
+    section: "In app",
+  },
+  {
+    id: "app-academy-capacity",
+    label: "Academy Capacity",
+    href: "/academy/capacity",
+    keywords: ["capacity", "cpu", "gpu", "readiness"],
+    section: "In app",
+  },
+  {
+    id: "app-academy-instructor",
+    label: "Academy Instructor",
+    href: "/academy/instructor",
+    keywords: ["instructor", "enablement", "quarantine"],
+    section: "In app",
+  },
+  {
+    id: "app-coder",
+    label: "Coder desk",
+    href: "/coder",
+    keywords: ["coder", "code", "yonder-coder", "patch", "workspace", "path jail"],
+    section: "In app",
+  },
+  {
+    id: "app-help",
+    label: "Help glossary",
+    href: "/help",
+    keywords: ["help", "glossary", "definitions", "terms"],
+    section: "In app",
+  },
+  {
+    id: "app-embeddings",
+    label: "Embeddings playground",
+    href: "/lab/embeddings",
+    keywords: ["embeddings", "vector", "cosine"],
+    section: "In app",
+  },
+  {
+    id: "app-rerank",
+    label: "Rerank sandbox",
+    href: "/lab/rerank",
+    keywords: ["rerank", "retrieval"],
+    section: "In app",
+  },
+  {
+    id: "app-compare",
+    label: "Side-by-side compare",
+    href: "/lab/compare",
+    keywords: ["compare", "latency"],
+    section: "In app",
+  },
+  {
+    id: "app-eval",
+    label: "Light eval pack",
+    href: "/lab/eval",
+    keywords: ["eval", "quiz"],
+    section: "In app",
+  },
+];

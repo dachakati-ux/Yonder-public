@@ -1,0 +1,37 @@
+id: builder-fixture-tools
+track: builder
+title: Fixture company tools
+summary: Use Gateway allowlisted fixture ticket/runbook tools — the pattern for real
+  connectors later.
+duration_minutes: 8
+objectives:
+- Name the Gateway tool boundary
+- Run the ticket-tool-loop mission
+sections:
+- title: Company-shaped tools
+  body: yonder_fixture_get_ticket and yonder_fixture_get_runbook return sanitized
+    fixtures. Real ticketing connectors will follow the same Gateway allowlist pattern.
+- title: No side channels
+  body: Console never talks to ticketing systems directly.
+glossary_term_ids:
+- tools
+- gateway-only
+try_it:
+  kind: playground
+  label: Ticket tool mission
+  href: /academy/missions/ticket-tool-loop
+check:
+  kind: quiz
+  prompt: 'Fixture ticket tools must be called:'
+  options:
+  - id: a
+    label: From the browser to Jira
+  - id: b
+    label: Through Gateway allowlisted tools
+  - id: c
+    label: Via SSH on the worker
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- builder-rag-citations

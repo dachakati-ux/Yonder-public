@@ -1,0 +1,36 @@
+# Local TTS (Piper). READY only after a real worker speech load.
+# Until piper binary + voice model exist, APIs report not_supported /
+# not_configured — never invent audio as “ready.”
+id: yonder-tts
+display_name: Yonder TTS
+description: Gateway-mediated text-to-speech via worker Piper runtime
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/piper/en_US-lessac-medium.onnx
+
+runtime:
+  provider: speech
+  profile: speech
+  speech_kind: tts
+  model_identifier: piper-en-us-lessac-medium
+  dtype: auto
+  quantization: none
+  context_length: 1
+  tensor_parallel_size: 1
+
+requirements:
+  # CPU-friendly; keep >0 for manifest schema (placement still allows cpu).
+  minimum_gpu_memory_gb: 1
+  supported_gpu_families:
+    - volta
+    - mock
+    - cpu
+
+defaults:
+  temperature: 0.0
+  top_p: 1.0
+  maximum_output_tokens: 1
+
+capabilities:
+  - text_to_speech

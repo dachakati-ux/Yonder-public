@@ -1,0 +1,38 @@
+id: site-ops-sel-triage
+track: site_ops
+title: SEL triage
+summary: Classify fixture SEL excerpts into severity, likely FRU, and next action.
+duration_minutes: 8
+objectives:
+- Triage a SEL snippet without inventing events
+- Name severity and likely FRU from evidence only
+sections:
+- title: What SEL is
+  body: The System Event Log records hardware events from the BMC. Training uses sanitized
+    fixture logs — live scans come later behind Gateway tools.
+- title: Triage shape
+  body: 'For each event: severity, likely FRU, evidence quote, and a next action.
+    Do not invent extra SEL lines.'
+glossary_term_ids:
+- gateway-only
+- ready
+try_it:
+  kind: recipe
+  label: Open SEL triage Recipe
+  href: /recipes
+  recipe_id: sel-triage
+check:
+  kind: quiz
+  prompt: 'When triaging SEL in Academy, where do the event lines come from?'
+  options:
+  - id: a
+    label: Invented by the model for realism
+  - id: b
+    label: Fixture corpus or a Gateway-mediated collector
+  - id: c
+    label: Random nvidia-smi output
+  correct_option_id: b
+  explanation: See lesson sections for the honesty rule.
+completion: check_passed
+prerequisites:
+- site-ops-reading-honesty

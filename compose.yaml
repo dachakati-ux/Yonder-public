@@ -1,0 +1,128 @@
+# Full local stack: gateway + worker + console.
+# Optional Postgres:
+#   docker compose -f compose.yaml -f compose.persistence.yaml --profile persistence up --build
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      YONDER_CONFIG_FILE: /app/config/environments/development.yaml
+      YONDER_ENVIRONMENT: development
+      YONDER_SECURITY__MODE: development
+      # Docker network requires non-loopback bind inside the container.
+      YONDER_GATEWAY__HOST: "0.0.0.0"
+      YONDER_GATEWAY__PORT: "8080"
+      YONDER_ALLOW_NON_LOCALHOST_BIND_IN_DEVELOPMENT: "true"
+      YONDER_CONSOLE_ORIGIN: ${YONDER_CONSOLE_ORIGIN:-http://127.0.0.1:${YONDER_CONSOLE_PORT:-3000}}
+      YONDER_STATE_FILE: /app/data/gateway-state.json
+      YONDER_DATABASE_URL: ${YONDER_DATABASE_URL:-sqlite:////app/data/yonder.db}
+      YONDER_MCP__ENABLED: ${YONDER_MCP__ENABLED:-true}
+      YONDER_MCP__SERVER_ENABLED: ${YONDER_MCP__SERVER_ENABLED:-true}
+    ports:
+      - "127.0.0.1:${YONDER_GATEWAY__PORT:-8080}:8080"
+    volumes:
+      - yonder_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      YONDER_CONFIG_FILE: /app/config/environments/development.yaml
+      YONDER_ENVIRONMENT: development
+      YONDER_SECURITY__MODE: development
+      YONDER_WORKER__HOST: "0.0.0.0"
+      YONDER_WORKER__PORT: "8090"
+      YONDER_ALLOW_NON_LOCALHOST_BIND_IN_DEVELOPMENT: "true"
+      YONDER_GATEWAY_URL: http://gateway:8080
+      YONDER_WORKER_ID: local-dev-worker
+      YONDER_WORKER_DISPLAY_NAME: "Compose local worker"
+    ports:
+      - "127.0.0.1:${YONDER_WORKER__PORT:-8090}:8090"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8090/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  console:
+    build:
+      context: apps/console
+      dockerfile: Dockerfile
+      args:
+        # Browser calls the published host port, not the Docker DNS name.
+        NEXT_PUBLIC_YONDER_GATEWAY_URL: ${NEXT_PUBLIC_YONDER_GATEWAY_URL:-http://127.0.0.1:${YONDER_GATEWAY__PORT:-8080}}
+    environment:
+      NEXT_PUBLIC_YONDER_GATEWAY_URL: ${NEXT_PUBLIC_YONDER_GATEWAY_URL:-http://127.0.0.1:${YONDER_GATEWAY__PORT:-8080}}
+    ports:
+      - "127.0.0.1:${YONDER_CONSOLE_PORT:-3000}:3000"
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+  mcp:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      YONDER_GATEWAY_URL: http://gateway:8080
+      YONDER_MCP_HTTP: "true"
+      YONDER_MCP_BIND: "0.0.0.0"
+      YONDER_MCP_PORT: ${YONDER_MCP_PORT:-8095}
+      YONDER_ALLOW_NON_LOCALHOST_BIND_IN_DEVELOPMENT: "true"
+    entrypoint: []
+    command: ["yonder-mcp", "--http", "--bind", "0.0.0.0", "--port", "8095"]
+    ports:
+      - "127.0.0.1:${YONDER_MCP_PORT:-8095}:8095"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8095/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: yonder
+      POSTGRES_PASSWORD: yonder
+      POSTGRES_DB: yonder
+    ports:
+      - "127.0.0.1:${YONDER_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - yonder_pg:/var/lib/postgresql/data
+    profiles:
+      - persistence
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yonder -d yonder"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  yonder_pg:
+  yonder_data:

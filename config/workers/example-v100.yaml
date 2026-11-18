@@ -1,0 +1,6 @@
+# Static worker registration example (unused until V100 host is available).
+workers:
+  - id: v100-worker-01
+    endpoint: http://yonder-worker-01.internal:8090
+    enabled: true
+    display_name: V100 worker 01

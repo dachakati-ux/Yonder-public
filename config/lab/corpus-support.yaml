@@ -1,0 +1,16 @@
+documents:
+- id: support-access-policy
+  title: Teaching access policy
+  text: "Teaching-only: production changes require approved change tickets. Support\
+    \ may reset lab VPN after verifying employee identity via upstream auth \u2014\
+    \ Yonder does not store passwords. Never invent SLA hours."
+- id: support-ticket-fixture
+  title: Fixture ticket VPN flap
+  text: 'From: noc@example.com Subject: VPN flapping on lab edge. Users drop 30-90s
+    after Friday firewall change. Impact count not_reported. Do not invent customer
+    names.'
+- id: support-severity-guide
+  title: Teaching severity guide
+  text: 'Critical: complete outage of production path. High: major degradation with
+    stated evidence. Medium: limited impact. Low: cosmetic. If impact is not_reported,
+    do not invent critical.'

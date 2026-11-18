@@ -1,0 +1,37 @@
+id: support-capstone
+track: support
+title: Support capstone
+summary: Triage → RAG → structured intake for a fixture support ticket.
+duration_minutes: 10
+objectives:
+- Complete the Support mission loop
+- Keep evidence honest
+sections:
+- title: Mission
+  body: 'Use the Support mission studio: triage the fixture ticket, retrieve knowledge,
+    emit intake JSON. No invented customers.'
+- title: Honesty
+  body: Unknown stays unknown.
+glossary_term_ids:
+- academy
+- rag
+- recipes
+try_it:
+  kind: playground
+  label: Support mission
+  href: /academy/missions/support-ticket-loop
+check:
+  kind: quiz
+  prompt: 'Capstone evidence must come from:'
+  options:
+  - id: a
+    label: Fixture ticket + corpus
+  - id: b
+    label: Invented VIP escalation
+  - id: c
+    label: Browser localStorage secrets
+  correct_option_id: a
+  explanation: See lesson sections.
+completion: check_and_try_it
+prerequisites:
+- support-structured-intake

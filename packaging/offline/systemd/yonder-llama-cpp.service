@@ -1,0 +1,35 @@
+[Unit]
+Description=Yonder llama.cpp static loopback sidecar (migration escape hatch)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yonder
+Group=yonder
+EnvironmentFile=-/etc/yonder/llama-cpp.env
+Environment=LD_LIBRARY_PATH=/opt/cuda-12.6/lib64:/opt/yonder/runtimes/llama.cpp-b10167-cuda-sm70/bin
+WorkingDirectory=/opt/yonder/runtimes/llama.cpp-b10167-cuda-sm70
+ExecStart=/opt/yonder/runtimes/llama.cpp-b10167-cuda-sm70/bin/llama-server \
+  --model ${LLAMA_ARG_MODEL} \
+  --alias ${LLAMA_ARG_ALIAS} \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --ctx-size ${LLAMA_ARG_CTX_SIZE:-8192} \
+  --n-gpu-layers ${LLAMA_ARG_N_GPU_LAYERS:-999} \
+  --threads ${LLAMA_ARG_THREADS:-8} \
+  --jinja \
+  --reasoning off
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=600
+TimeoutStopSec=60
+LimitNOFILE=65535
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/yonder /var/log/yonder /etc/yonder /srv/yonder-storage
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,38 @@
+id: operator-lab-live-vs-mock
+track: operator
+title: Lab live vs training mocks
+summary: When an alias is not READY, Lab/Academy must label mocks honestly —
+  never paint green.
+duration_minutes: 8
+objectives:
+- Read Capacity panel availability states
+- Prefer training_scenario / not_ready over invented READY
+sections:
+- title: Honest labels
+  body: Availability is ready, not_ready, or not_reported from Gateway route state.
+    Missing aliases are not invented as READY for demos.
+- title: Capacity panel
+  body: /academy/capacity shows teaching aliases from live Gateway state. Use it
+    before promising concurrent live try-it.
+glossary_term_ids:
+- ready
+- gateway-only
+try_it:
+  kind: playground
+  label: Open Capacity
+  href: /academy/capacity
+check:
+  kind: quiz
+  prompt: 'Alias missing from routes. Capacity should show:'
+  options:
+  - id: a
+    label: READY so the demo looks healthy
+  - id: b
+    label: not_reported (or equivalent honesty)
+  - id: c
+    label: A fabricated latency sparkline
+  correct_option_id: b
+  explanation: Never invent READY when the alias is absent.
+completion: check_passed
+prerequisites:
+- operator-placement-limits

@@ -1,0 +1,32 @@
+[Unit]
+Description=Yonder IDE MCP server (loopback HTTP)
+Documentation=file:///opt/yonder/repo/docs/mcp.md
+After=network-online.target yonder-gateway.service
+Wants=network-online.target
+# Gateway should be up for tool wrappers; do not hard-Require so MCP can
+# report honest gateway_unreachable when Gateway is down.
+
+[Service]
+Type=simple
+User=yonder
+Group=yonder
+Environment=YONDER_GATEWAY_URL=http://127.0.0.1:8080
+Environment=YONDER_MCP_HTTP=1
+Environment=YONDER_MCP_BIND=127.0.0.1
+Environment=YONDER_MCP_PORT=8095
+EnvironmentFile=-/etc/yonder/mcp.env
+WorkingDirectory=/opt/yonder/repo
+ExecStart=/opt/yonder/venv/bin/yonder-mcp --http --bind 127.0.0.1 --port 8095
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+LimitNOFILE=65535
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/yonder /var/log/yonder /etc/yonder
+# Fail closed: ExecStart bind is loopback-only; do not override to 0.0.0.0.
+
+[Install]
+WantedBy=multi-user.target

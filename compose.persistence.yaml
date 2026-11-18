@@ -1,0 +1,14 @@
+# Optional Postgres overlay for the full stack.
+# Usage:
+#   docker compose -f compose.yaml -f compose.persistence.yaml --profile persistence up --build
+
+services:
+  gateway:
+    environment:
+      YONDER_DATABASE_URL: postgresql+psycopg://yonder:yonder@postgres:5432/yonder
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    profiles: []

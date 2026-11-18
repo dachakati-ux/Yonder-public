@@ -1,0 +1,44 @@
+# Primary V100 chat lane (gateway alias yonder-chat when llama_cpp.enabled).
+# Default placement is single_gpu; two_gpu (tensor-split) is also valid via the
+# admin load API when both indexes are free.
+id: yonder-qwen36-35b-a3b-q4
+display_name: Qwen 3.6 35B A3B Q4
+description: Quantized MoE chat model served by llama.cpp on a V100 worker
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/Qwen3.6-35B-A3B-GGUF/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf
+
+runtime:
+  provider: llama-cpp
+  profile: chat
+  model_identifier: qwen3.6-35b-a3b-q4
+  dtype: fp16
+  quantization: int4
+  # 2026-08-08 reaffirm: 1× READY through 65536 (~22832 MiB). Fill 40/70 OK;
+  # ~95% fail-closed (INVALID_REQUEST over size). two_gpu also measured @ 64K.
+  context_length: 131072
+  tensor_parallel_size: 1
+
+requirements:
+  minimum_gpu_memory_gb: 24
+  supported_gpu_families:
+    - volta
+  placement_limits:
+    single_gpu:
+      max_context_length: 262144
+      minimum_gpu_memory_gb: 24
+      evidence: measured
+    two_gpu:
+      max_context_length: 262144
+      minimum_gpu_memory_gb: 24
+      evidence: measured
+
+defaults:
+  temperature: 0.6
+  top_p: 0.9
+  maximum_output_tokens: 2048
+
+capabilities:
+  - chat
+  - streaming

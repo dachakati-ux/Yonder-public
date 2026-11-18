@@ -1,0 +1,12 @@
+documents:
+- id: eng-gateway-contract
+  title: Gateway client contract
+  text: Clients use OpenAI-compatible Gateway routes and stable aliases. Never hardcode
+    worker URLs or GPU indexes in apps.
+- id: eng-tools-allowlist
+  title: Tools allowlist note
+  text: Tool executors are allowlisted behind Gateway. Inventing tool results is forbidden
+    in production paths.
+- id: eng-eval-note
+  title: Light eval note
+  text: Use authored eval packs with expect_substrings. Do not invent pass scores.

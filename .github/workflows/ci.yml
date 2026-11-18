@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/console/package-lock.json
+
+      - name: Sync workspace
+        run: uv sync --all-packages --group dev
+
+      - name: Install console dependencies
+        working-directory: apps/console
+        run: npm ci
+
+      - name: Validate configuration
+        run: make validate-config
+
+      - name: Apply migrations (SQLite)
+        run: |
+          mkdir -p data
+          export YONDER_DATABASE_URL=sqlite:///./data/ci.db
+          make migrate
+
+      - name: Run full verification
+        run: make verify

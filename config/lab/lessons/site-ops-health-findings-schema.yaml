@@ -1,0 +1,39 @@
+id: site-ops-health-findings-schema
+track: site_ops
+title: Health findings schema
+summary: Capture health sweep findings with good/bad/unknown/not_reported —
+  never invent sensors.
+duration_minutes: 8
+objectives:
+- Use yonder.siteops.health_findings.v1 language
+- Prefer not_reported over fake green
+sections:
+- title: Findings honesty
+  body: Health findings use statuses good, bad, unknown, or not_reported. Missing
+    sensors stay not_reported.
+- title: Fixture practice
+  body: Practice desk site-ops-fixture and corpus health docs provide teaching
+    evidence only — not live BMC polls.
+glossary_term_ids:
+- ready
+- not-reported
+try_it:
+  kind: playground
+  label: Practice desk
+  href: /academy/sandbox?preset=site-ops-fixture
+  sandbox_preset: site-ops-fixture
+check:
+  kind: quiz
+  prompt: 'Sensor reading absent from fixtures. Status should be:'
+  options:
+  - id: a
+    label: good (assume healthy)
+  - id: b
+    label: not_reported or unknown
+  - id: c
+    label: invent 42C
+  correct_option_id: b
+  explanation: Never invent sensor values.
+completion: check_passed
+prerequisites:
+- site-ops-health-sweep

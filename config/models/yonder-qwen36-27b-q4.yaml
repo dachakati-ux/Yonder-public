@@ -1,0 +1,44 @@
+# Unsloth UD-Q4_K_XL of Qwen3.6-27B (dense). Loopback chat canary PASS on
+# ai1 2026-08-02 (GPU 0, mmproj attached). Caps remain research_estimate until
+# host measure. Alias stays operator-gated after a successful placed load.
+id: yonder-qwen36-27b-q4
+display_name: Qwen 3.6 27B Q4
+description: Dense Qwen3.6 27B UD-Q4_K_XL GGUF for llama.cpp on V100
+
+source:
+  type: local
+  path: /srv/yonder-storage/model-bundles/Qwen3.6-27B-GGUF/Qwen3.6-27B-UD-Q4_K_XL.gguf
+
+runtime:
+  provider: llama-cpp
+  profile: chat
+  model_identifier: qwen3.6-27b-q4
+  dtype: fp16
+  quantization: int4
+  # 2026-08-08 measure: 1× READY through 65536 (~22494 MiB). Default 32K.
+  context_length: 98304
+  tensor_parallel_size: 1
+  mmproj_path: /srv/yonder-storage/model-bundles/Qwen3.6-27B-GGUF/mmproj-F16.gguf
+
+requirements:
+  minimum_gpu_memory_gb: 22
+  supported_gpu_families:
+    - volta
+  placement_limits:
+    single_gpu:
+      max_context_length: 163840
+      minimum_gpu_memory_gb: 22
+      evidence: measured
+    two_gpu:
+      max_context_length: 262144
+      minimum_gpu_memory_gb: 22
+      evidence: measured
+
+defaults:
+  temperature: 0.6
+  top_p: 0.9
+  maximum_output_tokens: 2048
+
+capabilities:
+  - chat
+  - streaming

@@ -1,0 +1,38 @@
+id: support-knowledge-rag
+track: support
+title: Knowledge RAG
+summary: Answer with citations from a Support teaching corpus; refuse out-of-corpus
+  policy.
+duration_minutes: 8
+objectives:
+- Retrieve then answer
+- Require citations
+sections:
+- title: Grounded Support
+  body: Use the Support sandbox preset. Cite retrieved docs for access and severity
+    teaching notes.
+- title: Silent corpus
+  body: If retrieval misses, say you do not know from the corpus.
+glossary_term_ids:
+- rag
+- citation
+try_it:
+  kind: sandbox
+  label: Support Practice desk
+  href: /academy/sandbox?preset=support-fixture
+  sandbox_preset: support-fixture
+check:
+  kind: quiz
+  prompt: 'Support knowledge answers must include:'
+  options:
+  - id: a
+    label: Citations
+  - id: b
+    label: Invented SLA hours
+  - id: c
+    label: Customer SSNs
+  correct_option_id: a
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- support-triage-basics

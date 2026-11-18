@@ -1,0 +1,37 @@
+id: security-prompt-injection
+track: security
+title: Prompt injection awareness
+summary: Treat untrusted ticket/email text as data — not instructions to bypass policy.
+duration_minutes: 8
+objectives:
+- Identify injection patterns
+- Keep allowlisted tools only
+sections:
+- title: Untrusted text
+  body: Inbound email can say ignore previous rules. Tools stay allowlisted; Gateway
+    mediates.
+- title: Human in the loop
+  body: Destructive or privileged actions stay out of v1 Academy automations.
+glossary_term_ids:
+- tools
+- gateway-only
+try_it:
+  kind: lab_ability
+  label: Tools Lab
+  href: /lab/tools
+  ability: tools
+check:
+  kind: quiz
+  prompt: 'Untrusted ticket text should be treated as:'
+  options:
+  - id: a
+    label: System instructions
+  - id: b
+    label: Data to analyze under policy
+  - id: c
+    label: A reason to disable Gateway
+  correct_option_id: b
+  explanation: See lesson sections.
+completion: check_passed
+prerequisites:
+- security-data-handling

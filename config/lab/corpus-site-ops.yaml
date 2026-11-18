@@ -1,0 +1,54 @@
+# Site Ops teaching corpus — sanitized fixtures for Academy RAG / Practice desk.
+# Never invent serials, sensors, or warranty dates beyond these documents.
+
+documents:
+  - id: siteops-gateway-boundary
+    title: Site Ops Gateway boundary
+    text: >
+      Site Ops AI tooling must call Yonder Gateway only. Consoles must never
+      talk to BMCs, IPMI endpoints, or worker agents directly. Collectors report
+      facts; the Gateway mediates tools and trusted request context.
+
+  - id: siteops-honesty
+    title: Availability honesty
+    text: >
+      Use available when evidence exists. Use not_reported when a field was never
+      collected. Use collection_failed when a probe ran and failed. Never invent
+      temperatures, serial numbers, or warranty end dates to fill a form.
+
+  - id: siteops-sel-fixture
+    title: Fixture SEL lab-host-a
+    text: >
+      SEL teaching fixture for lab-host-a. 2026-07-10T03:11:02Z critical Memory
+      Uncorrectable ECC on DIMM A1. 2026-07-10T03:11:05Z warning Memory
+      Correctable ECC threshold exceeded. Do not invent additional SEL lines.
+      Likely FRU is DIMM A1.
+
+  - id: siteops-health-fixture
+    title: Fixture health lab-host-a
+    text: >
+      Health sweep fixture. Disks: SMART OK on bay0; bay1 not_reported.
+      PCIe: link up x16 on slot3. GPU: section not_reported. Memory: ECC errors
+      observed — see SEL. Mark GPU as unknown when the GPU section is not_reported.
+
+  - id: siteops-inventory-fixture
+    title: Fixture inventory lab-host-a
+    text: >
+      Inventory teaching record. Chassis teaching-sku-1. CPU 2x teaching-cpu.
+      Memory 8x 32GiB DIMM including slot A1. NIC not_reported. Disks bay0
+      serial TEACH-DISK-0001; bay1 not_reported. Never invent NIC MACs.
+
+  - id: siteops-runbook-ecc
+    title: Runbook memory ECC
+    text: >
+      Teaching runbook for uncorrectable ECC. Confirm SEL and DIMM location.
+      Open an incident with host id and evidence refs. Prepare an RMA packet for
+      the DIMM when warranty docs support it. Do not invent warranty end dates.
+      Non-emergency DIMM replacement change window: weekday 10:00-16:00 local lab time.
+
+  - id: siteops-rma-teaching
+    title: Teaching RMA policy
+    text: >
+      Teaching-only RMA notes. Required fields: part_number, failure_summary,
+      evidence_refs, host_id. warranty_end is optional; use not_reported when
+      unknown. Academy never calls real vendor APIs.

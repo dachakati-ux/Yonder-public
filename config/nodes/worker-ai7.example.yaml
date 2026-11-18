@@ -1,0 +1,20 @@
+# Worker node — worker-03.example.internal
+# Replaces abandoned ai5 (GPU enumeration never recovered).
+# Copy values into .env.worker / worker.env on that host.
+
+node: ai7
+role: worker
+worker_id: worker-ai7
+display_name: ai7 (lab worker)
+hostname: worker-03.example.internal
+ipv4: 192.0.2.13
+gateway_url: http://control-plane.example.internal:8080
+worker_public_endpoint: http://worker-03.example.internal:8090
+bind:
+  host: 0.0.0.0
+  port: 8090
+notes:
+  - Measured 2026-07-31: 2× Tesla V100 PCIe 32GB visible on PCI (05e:00.0, 0af:00.0)
+  - NVIDIA driver + yonder-worker install still required before Gateway loads
+  - Prefer local model copies under /srv/yonder-storage/model-bundles (same as ai3)
+  - Do not invent GPU metrics; unavailable values stay explicit

@@ -1,0 +1,4 @@
+id: feature-multiply
+kind: feature
+task: "Implement a multiply(a, b) function in calc.py so the tests pass."
+check_command: "python -m pytest"

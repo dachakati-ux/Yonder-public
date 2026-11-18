@@ -1,0 +1,4 @@
+id: bug-subtract-add
+kind: bugfix
+task: "add(a, b) returns a - b instead of a + b. Fix add() so the tests pass."
+check_command: "python -m pytest"

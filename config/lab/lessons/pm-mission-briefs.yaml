@@ -1,0 +1,31 @@
+id: pm-mission-briefs
+track: pm
+title: Mission briefs
+summary: 'Write a mission brief: goal, fixtures, success criteria, honesty constraints.'
+duration_minutes: 8
+objectives:
+- Author a brief with success criteria
+- Include fail-closed rules
+sections:
+- title: Brief shape
+  body: Goal, fixture inputs, steps, success criteria, what must never be invented.
+- title: Studio
+  body: Missions turn Recipes into guided multi-step practice.
+glossary_term_ids:
+- academy
+- recipes
+try_it:
+  kind: playground
+  label: Open Missions
+  href: /academy/missions
+check:
+  kind: eval_case
+  prompt: 'Write a short mission brief including the words goal, fixture, and invent.'
+  expect_substrings:
+  - goal
+  - fixture
+  - invent
+  case_sensitive: false
+completion: check_passed
+prerequisites:
+- pm-honest-readiness

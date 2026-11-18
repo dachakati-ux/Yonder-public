@@ -1,0 +1,36 @@
+id: trust-citations-required
+track: trust
+title: Citations required
+summary: Grounded answers need citations to retrieved chunks — confidence alone is
+  not enough.
+duration_minutes: 7
+objectives:
+- Require citations for policy/runbook claims
+- Refuse to answer from 'memory' when RAG is the contract
+sections:
+- title: Show your work
+  body: RAG demos and Site Ops runbook answers must cite retrieved documents. Citations
+    let a human verify grounding in seconds.
+- title: No citation, no claim
+  body: If retrieval returns nothing relevant, say so. Do not invent a policy paragraph.
+glossary_term_ids:
+- rag
+- citation
+- lab-live
+try_it:
+  kind: lab_ability
+  label: Open RAG Lab
+  href: /lab/rag
+  ability: rag
+check:
+  kind: eval_case
+  prompt: >-
+    Explain why a runbook answer needs citations. Include the words citation
+    and corpus.
+  expect_substrings:
+  - citation
+  - corpus
+  case_sensitive: false
+completion: check_passed
+prerequisites:
+- trust-hallucination-traps
