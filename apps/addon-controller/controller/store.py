@@ -63,6 +63,13 @@ class JobStore:
                     updated_at TEXT NOT NULL
                 )"""
             )
+            db.execute(
+                """CREATE TABLE IF NOT EXISTS addon_setup (
+                    addon_id TEXT PRIMARY KEY,
+                    values_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )"""
+            )
             placeholders = ",".join("?" for _ in ACTIVE)
             db.execute(
                 "UPDATE jobs SET status='interrupted', "
@@ -170,3 +177,33 @@ class JobStore:
                 "FROM desired_addons ORDER BY addon_id"
             ).fetchall()
             return [dict(row) for row in rows]
+
+
+    def get_setup(self, addon_id: str) -> dict[str, str]:
+        with self.lock, self._db() as db:
+            row = db.execute(
+                "SELECT values_json FROM addon_setup WHERE addon_id=?", (addon_id,)
+            ).fetchone()
+            return json.loads(row["values_json"]) if row is not None else {}
+
+    def save_setup(self, addon_id: str, values: dict[str, str]) -> None:
+        with self.lock, self._db() as db:
+            pending = db.execute(
+                "SELECT id FROM jobs WHERE addon_id=? "
+                "AND status IN (" + ",".join("?" for _ in BLOCKING) + ")",
+                (addon_id, *BLOCKING),
+            ).fetchone()
+            if pending:
+                raise JobConflict("Installation or recovery is active; setup is locked")
+            running = db.execute(
+                "SELECT desired_state FROM desired_addons WHERE addon_id=?",
+                (addon_id,),
+            ).fetchone()
+            if running and running["desired_state"] == "running":
+                raise JobConflict("Remove the existing deployment before changing setup")
+            db.execute(
+                "INSERT INTO addon_setup (addon_id, values_json, updated_at) "
+                "VALUES (?,?,?) ON CONFLICT(addon_id) DO UPDATE SET "
+                "values_json=excluded.values_json, updated_at=excluded.updated_at",
+                (addon_id, json.dumps(values, sort_keys=True), utcnow()),
+            )
