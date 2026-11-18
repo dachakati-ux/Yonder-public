@@ -7,13 +7,12 @@ import os
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
-from pydantic import ValidationError
-
 from controller.api import create_app
 from controller.engine import Controller, ControllerError, load_deployments
 from controller.models import ApprovedDeployment
 from controller.store import JobStore
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 IMAGE = "registry.example.org/yonder/demo@sha256:" + "a" * 64
 TOKEN = "A" * 40
