@@ -596,10 +596,34 @@ class Controller:
             if job is None or job["status"] != "interrupted":
                 raise ControllerError("Job is not awaiting recovery review")
             if job["action"] == "upgrade":
-                raise ControllerError(
-                    "Interrupted upgrades require full host reconciliation; "
-                    "generic acknowledgment cannot verify staged/rollback containers"
-                )
+                if observed_state != "running":
+                    raise ControllerError("Restored original must be running")
+                deployment = self.approved().get(job["addon_id"])
+                if deployment is None:
+                    raise ControllerError("Approved deployment no longer exists")
+                previous = job["plan"].get("previous") or {}
+                image = previous.get("image")
+                if not isinstance(image, str):
+                    raise ControllerError("Previous release identity unavailable")
+                try:
+                    clean = await self.docker.upgrade_recovery_clean(
+                        deployment, image, job_id
+                    )
+                except DockerError as exc:
+                    raise ControllerError(
+                        "Could not verify all upgrade container identities"
+                    ) from exc
+                if not clean:
+                    raise ControllerError(
+                        "Upgrade staging/rollback containers still require host "
+                        "reconciliation before acknowledgment"
+                    )
+                try:
+                    return self.jobs.acknowledge(
+                        job_id, "original release running; staged artifacts absent"
+                    )
+                except JobConflict as exc:
+                    raise ControllerError(str(exc)) from exc
             actual = await self.observed(job["addon_id"])
             if actual == "unmanaged_container_collision":
                 raise ControllerError("Cannot acknowledge an unowned Docker container")
