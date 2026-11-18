@@ -44,6 +44,12 @@ type Catalog = {
   };
 };
 
+type AddonServiceHealth = {
+  addon_id: string;
+  status: string;
+  service?: { version: string; health: string; capabilities: string[] };
+};
+
 type SecurityReport = {
   checks: Array<{ id: string; status: string; message: string }>;
   note: string;
@@ -64,6 +70,7 @@ export function AddonsWorkspace() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [serviceHealth, setServiceHealth] = useState<Record<string, AddonServiceHealth>>({});
 
   const refresh = useCallback(async () => {
     try {
@@ -114,6 +121,21 @@ export function AddonsWorkspace() {
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Add-on operation failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function inspectService(item: Addon) {
+    setBusyId(item.id);
+    try {
+      const status = await api<AddonServiceHealth>(
+        "/api/admin/addons/" + encodeURIComponent(item.id) + "/service/health"
+      );
+      setServiceHealth((current) => ({ ...current, [item.id]: status }));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not verify service");
     } finally {
       setBusyId(null);
     }
@@ -191,6 +213,13 @@ export function AddonsWorkspace() {
               Permissions: {item.permissions.join(", ") || "none"}
             </p>
             <p className="entity-meta">{item.warning}</p>
+            {serviceHealth[item.id] ? (
+              <p className="entity-meta" role="status">
+                Service: {serviceHealth[item.id].status}
+                {serviceHealth[item.id].service ?
+                  " · v" + serviceHealth[item.id].service?.version : ""}
+              </p>
+            ) : null}
             <div className="addons-card-actions">
               {item.installable ? (
                 <button className="btn btn-primary" type="button"
@@ -205,6 +234,13 @@ export function AddonsWorkspace() {
               ) : (
                 <button className="btn" type="button" disabled>Not yet available</button>
               )}
+              {item.service_id && item.status === "installed" ? (
+                <button className="btn btn-ghost" type="button"
+                  disabled={busyId != null}
+                  onClick={() => void inspectService(item)}>
+                  Check service
+                </button>
+              ) : null}
               <a className="btn btn-ghost" target="_blank" rel="noopener noreferrer"
                 href={"https://github.com/dachakati-ux/Yonder-public/blob/main/" + item.docs}>
                 Documentation
