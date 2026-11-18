@@ -104,6 +104,43 @@ class DockerAdapter:
         await self._run("pull", "--quiet", deployment.image, timeout=900.0)
         await self.preflight(deployment)
 
+    async def prepare_resources(self, deployment: ApprovedDeployment) -> None:
+        """Provision only approved internal networks and persistent data volumes.
+
+        Secrets volumes are NEVER created by this method. Created resources
+        survive failed deployments or removal, preserving user data.
+        """
+        if not deployment.provision_managed_resources:
+            return
+        if deployment.network != "none":
+            names = await self._run(
+                "network", "ls", "--filter", f"name=^{deployment.network}$",
+                "--format", "{{.Name}}",
+            )
+            if deployment.network not in names.splitlines():
+                await self._run(
+                    "network", "create", "--driver", "bridge", "--internal",
+                    "--label", "io.yonder.approved=true",
+                    "--label", f"{DOCKER_LABEL}={deployment.addon_id}",
+                    deployment.network,
+                )
+        if deployment.data_volume:
+            name = f"yonder-addon-data-{deployment.addon_id}"
+            names = await self._run(
+                "volume", "ls", "--filter", f"name=^{name}$",
+                "--format", "{{.Name}}",
+            )
+            if name not in names.splitlines():
+                await self._run(
+                    "volume", "create",
+                    "--label", "io.yonder.approved=true",
+                    "--label", f"{DOCKER_LABEL}={deployment.addon_id}",
+                    "--label", "io.yonder.purpose=data",
+                    name,
+                )
+        # Even if names existed already, validate their actual policy labels.
+        await self.preflight_resources(deployment)
+
     async def preflight_resources(self, deployment: ApprovedDeployment) -> None:
         """Check that every referenced resource already exists and is approved."""
         if deployment.network != "none":
