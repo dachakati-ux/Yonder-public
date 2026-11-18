@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { GATEWAY_URL } from "@/lib/brand";
 import { fetchHardware } from "@/lib/ops";
+import { listGpus } from "@/lib/hardware";
+import type { HardwareNode } from "@/lib/hardware";
 
 interface CatalogModel {
   id: string;
@@ -42,14 +44,14 @@ export function ModelLibrary() {
   const [working, setWorking] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [workerCount, setWorkerCount] = useState<number | null>(null);
+  const [workers, setWorkers] = useState<HardwareNode[] | null>(null);
 
   useEffect(() => {
     let active = true;
     void fetchHardware().then((data) => {
-      if (active) setWorkerCount(data.nodes.filter((n) => n.connected).length);
+      if (active) setWorkers(data.nodes.filter((n) => n.connected));
     }).catch(() => {
-      if (active) setWorkerCount(null);
+      if (active) setWorkers(null);
     });
     return () => { active = false; };
   }, []);
@@ -118,9 +120,9 @@ export function ModelLibrary() {
         </button>
       </form>
       <p className="entity-meta">
-        {workerCount == null
+        {workers == null
           ? "Hardware status unavailable — model compatibility cannot be verified."
-          : `${workerCount} connected worker(s). Model sizes below are not a hardware-fit guarantee.`}
+          : `${workers.length} connected worker(s). Model sizes below are not a hardware-fit guarantee.`}
         {" "}Models may have license restrictions or require accepting provider terms.
       </p>
       {error ? <p className="message-error" role="alert">{error}</p> : null}
@@ -162,7 +164,26 @@ export function ModelLibrary() {
               {selected.gguf_files.map((file) => (
                 <div key={file.filename} className="compact-row" style={{ display: "flex", gap: 12, justifyContent: "space-between", flexWrap: "wrap" }}>
                   <span style={{ overflowWrap: "anywhere" }}>{file.filename}</span>
-                  <strong>{bytes(file.size_bytes)}</strong>
+                  <span style={{ display: "grid", justifyItems: "end", gap: 3 }}>
+                    <strong>{bytes(file.size_bytes)}</strong>
+                    {file.size_bytes != null && workers != null ? (
+                      <small className="entity-meta">
+                        {(() => {
+                          const matching = workers.flatMap((node) =>
+                            listGpus(node)
+                              .filter((gpu) =>
+                                gpu.availableBytes != null &&
+                                gpu.availableBytes >= file.size_bytes! * 1.25
+                              )
+                              .map((gpu) => `${node.display_name}: ${gpu.name}`)
+                          );
+                          return matching.length > 0
+                            ? `Potential single-GPU fit (25% headroom): ${matching.slice(0, 2).join(", ")}`
+                            : "No reported single GPU has 25% weight headroom; CPU or multi-GPU may be possible";
+                        })()}
+                      </small>
+                    ) : null}
+                  </span>
                 </div>
               ))}
             </div>
