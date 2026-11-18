@@ -505,3 +505,72 @@ This endpoint is deliberately read-only: it does not pull images, start
 containers, create networks, initialize data volumes, or write secrets.
 A successful preflight is advisory, not a guarantee of runtime health or
 institutional compliance.
+
+
+## Encrypted local credential inventory (initial implementation)
+
+The controller now includes a **local-only encrypted credential inventory** for
+future add-ons. The trusted host administrator uses the command-line utility
+`apps/addon-controller/credentials_cli.py` to add, replace, revoke and inspect
+credential status. **Never submit credentials through Yonder's web UI.**
+
+Credentials are encrypted at rest using AES-256-GCM with a locally generated
+256-bit master key. Encryption binds each value to its add-on ID and credential
+name as authenticated associated data. The SQLite database stores ciphertext,
+random nonces, revisions, and timestamps, not plaintext values.
+
+Example commands on a trusted controller host, with the controller Python
+dependencies installed:
+
+```bash
+cd apps/addon-controller
+python credentials_cli.py \
+  --key-file /secure/yonder/credentials.key init-key
+
+python credentials_cli.py \
+  --key-file /secure/yonder/credentials.key \
+  --database /secure/yonder/credentials.db \
+  set convyx SERVICE_TOKEN
+
+python credentials_cli.py \
+  --key-file /secure/yonder/credentials.key \
+  --database /secure/yonder/credentials.db \
+  status convyx
+
+python credentials_cli.py \
+  --key-file /secure/yonder/credentials.key \
+  --database /secure/yonder/credentials.db \
+  revoke convyx SERVICE_TOKEN
+```
+
+The `set` command prompts twice using hidden terminal input, never accepts
+secret values in command-line arguments, and replaces the encrypted record
+while increasing its revision. `revoke` invalidates the active record and
+increments the revision; old backup copies may still contain old encrypted
+material and must follow the retention policy. To revoke an already-issued
+provider token **at the source**, use that provider's console/API too.
+
+The master key is generated exclusively (the utility refuses overwrite),
+requires mode 0600 on POSIX, and must be backed up separately in a protected,
+recoverable location. **If you lose that key, the encrypted values cannot be
+recovered.** Host administrators and compromised controller processes can
+still access the key; local encryption is not a substitute for secure host
+isolation. SQLite database backups, key recovery, external KMS, master-key
+rotation, audit retention and institutional approval are future work.
+
+If an operator mounts both the key file and encrypted database into the
+controller, authorized Yonder administrators may view **only credential
+names, revision numbers, timestamps and configured/revoked status** through
+`GET /v1/credentials/{addon_id}` and the Add-ons UI. This endpoint does
+not return values or allow updating them.
+
+**Critical limitation:** This inventory does **not** yet deliver decrypted
+credentials into runtime containers. The older independently provisioned,
+read-only Docker secret volume remains the only supported runtime credential
+input. An encrypted entry appearing as "Stored" does not imply it has been
+distributed to an add-on or that the provider token works. The UI labels
+runtime delivery as `not_implemented` to prevent that confusion.
+
+This module is a stepping stone toward a dedicated scoped secret broker with
+explicit mount/rotation/revocation semantics, not a production-approved
+enterprise credential manager.
