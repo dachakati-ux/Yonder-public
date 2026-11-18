@@ -1,6 +1,7 @@
 """SQLite migration contracts run only against restored sandbox backups."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -59,6 +60,10 @@ def test_rehearses_schema_on_separate_snapshot_without_touching_original(tmp_pat
     result = rehearse_sqlite_migration(backup, sandbox, contract)
     assert result["sandbox_integrity"] == "passed"
     assert result["steps_rehearsed"] == 2
+    assert result["receipt_signed"] is False
+    assert len(result["rehearsal_contract_sha256"]) == 64
+    assert len(result["source_backup_manifest_sha256"]) == 64
+    assert len(result["sandbox_database_sha256"]) == 64
     assert result["row_counts_preserved"] is True
     assert result["foreign_keys_valid"] is True
     assert result["tables_checked"] == 1
@@ -81,6 +86,9 @@ def test_rehearses_schema_on_separate_snapshot_without_touching_original(tmp_pat
     assert sorted(x.name for x in backup.iterdir()) == [
         "database.sqlite3", "manifest.json",
     ]
+    assert result["source_backup_manifest_sha256"] == hashlib.sha256(
+        (backup / "manifest.json").read_bytes()
+    ).hexdigest()
 
 
 @pytest.mark.parametrize("changes", [
