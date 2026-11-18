@@ -108,6 +108,33 @@ the journal remains locally mutable by a privileged host administrator.
 They do **not** authorize a production migration, prove application
 compatibility, or reverse data changes.
 
+### Reviewing interrupted rehearsal records
+
+Use the returned `rehearsal_id` to inspect a journal record without
+changing the state of an in-progress rehearsal:
+
+```bash
+python review_migration.py \
+  --journal /secure/yonder/migration-rehearsals.db \
+  --id '<rehearsal-id>'
+```
+
+If an offline rehearsal was interrupted by a process restart, inspect its
+isolated sandbox and verify it is not being used. The operator can then
+explicitly clear the **interrupted block**:
+
+```bash
+python review_migration.py \
+  --journal /secure/yonder/migration-rehearsals.db \
+  --id '<rehearsal-id>' \
+  --acknowledge-interrupted
+```
+
+This records `acknowledged`, **not** `passed`. A new empty sandbox,
+a new signed attestation and a fresh rehearsal attempt are needed to
+produce new passing evidence. Journal records are local operational
+metadata, not cryptographically immutable audit logs.
+
 ## Sandbox rehearsal
 
 First generate or inspect a *SQLite-native* backup bundle with
