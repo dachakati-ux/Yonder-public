@@ -354,3 +354,54 @@ class CredentialVault:
         except (OSError, sqlite3.Error) as exc:
             destination.unlink(missing_ok=True)
             raise VaultError("Encrypted credential backup failed") from exc
+
+    def rotate_master_key(self, new_key_path: Path) -> int:
+        """Re-encrypt all vault records under a newly generated 0600 master key.
+
+        Creates `new_key_path` exclusively (never overwrites an existing file),
+        re-encrypts every row inside one SQLite transaction, and removes
+        `new_key_path` if any step fails so the vault stays consistent.
+        Returns the number of credential rows re-encrypted.
+        """
+        old_key = read_master_key(self.key_path)
+        create_master_key(new_key_path)
+        try:
+            new_key = read_master_key(new_key_path)
+            old_aes = AESGCM(old_key)
+            new_aes = AESGCM(new_key)
+            now = _now()
+            uid = os.getuid() if hasattr(os, "getuid") else -1
+            with self._lock, self._connection() as db:
+                rows = db.execute(
+                    "SELECT addon_id,credential_name,nonce,ciphertext,revision "
+                    "FROM credentials"
+                ).fetchall()
+                affected_addons: set[str] = set()
+                for row in rows:
+                    aad = AAD_PREFIX + f"{row['addon_id']}:{row['credential_name']}".encode()
+                    plaintext = old_aes.decrypt(bytes(row["nonce"]), bytes(row["ciphertext"]), aad)
+                    fresh_nonce = os.urandom(12)
+                    fresh_ciphertext = new_aes.encrypt(fresh_nonce, plaintext, aad)
+                    db.execute(
+                        "UPDATE credentials SET nonce=?,ciphertext=?,updated_at=? "
+                        "WHERE addon_id=? AND credential_name=?",
+                        (
+                            fresh_nonce, fresh_ciphertext, now,
+                            row["addon_id"], row["credential_name"],
+                        ),
+                    )
+                    affected_addons.add(str(row["addon_id"]))
+                for addon_id in sorted(affected_addons):
+                    db.execute(
+                        "INSERT INTO credential_events "
+                        "(addon_id,credential_name,action,revision,actor_uid,timestamp) "
+                        "VALUES (?,?,?,?,?,?)",
+                        (addon_id, "*", "master_key_rotated", 0, uid, now),
+                    )
+            self.key_path = new_key_path
+            return len(rows)
+        except Exception as exc:
+            new_key_path.unlink(missing_ok=True)
+            if isinstance(exc, VaultError):
+                raise
+            raise VaultError("Master key rotation failed") from exc

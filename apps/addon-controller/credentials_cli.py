@@ -8,12 +8,12 @@ import sys
 from pathlib import Path
 
 from controller.credential_delivery import DeliveryError, deliver, remove_delivered
-from controller.engine import ControllerError, load_deployments
 from controller.credential_vault import (
     CredentialVault,
     VaultError,
     create_master_key,
 )
+from controller.engine import ControllerError, load_deployments
 
 DEFAULT_STORE = "/var/lib/yonder/credentials.db"
 DEFAULT_KEY = "/etc/yonder/credentials.key"
@@ -28,6 +28,8 @@ def main() -> int:
     )
     operations = parser.add_subparsers(dest="action", required=True)
     operations.add_parser("init-key")
+    rotate_cmd = operations.add_parser("rotate-key")
+    rotate_cmd.add_argument("new_key_path", type=Path)
     backup_cmd = operations.add_parser("backup")
     backup_cmd.add_argument("destination", type=Path)
     for name in ("set", "revoke", "status", "audit", "deliver", "remove-delivered"):
@@ -42,7 +44,14 @@ def main() -> int:
             print("Master key created. Back it up to a secure offline location.")
             return 0
         vault = CredentialVault(args.database, args.key_file)
-        if args.action == "backup":
+        if args.action == "rotate-key":
+            count = vault.rotate_master_key(args.new_key_path)
+            print(
+                f"Master key rotated ({count} record(s) re-encrypted). "
+                f"New key at: {args.new_key_path}"
+            )
+            print("Update YONDER_CONTROLLER_CREDENTIAL_KEY and back up the new key offline.")
+        elif args.action == "backup":
             vault.backup(args.destination)
             print("Encrypted records backed up to:", args.destination)
             print("Back up the master key separately; it is not in this file.")
@@ -95,9 +104,13 @@ def main() -> int:
                 )
         else:
             for entry in vault.metadata(args.addon_id):
+                delivery = entry.get("delivery") or {}
                 print(
-                    entry["name"], "configured" if entry["configured"] else "revoked",
+                    entry["name"],
+                    "configured" if entry["configured"] else "revoked",
                     "revision", entry["revision"],
+                    f"delivery={delivery.get('status', 'unknown')}",
+                    f"delivered_revision={delivery.get('delivered_revision')}",
                 )
         return 0
     except (VaultError, DeliveryError, ControllerError, OSError, UnicodeError) as exc:

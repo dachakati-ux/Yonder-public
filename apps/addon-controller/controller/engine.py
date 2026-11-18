@@ -94,14 +94,29 @@ class Controller:
             read_master_key(self.vault_key)
             vault = CredentialVault(self.vault_db, self.vault_key)
             entries = vault.metadata(addon_id)
+            events = vault.audit_events(addon_id, limit=20)
         except (VaultError, OSError):
             return {
                 "addon_id": addon_id, "vault_available": False,
-                "credentials": [], "runtime_delivery": "not_implemented",
+                "credentials": [], "audit_events": [],
+                "stale_count": 0, "cleanup_required_count": 0,
+                "runtime_delivery": "not_implemented",
             }
+        stale_count = sum(
+            1 for item in entries if (item.get("delivery") or {}).get("status") == "stale_delivery"
+        )
+        cleanup_required_count = sum(
+            1
+            for item in entries
+            if (item.get("delivery") or {}).get("status") == "revoked_cleanup_required"
+        )
         return {
             "addon_id": addon_id, "vault_available": True,
-            "credentials": entries, "runtime_delivery": "not_implemented",
+            "credentials": entries,
+            "audit_events": events,
+            "stale_count": stale_count,
+            "cleanup_required_count": cleanup_required_count,
+            "runtime_delivery": "not_implemented",
             "note": (
                 "Local administrator may deliver into approved Docker volumes; "
                 "this API does not verify delivered file contents or provider acceptance."
@@ -320,11 +335,24 @@ class Controller:
                     "Administrator must provision the approved read-only secrets volume.",
                 )
             else:
-                check(
-                    "secrets", "managed",
-                    "Secret volume labels verified; file delivery and rotation "
-                    "must be confirmed by the host administrator.",
-                )
+                cred_summary = self.credential_status(addon_id)
+                if cred_summary.get("cleanup_required_count", 0) > 0:
+                    check(
+                        "secrets", "blocked",
+                        "Revoked credential(s) still require delivered-file cleanup before launch.",
+                    )
+                elif cred_summary.get("stale_count", 0) > 0:
+                    check(
+                        "secrets", "managed",
+                        "Secret volume labels verified; stale delivered credential(s) detected "
+                        "and require re-delivery by the host administrator.",
+                    )
+                else:
+                    check(
+                        "secrets", "managed",
+                        "Secret volume labels verified; file delivery and rotation "
+                        "must be confirmed by the host administrator.",
+                    )
         else:
             check("secrets", "ready", "No credentials are requested.")
 

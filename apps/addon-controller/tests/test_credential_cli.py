@@ -55,3 +55,34 @@ def test_offline_cli_grants_only_declared_credentials(
     assert target.exists() is allowed
     if allowed:
         assert target.read_bytes() == b"example-private-token"
+
+
+def test_offline_cli_status_reports_delivery_and_rotate_key(tmp_path, monkeypatch, capsys):
+    key = tmp_path / "master.key"
+    db = tmp_path / "vault.db"
+    create_master_key(key)
+    vault = CredentialVault(db, key)
+    vault.put("convyx", "SERVICE_TOKEN", b"token-v1")
+
+    monkeypatch.setattr(
+        sys, "argv", [
+            "credentials_cli.py", "--database", str(db),
+            "--key-file", str(key), "status", "convyx",
+        ],
+    )
+    assert main() == 0
+    out = capsys.readouterr().out
+    assert "delivery=never_delivered" in out
+
+    new_key = tmp_path / "master-v2.key"
+    monkeypatch.setattr(
+        sys, "argv", [
+            "credentials_cli.py", "--database", str(db),
+            "--key-file", str(key), "rotate-key", str(new_key),
+        ],
+    )
+    assert main() == 0
+    out = capsys.readouterr().out
+    assert "1 record(s) re-encrypted" in out
+    reopened = CredentialVault(db, new_key)
+    assert reopened.read_for_offline_delivery("convyx", "SERVICE_TOKEN") == b"token-v1"

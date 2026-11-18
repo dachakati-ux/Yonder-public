@@ -140,3 +140,29 @@ def test_backup_requires_private_permissions(tmp_path):
     vault.backup(target)
     if os.name == "posix":
         assert target.stat().st_mode & 0o077 == 0
+
+
+def test_master_key_rotation_reencrypts_and_audits(tmp_path):
+    vault, old_key, db = setup_vault(tmp_path)
+    vault.put("convyx", "SERVICE_TOKEN", b"rotate-me-secret")
+    new_key = tmp_path / "master-v2.key"
+    rotated = vault.rotate_master_key(new_key)
+    assert rotated == 1
+    assert new_key.is_file()
+    if os.name == "posix":
+        assert new_key.stat().st_mode & 0o077 == 0
+    assert vault.read_for_offline_delivery("convyx", "SERVICE_TOKEN") == b"rotate-me-secret"
+
+    # Old key must no longer decrypt the re-encrypted record.
+    stale_vault = CredentialVault(db, old_key)
+    with pytest.raises(VaultError, match="authentication failed"):
+        stale_vault.read_for_offline_delivery("convyx", "SERVICE_TOKEN")
+
+    # Audit log records rotation without leaking plaintext.
+    events = vault.audit_events("convyx")
+    assert events[0]["action"] == "master_key_rotated"
+    assert b"rotate-me-secret" not in db.read_bytes()
+
+    # Refuses to overwrite an existing key file.
+    with pytest.raises(VaultError, match="already exists"):
+        vault.rotate_master_key(new_key)

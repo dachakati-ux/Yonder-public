@@ -500,5 +500,18 @@ revocation audit and reliable backup; then design authenticated runtime
 delivery and master-key rotation as separate security-reviewed increments.
 Do **not** assume a `configured` credential is installed or active.
 
+### M02.9 offline master-key rotation, status surfacing & preflight gate — 2026-11-18
+
+- [x] Added atomic offline `CredentialVault.rotate_master_key()` and
+  `credentials_cli.py rotate-key` (generates a 0600 key without overwriting,
+  re-encrypts all records in one SQLite transaction, records
+  `master_key_rotated` audit events, and cleans up on failure).
+- [x] Surfaced `delivery=<status>` and `delivered_revision` in
+  `credentials_cli.py status`, added `audit_events` / `stale_count` /
+  `cleanup_required_count` to `Controller.credential_status()`, and blocked
+  `preflight` `secrets` check when `revoked_cleanup_required` is present.
+- [ ] Authenticated runtime delivery and centralized KMS/Vault adapters
+  remain pending security review.
+
 **M01.6 — CI baseline cleanup** should be maintained as a parallel
 release-enabling workstream so the final green signal is meaningful.

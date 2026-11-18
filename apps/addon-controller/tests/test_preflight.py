@@ -92,3 +92,29 @@ async def test_complete_setup_only_clears_its_own_blocker(tmp_path):
     assert checks["release"] == "ready"
     assert checks["secrets"] == "blocked"
     assert result["can_submit"] is False
+
+
+@pytest.mark.asyncio
+async def test_revoked_cleanup_required_blocks_secrets_preflight(tmp_path, monkeypatch):
+    from controller.credential_vault import CredentialVault, create_master_key
+
+    key = tmp_path / "master.key"
+    db = tmp_path / "vault.db"
+    create_master_key(key)
+    vault = CredentialVault(db, key)
+    vault.put("classroom", "API_TOKEN", b"secret-token")
+    vault.record_delivery("classroom", "API_TOKEN", 1)
+    vault.revoke("classroom", "API_TOKEN")
+
+    monkeypatch.setenv("YONDER_CONTROLLER_CREDENTIAL_KEY", str(key))
+    monkeypatch.setenv("YONDER_CONTROLLER_CREDENTIAL_DB", str(db))
+
+    adapter = InspectOnlyAdapter(missing_secrets=False)
+    engine = Controller(
+        approved_config(tmp_path, setup=False, secrets=True),
+        tmp_path / "jobs.db", adapter=adapter,
+    )
+    result = await engine.preflight_report("classroom")
+    checks = {item["name"]: item["status"] for item in result["checks"]}
+    assert checks["secrets"] == "blocked"
+    assert result["can_submit"] is False

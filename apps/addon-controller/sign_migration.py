@@ -13,13 +13,12 @@ import os
 import sys
 from pathlib import Path
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from controller.migration_trust import (
     MigrationAttestation,
     canonical_contract_hash,
 )
 from controller.sqlite_migration import read_contract
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 def main() -> int:
