@@ -612,3 +612,83 @@ tokens. Revoke or rotate those tokens at their provider as well.
 **Unimplemented:** atomic master-key rotation, external KMS, secure runtime
 credential delivery, automated expiry schedules, vault unseal/recovery,
 immutable remote audit retention and integrated institutional approvals.
+
+
+## Offline credential delivery to approved Docker volumes
+
+**Experimental, privileged host-only workflow.** Credential values can now be
+delivered from the encrypted local vault to an already approved Docker
+`yonder-addon-secrets-<addon-id>` volume. There is deliberately **no API
+for plaintext retrieval or delivery**, and the web console cannot initiate
+credential export.
+
+Administrator requirements:
+
+1. The add-on is present in `config/addon-deployments.json`, declares
+   `"secret_volume": true`, and explicitly lists allowed names in
+   `"credential_names": ["SERVICE_TOKEN"]`. This declaration becomes part
+   of the immutable plan checksum.
+2. The Docker volume exists with labels
+   `io.yonder.approved=true`, `io.yonder.addon=<addon-id>`, and
+   `io.yonder.purpose=secrets`. Its local Docker driver mountpoint must be
+   restricted to administrator ownership and mode **0700** before delivery.
+3. The operator runs the CLI **on the Docker host**, with access to the
+   local Docker CLI, the encrypted database, the private master key, and
+   administrator privileges.
+
+Example:
+
+```bash
+cd apps/addon-controller
+python credentials_cli.py \
+  --database /secure/yonder/credentials.db \
+  --key-file /secure/yonder/credentials.key \
+  --approvals /secure/yonder/deployments.json \
+  deliver convyx SERVICE_TOKEN
+```
+
+Delivery checks the exact add-on and credential name against the local
+administrator-approved deployment file, inspects the Docker volume's owner,
+driver, and labels, then writes the plaintext file with restrictive
+permissions using an atomic replacement. Values are never placed in a
+Docker command argument, environment variable, HTTP response, Git repo,
+or diagnostic output.
+
+After changing an existing encrypted credential, rerun `deliver` explicitly
+to replace the corresponding file. Some add-ons read credentials only at
+startup and need an independently reviewed restart or reload. **This delivery
+utility does not restart containers.**
+
+To remove an exported credential, first revoke the encrypted vault entry
+*and* revoke the token at the upstream provider, then run:
+
+```bash
+python credentials_cli.py \
+  --database /secure/yonder/credentials.db \
+  --key-file /secure/yonder/credentials.key \
+  --approvals /secure/yonder/deployments.json \
+  remove-delivered convyx SERVICE_TOKEN
+```
+
+A process that previously loaded credentials into memory can continue to
+use them after file deletion. Removing a file is not provider-side revocation.
+The controller's API says **offline administrator-only delivery, unverified**
+because it cannot certify the files reached a particular application or
+that the external provider accepted them.
+
+### Security limitations
+
+The resulting Docker named volume contains **plaintext** credentials. It is
+not encrypted storage and does not offer container-user isolation on its own.
+Docker/host administrators have access to it; the controller prototype
+still holds host-equivalent Docker socket permissions. Dedicated disk
+encryption, identity-scoped key management, audit logging, provider
+revocation, and stronger runtime isolation are needed for institutional use.
+
+The utility requires a *local* Docker daemon and prevents arbitrary
+caller-provided volume paths. For remote Docker daemons, Kubernetes, Proxmox
+VMs, and distributed nodes, use a separate authenticated secret-delivery
+backend; do not assume this command works across hosts.
+
+**No school/business production deployment should use this prototype
+without a documented threat model and independent security review.**
