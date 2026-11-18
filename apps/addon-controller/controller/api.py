@@ -116,6 +116,13 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"plan": result}
 
+    @app.get("/v1/upgrades/{addon_id}", dependencies=[Depends(authenticate)])
+    async def upgrade_preview(addon_id: str):
+        try:
+            return await engine.upgrade_assessment(addon_id)
+        except ControllerError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.get("/v1/inventory", dependencies=[Depends(authenticate)])
     async def inventory():
         return {"items": await engine.inventory(), "automatic_repair": False}
