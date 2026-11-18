@@ -181,6 +181,8 @@ def rehearse_sqlite_migration(
         if db.execute("PRAGMA foreign_key_check").fetchone() is not None:
             raise MigrationError("Restored database has broken foreign keys")
         touched = {step.table for step in contract.steps}
+        for table in touched:
+            _columns(db, table)
         before_counts = {
             table: db.execute(
                 "SELECT COUNT(*) FROM " + _quoted(table)
