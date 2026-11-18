@@ -429,6 +429,25 @@ class Controller:
                 raise ControllerError(str(exc)) from exc
 
 
+    async def upgrade_assessment(self, addon_id: str) -> dict:
+        """Read-only assessment. Upgrades may not yet be submitted as jobs."""
+        selected = self.approved().get(addon_id)
+        if selected is None:
+            raise ControllerError("Add-on is not approved on this host")
+        desired = next(
+            (row for row in self.jobs.desired() if row["addon_id"] == addon_id),
+            None,
+        )
+        observed = await self.observed(addon_id)
+        return assess_upgrade(
+            desired, observed, selected,
+            UpgradePolicy(
+                data_migration=(
+                    "requires_migration" if selected.data_volume else "none"
+                )
+            ),
+        )
+
     async def inventory(self) -> list[dict]:
         """Report expected vs observed status without mutating the host."""
         rows = []
