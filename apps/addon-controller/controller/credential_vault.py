@@ -102,6 +102,17 @@ class CredentialVault:
                 )"""
             )
 
+            db.execute(
+                """CREATE TABLE IF NOT EXISTS credential_delivery_receipts (
+                    addon_id TEXT NOT NULL,
+                    credential_name TEXT NOT NULL,
+                    delivered_revision INTEGER NOT NULL,
+                    removed INTEGER NOT NULL DEFAULT 0,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(addon_id, credential_name)
+                )"""
+            )
+
     def _connection(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.database, timeout=20)
         db.row_factory = sqlite3.Row
@@ -192,6 +203,89 @@ class CredentialVault:
             except Exception as exc:
                 raise VaultError("Credential authentication failed") from exc
 
+    def delivery_record(self, addon_id: str, name: str) -> dict:
+        """Delivery receipt is a filesystem-write acknowledgment, not app acceptance."""
+        self._identity(addon_id, name)
+        with self._lock, self._connection() as db:
+            secret = db.execute(
+                "SELECT revision,revoked FROM credentials "
+                "WHERE addon_id=? AND credential_name=?",
+                (addon_id, name),
+            ).fetchone()
+            receipt = db.execute(
+                "SELECT delivered_revision,removed,updated_at "
+                "FROM credential_delivery_receipts "
+                "WHERE addon_id=? AND credential_name=?",
+                (addon_id, name),
+            ).fetchone()
+        if secret is None:
+            return {"status": "not_configured", "delivered_revision": None}
+        if receipt is None:
+            return {"status": "never_delivered", "delivered_revision": None}
+        if receipt["removed"]:
+            return {
+                "status": "revoked_removed" if secret["revoked"] else "not_delivered",
+                "delivered_revision": receipt["delivered_revision"],
+            }
+        if secret["revoked"]:
+            status = "revoked_cleanup_required"
+        elif secret["revision"] == receipt["delivered_revision"]:
+            status = "delivered_unverified"
+        else:
+            status = "stale_delivery"
+        return {"status": status, "delivered_revision": receipt["delivered_revision"]}
+
+    def record_delivery(self, addon_id: str, name: str, revision: int) -> None:
+        """Only offline delivery code calls this after filesystem fsync."""
+        self._identity(addon_id, name)
+        with self._lock, self._connection() as db:
+            record = db.execute(
+                "SELECT revision,revoked FROM credentials "
+                "WHERE addon_id=? AND credential_name=?",
+                (addon_id, name),
+            ).fetchone()
+            if record is None or record["revoked"] or record["revision"] != revision:
+                raise VaultError("Credential changed during delivery; repeat delivery")
+            db.execute(
+                "INSERT INTO credential_delivery_receipts "
+                "(addon_id,credential_name,delivered_revision,removed,updated_at) "
+                "VALUES (?,?,?,0,?) "
+                "ON CONFLICT(addon_id,credential_name) DO UPDATE SET "
+                "delivered_revision=excluded.delivered_revision,removed=0,"
+                "updated_at=excluded.updated_at",
+                (addon_id, name, revision, _now()),
+            )
+            db.execute(
+                "INSERT INTO credential_events "
+                "(addon_id,credential_name,action,revision,actor_uid,timestamp) "
+                "VALUES (?,?,?,?,?,?)",
+                (addon_id, name, "delivered", revision,
+                 os.getuid() if hasattr(os, "getuid") else -1, _now()),
+            )
+
+    def record_removal(self, addon_id: str, name: str) -> None:
+        self._identity(addon_id, name)
+        with self._lock, self._connection() as db:
+            record = db.execute(
+                "SELECT revision,revoked FROM credentials "
+                "WHERE addon_id=? AND credential_name=?",
+                (addon_id, name),
+            ).fetchone()
+            if record is None or not record["revoked"]:
+                raise VaultError("Credential must be revoked before delivered-file cleanup")
+            db.execute(
+                "UPDATE credential_delivery_receipts SET removed=1,updated_at=? "
+                "WHERE addon_id=? AND credential_name=?",
+                (_now(), addon_id, name),
+            )
+            db.execute(
+                "INSERT INTO credential_events "
+                "(addon_id,credential_name,action,revision,actor_uid,timestamp) "
+                "VALUES (?,?,?,?,?,?)",
+                (addon_id, name, "delivered_removed", record["revision"],
+                 os.getuid() if hasattr(os, "getuid") else -1, _now()),
+            )
+
     def metadata(self, addon_id: str | None = None) -> list[dict]:
         if addon_id is not None and not ADDON.fullmatch(addon_id):
             raise VaultError("Invalid add-on identifier")
@@ -213,6 +307,9 @@ class CredentialVault:
                     "revision": item["revision"],
                     "updated_at": item["updated_at"],
                     "configured": not bool(item["revoked"]),
+                    "delivery": self.delivery_record(
+                        item["addon_id"], item["credential_name"]
+                    ),
                 }
                 for item in rows
             ]
