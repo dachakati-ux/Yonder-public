@@ -6,8 +6,8 @@ from yonder_contracts.errors import ErrorCode
 
 from app.context import get_principal, get_request_id
 from app.errors import error_response
-from app.services.addons import AddonError
 from app.services.addon_service import ServiceProbeError
+from app.services.addons import AddonError
 
 router = APIRouter(prefix="/api/admin/addons", tags=["addons"])
 
