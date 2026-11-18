@@ -49,6 +49,12 @@ class Controller:
         self.docker = adapter or DockerAdapter()
         self._tasks: dict[str, asyncio.Task] = {}
         self._lock = asyncio.Lock()
+        self.vault_key = Path(os.getenv(
+            "YONDER_CONTROLLER_CREDENTIAL_KEY", "/etc/yonder/credentials.key"
+        ))
+        self.vault_db = Path(os.getenv(
+            "YONDER_CONTROLLER_CREDENTIAL_DB", "/var/lib/yonder/credentials.db"
+        ))
         self.require_signed_releases = (
             os.getenv("YONDER_CONTROLLER_REQUIRE_SIGNATURES", "false").lower()
             in ("true", "1", "yes")
@@ -59,6 +65,30 @@ class Controller:
         self.publisher_trust = Path(
             os.getenv("YONDER_CONTROLLER_PUBLISHER_KEYS", "/etc/yonder/publishers.json")
         )
+
+    def credential_status(self, addon_id: str) -> dict:
+        """Read-only public metadata; secret material never enters HTTP responses."""
+        if addon_id not in self.approved():
+            raise ControllerError("Add-on is not approved on this host")
+        if not self.vault_key.is_file() or not self.vault_db.is_file():
+            return {
+                "addon_id": addon_id, "vault_available": False,
+                "credentials": [], "runtime_delivery": "not_implemented",
+            }
+        try:
+            read_master_key(self.vault_key)
+            vault = CredentialVault(self.vault_db, self.vault_key)
+            entries = vault.metadata(addon_id)
+        except (VaultError, OSError):
+            return {
+                "addon_id": addon_id, "vault_available": False,
+                "credentials": [], "runtime_delivery": "not_implemented",
+            }
+        return {
+            "addon_id": addon_id, "vault_available": True,
+            "credentials": entries, "runtime_delivery": "not_implemented",
+            "note": "Encrypted inventory is not yet mounted into add-on containers.",
+        }
 
     def approved(self) -> dict[str, ApprovedDeployment]:
         return load_deployments(self.config)
