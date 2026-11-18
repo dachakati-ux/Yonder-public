@@ -35,7 +35,10 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def api(gateway: str, method: str, path: str, body: dict | None = None, timeout: float = 600) -> Any:
+def api(
+    gateway: str, method: str, path: str,
+    body: dict | None = None, timeout: float = 600,
+) -> Any:
     data = None if body is None else json.dumps(body).encode()
     url = gateway.rstrip("/") + path
     last_err: Exception | None = None
@@ -304,7 +307,10 @@ def run_check(workdir: Path, check_command: str) -> tuple[bool, str]:
     return proc.returncode == 0, f"exit={proc.returncode} cmd={cmd!r} {out}"
 
 
-def unload_ready(gateway: str, *, worker: str | None = None, exclude_model: str | None = None) -> None:
+def unload_ready(
+    gateway: str, *, worker: str | None = None,
+    exclude_model: str | None = None,
+) -> None:
     deps = api(gateway, "GET", "/api/admin/deployments").get("deployments") or []
     for d in deps:
         did = d.get("deployment_id") or d.get("id")

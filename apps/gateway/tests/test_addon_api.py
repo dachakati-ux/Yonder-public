@@ -1,13 +1,13 @@
 """End-to-end Gateway routes for bundled add-on installation and reporting."""
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-
-from app.services.addons import AddonRegistry
 from app.services.addon_service_registry import AddonServiceRegistry
+from app.services.addons import AddonRegistry
+from fastapi.testclient import TestClient
 
 
 def test_addon_api_bundled_activation(tmp_path, monkeypatch):

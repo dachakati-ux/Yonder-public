@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
 from app.services.addon_contract import AddonManifest
+from pydantic import ValidationError
 
 
 def manifest(**changes):

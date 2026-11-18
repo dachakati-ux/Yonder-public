@@ -3,7 +3,7 @@
 UV ?= uv
 NODE_BIN := $(CURDIR)/.tools/node/bin
 export PATH := $(NODE_BIN):$(PATH)
-export YONDER_CONFIG_FILE ?= config/environments/development.yaml
+export YONDER_CONFIG_FILE ?= $(CURDIR)/config/environments/development.yaml
 export NEXT_PUBLIC_YONDER_GATEWAY_URL ?= http://127.0.0.1:8080
 
 bootstrap:

@@ -217,6 +217,9 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         "YONDER_CONFIG_FILE",
         str(ROOT / "config/environments/development.yaml"),
     )
+    # Exercise the default-disabled route independent of the development
+    # profile, which enables a local Serena MCP server for developers.
+    monkeypatch.setenv("YONDER_MCP__ENABLED", "false")
     from app.main import create_app
 
     return TestClient(create_app())
