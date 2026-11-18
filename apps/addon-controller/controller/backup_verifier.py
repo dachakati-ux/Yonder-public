@@ -91,6 +91,7 @@ def create_offline_bundle(
     if destination.is_symlink() or destination.exists():
         raise BackupError("Backup destination must not exist")
     with _open_regular(source) as input_file:
+        original = os.fstat(input_file.fileno())
         destination.mkdir(mode=0o700, parents=False)
         try:
             os.chmod(destination, 0o700)
@@ -111,6 +112,16 @@ def create_offline_bundle(
                     checksum.update(block)
                 target.flush()
                 os.fsync(target.fileno())
+            after_copy = os.fstat(input_file.fileno())
+            if (
+                original.st_size != after_copy.st_size
+                or original.st_mtime_ns != after_copy.st_mtime_ns
+                or original.st_ctime_ns != after_copy.st_ctime_ns
+                or written != original.st_size
+            ):
+                raise BackupError(
+                    "Source export changed during packaging; refuse inconsistent bundle"
+                )
             manifest = BackupManifest(
                 schema_version=1,
                 addon_id=addon_id,
