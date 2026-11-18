@@ -50,6 +50,7 @@ from app.paths import resolve_repo_root
 from app.persistence import build_persistence
 from app.routing.gate import DeploymentAdmissionGate
 from app.services.addons import AddonRegistry
+from app.services.addon_controller_client import AddonControllerClient
 from app.services.addon_service_registry import AddonServiceRegistry
 from app.services.addon_service import ServiceProbeError
 from app.services.artifacts import LocalArtifactStore
@@ -179,6 +180,7 @@ def create_app() -> FastAPI:
         resolve_repo_root() / "addons", Path("/app/data/addons-state.json")
         if Path("/app/data").exists() else Path("data/addons-state.json")
     )
+    app.state.addon_controller = AddonControllerClient.from_environment()
     app.state.addon_services = AddonServiceRegistry(
         Path("/etc/yonder/addon-services.json")
     )
