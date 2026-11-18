@@ -85,6 +85,13 @@ The runner:
    the resulting revision with explicit
    `production_migration_allowed=false`.
 
+The result includes **unsigned local evidence**: SHA-256 of the canonical
+reviewed migration contract, original backup manifest, and migrated sandbox
+SQLite file. These can help operators compare exact rehearsals, but the
+values do **not** prevent an administrator from forging a receipt.
+`receipt_signed=false` is always returned. Signed release attestations and
+trusted, auditable rehearsal evidence remain future requirements.
+
 A passing rehearsal does **not** prove that an add-on version 2.0.0 can
 successfully run on the migrated schema, that all business data is valid,
 or that reversing a migration is safe.
