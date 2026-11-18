@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "api_version": 1,
+  "id": "convyx",
+  "name": "Convyx Agent Collaboration",
+  "version": "0.1.0",
+  "min_core_version": "0.1.0",
+  "max_core_version_exclusive": "1.0.0",
+  "category": "agents",
+  "summary": "Optional external agent coordination, shared context, and task handoffs.",
+  "status": "planned",
+  "install_mode": "not_available",
+  "permissions": [
+    "coder.use",
+    "operations.manage"
+  ],
+  "dependencies": [],
+  "requires_restart": true,
+  "docs": "addons/convyx/README.md",
+  "config_schema_version": 1,
+  "warning": "Integration adapter not implemented; no agents or remote code are launched."
+}
