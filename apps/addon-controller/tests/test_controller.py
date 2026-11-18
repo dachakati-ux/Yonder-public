@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 from controller.api import create_app
-from controller.engine import Controller, ControllerError, load_deployments
 from controller.docker_adapter import DockerError
+from controller.engine import Controller, ControllerError, load_deployments
 from controller.models import ApprovedDeployment
 from controller.store import JobStore
 from fastapi.testclient import TestClient
