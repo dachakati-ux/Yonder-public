@@ -1,0 +1,34 @@
+# Explicit opt-in; Docker socket grants host-level control.
+# Do NOT expose controller port or run for school/production without a hardened
+# separate-host/isolated runtime and security review.
+services:
+  gateway:
+    environment:
+      YONDER_ADDON_CONTROLLER_URL: http://addon-controller:8110
+      YONDER_ADDON_CONTROLLER_TOKEN: ${YONDER_CONTROLLER_TOKEN:?Set a random controller secret}
+  addon-controller:
+    profiles: ["addon-controller"]
+    build:
+      context: .
+      dockerfile: apps/addon-controller/Dockerfile
+    environment:
+      YONDER_CONTROLLER_TOKEN: ${YONDER_CONTROLLER_TOKEN:?Set a random controller secret}
+      YONDER_CONTROLLER_DEPLOYMENTS: /etc/yonder/deployments.json
+      YONDER_CONTROLLER_DB: /var/lib/yonder/controller.db
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/addon-deployments.json:/etc/yonder/deployments.json:ro
+      - addon_controller_state:/var/lib/yonder
+    networks:
+      - default
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+volumes:
+  addon_controller_state:
