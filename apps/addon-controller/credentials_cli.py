@@ -68,6 +68,12 @@ def main() -> int:
             approved = {
                 name for name, config in approvals.items() if config.secret_volume
             }
+            policy = approvals.get(args.addon_id)
+            if (
+                policy is None or not policy.secret_volume
+                or args.credential_name not in policy.credential_names
+            ):
+                raise DeliveryError("Credential name is not declared for this add-on")
             if args.action == "deliver":
                 deliver(
                     vault, args.addon_id, args.credential_name,
