@@ -99,3 +99,19 @@ def test_no_empty_or_oversized_credential_value(tmp_path):
         vault.put("convyx", "SERVICE_TOKEN", b"")
     with pytest.raises(VaultError):
         vault.put("convyx", "SERVICE_TOKEN", b"x" * 16_385)
+
+
+def test_audit_events_record_metadata_not_secret_values(tmp_path):
+    vault, _, db = setup_vault(tmp_path)
+    vault.put("convyx", "SERVICE_TOKEN", b"super-private-value")
+    vault.put("convyx", "SERVICE_TOKEN", b"replacement-value")
+    vault.revoke("convyx", "SERVICE_TOKEN")
+    history = vault.audit_events("convyx")
+    assert [event["action"] for event in history] == [
+        "revoke", "set", "set"
+    ]
+    assert [event["revision"] for event in history] == [3, 2, 1]
+    assert "super-private-value" not in str(history)
+    assert "replacement-value" not in str(history)
+    assert "super-private-value" not in db.read_bytes()
+    assert vault.audit_events("workspaces") == []
