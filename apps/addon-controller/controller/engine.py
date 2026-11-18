@@ -14,6 +14,7 @@ from .backup_verifier import BackupError, verify_bundle
 from .credential_vault import CredentialVault, VaultError, read_master_key
 from .docker_adapter import DockerAdapter, DockerError
 from .models import ApprovedDeployment, ControllerConfig
+from .sqlite_migration import MigrationError, read_contract
 from .release_trust import ReleaseTrustError, verify_release
 from .store import JobConflict, JobStore
 from .upgrade_planner import UpgradePolicy, assess_upgrade
@@ -64,6 +65,9 @@ class Controller:
         )
         self.stateful_backup_root = Path(os.getenv(
             "YONDER_CONTROLLER_STATEFUL_BACKUP_ROOT", "/var/lib/yonder/offline-backups"
+        ))
+        self.migration_contract_root = Path(os.getenv(
+            "YONDER_CONTROLLER_MIGRATION_ROOT", "/etc/yonder/migration-contracts"
         ))
         self.enable_stateless_upgrades = (
             os.getenv("YONDER_CONTROLLER_ENABLE_STATELESS_UPGRADES", "false").lower()
@@ -711,6 +715,44 @@ class Controller:
                 })
                 report["backup_integrity"] = proof["status"]
             report["can_execute"] = False
+            if selected.upgrade_data_migration == "requires_migration":
+                try:
+                    if desired is None or desired["desired_state"] != "running":
+                        raise MigrationError("Previous release is unavailable")
+                    contract = read_contract(
+                        self.migration_contract_root / f"{addon_id}.json"
+                    )
+                    if (
+                        contract.addon_id != addon_id
+                        or contract.source_version != desired["version"]
+                        or contract.source_image != desired["image"]
+                        or contract.target_version != selected.version
+                        or contract.target_image != selected.image
+                    ):
+                        raise MigrationError(
+                            "Migration contract does not match prior and target release"
+                        )
+                except (MigrationError, OSError):
+                    report["checks"].append({
+                        "name": "migration_contract",
+                        "status": "blocked",
+                        "explanation": (
+                            "No valid administrator-reviewed SQLite migration "
+                            "contract matches both pinned releases"
+                        ),
+                    })
+                    report["migration_contract"] = "not_verified"
+                else:
+                    report["checks"].append({
+                        "name": "migration_contract",
+                        "status": "ready",
+                        "explanation": (
+                            "Declarative migration identity validated; run a "
+                            "separate sandbox rehearsal before reviewing upgrade"
+                        ),
+                    })
+                    report["migration_contract"] = "identity_verified_only"
+                report["can_execute"] = False
         return report
 
     async def inventory(self) -> list[dict]:
