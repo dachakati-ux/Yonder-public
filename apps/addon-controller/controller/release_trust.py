@@ -11,6 +11,7 @@ import binascii
 import json
 import os
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 
 from cryptography.exceptions import InvalidSignature
@@ -59,11 +60,15 @@ class TrustedPublisher(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key_id: str
     public_key_ed25519_base64: str
+    revoked: bool = False
+    not_after_utc: datetime | None = None
 
     @model_validator(mode="after")
     def valid_key(self) -> TrustedPublisher:
         if not KEY_ID.fullmatch(self.key_id):
             raise ValueError("Invalid trust key ID")
+        if self.not_after_utc is not None and self.not_after_utc.utcoffset() is None:
+            raise ValueError("Publisher key expiration must be timezone-aware")
         raw = base64.b64decode(self.public_key_ed25519_base64, validate=True)
         if len(raw) != 32:
             raise ValueError("Ed25519 public key must be 32 bytes")
@@ -119,6 +124,10 @@ def verify_release(
     )
     if match is None:
         raise ReleaseTrustError("Release publisher is not trusted")
+    if match.revoked:
+        raise ReleaseTrustError("Release publisher key has been revoked")
+    if match.not_after_utc is not None and datetime.now(UTC) >= match.not_after_utc:
+        raise ReleaseTrustError("Release publisher key has expired")
     try:
         signature = base64.b64decode(
             descriptor.signature_ed25519_base64, validate=True
