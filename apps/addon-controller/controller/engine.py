@@ -607,7 +607,7 @@ class Controller:
 
 
     async def upgrade_assessment(self, addon_id: str) -> dict:
-        """Read-only assessment. Upgrades may not yet be submitted as jobs."""
+        """Read-only upgrade eligibility; execution rechecks immutable release policy."""
         selected = self.approved().get(addon_id)
         if selected is None:
             raise ControllerError("Add-on is not approved on this host")
@@ -616,11 +616,21 @@ class Controller:
             None,
         )
         observed = await self.observed(addon_id)
+        verified = False
+        if self.enable_stateless_upgrades:
+            try:
+                self.plan(addon_id, "upgrade")
+            except ControllerError:
+                verified = False
+            else:
+                verified = True
         return assess_upgrade(
             desired, observed, selected,
             UpgradePolicy(
                 data_migration=selected.upgrade_data_migration,
+                backup_required=selected.data_volume or selected.secret_volume,
             ),
+            staged_stateless_approved=verified,
         )
 
     async def inventory(self) -> list[dict]:
