@@ -202,3 +202,15 @@ def test_create_offline_bundle_rejects_malformed_source_identity(tmp_path):
             source_quiesced_acknowledged=True,
         )
     assert not (tmp_path / "out").exists()
+
+
+def test_forged_sqlite_consistency_declaration_fails_structure_check(tmp_path):
+    root = bundle(tmp_path, quiesced=False)
+    (root / "database.dump").rename(root / "database.sqlite3")
+    path = root / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["files"][0]["name"] = "database.sqlite3"
+    manifest["consistency_method"] = "sqlite_online_backup"
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(BackupError, match="SQLite"):
+        check(root)
