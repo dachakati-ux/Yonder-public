@@ -313,3 +313,68 @@ async def test_desired_state_persists_and_detects_drift(tmp_path):
     rows = await restarted.inventory()
     assert rows[0]["desired_state"] == "absent"
     assert rows[0]["drift"] is False
+
+
+def test_declared_setup_fields_reject_untrusted_values():
+    from controller.models import SetupField
+
+    with pytest.raises(ValidationError):
+        SetupField(key="ADMIN_TOKEN", label="Unsafe")
+    with pytest.raises(ValidationError):
+        SetupField(key="CLASS_SIZE", label="Class size", kind="integer", default="x")
+    with pytest.raises(ValidationError):
+        SetupField(key="COURSE", label="Course", kind="choice", choices=[])
+    with pytest.raises(ValidationError):
+        SetupField(key="COLOR", label="Color", kind="choice", choices=["blue", "blue"])
+    field = SetupField(key="COURSE", label="Course", kind="choice", choices=["math", "code"])
+    with pytest.raises(ValueError):
+        field.validate_value("biology")
+    assert field.validate_value("math") == "math"
+
+
+@pytest.mark.asyncio
+async def test_setup_wizard_persists_and_changes_deployment_plan(tmp_path):
+    path = config(tmp_path)
+    source = json.loads(path.read_text())
+    source["deployments"][0]["setup_fields"] = [
+        {
+            "key": "COURSE",
+            "label": "Class subject",
+            "kind": "choice",
+            "choices": ["math", "code"],
+        },
+        {
+            "key": "STUDENTS",
+            "label": "Number of students",
+            "kind": "integer",
+            "default": "30",
+        },
+    ]
+    path.write_text(json.dumps(source))
+    adapter = FakeDocker()
+    engine = Controller(path, tmp_path / "setup.db", adapter=adapter)
+    preview = engine.setup("demo-addon")
+    assert preview["configured"] is False
+    with pytest.raises(ControllerError, match="Complete"):
+        engine.plan("demo-addon", "install")
+    with pytest.raises(ControllerError, match="only the declared"):
+        await engine.configure("demo-addon", {"ADMIN_TOKEN": "evil"})
+    with pytest.raises(ControllerError, match="not an approved choice"):
+        await engine.configure("demo-addon", {"COURSE": "other", "STUDENTS": "30"})
+    result = await engine.configure("demo-addon", {"COURSE": "math", "STUDENTS": "30"})
+    assert result["configured"] is True
+    first = engine.plan("demo-addon", "install")
+    assert first["configuration"]["public_settings"]["COURSE"] == "math"
+    persisted = Controller(path, tmp_path / "setup.db", adapter=adapter)
+    assert persisted.setup("demo-addon")["values"]["COURSE"] == "math"
+    await persisted.configure("demo-addon", {"COURSE": "code", "STUDENTS": "20"})
+    second = persisted.plan("demo-addon", "install")
+    assert first["plan_sha256"] != second["plan_sha256"]
+    job, created = await persisted.submit(
+        "demo-addon", "install", second["plan_sha256"], "setup-install-key-1234"
+    )
+    assert created
+    await persisted._tasks[job["id"]]
+    assert persisted.jobs.get(job["id"])["status"] == "succeeded"
+    with pytest.raises(ControllerError, match="Remove the existing"):
+        await persisted.configure("demo-addon", {"COURSE": "math", "STUDENTS": "30"})
