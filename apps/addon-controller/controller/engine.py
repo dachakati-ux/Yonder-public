@@ -99,9 +99,24 @@ class Controller:
                 self.jobs.transition(job_id, "deploying")
                 await self.docker.install(deployment)
                 self.jobs.transition(job_id, "verifying")
-                if await self.docker.status(deployment.addon_id) != "running":
-                    raise ControllerError("Deployment failed its container health check")
-                self.jobs.transition(job_id, "succeeded", "Container is running")
+                deadline = asyncio.get_running_loop().time() + (
+                    deployment.readiness_timeout_seconds
+                )
+                while True:
+                    state = await self.docker.readiness(deployment)
+                    if state == "ready":
+                        break
+                    if state in (
+                        "stopped", "not_deployed", "unhealthy",
+                        "missing_healthcheck", "unmanaged_container_collision",
+                    ):
+                        raise ControllerError(
+                            "Readiness failed: " + state
+                        )
+                    if asyncio.get_running_loop().time() >= deadline:
+                        raise ControllerError("Readiness exceeded approved timeout")
+                    await asyncio.sleep(1)
+                self.jobs.transition(job_id, "succeeded", "Readiness verified")
             elif action == "remove":
                 self.jobs.transition(job_id, "removing")
                 await self.docker.remove(deployment)
@@ -114,7 +129,26 @@ class Controller:
             )
             raise
         except (ControllerError, DockerError, OSError) as exc:
-            self.jobs.transition(job_id, "failed", str(exc)[:300])
+            message = str(exc)[:220]
+            # Roll back only containers created by this install operation.
+            # Removal failure must never trigger another destructive action.
+            if (
+                job["action"] == "install"
+                and self.jobs.get(job_id)["status"] == "verifying"
+                and deployment is not None
+                and deployment.rollback_on_failed_readiness
+            ):
+                try:
+                    self.jobs.transition(job_id, "rolling_back", "Readiness failed")
+                    await self.docker.remove(deployment)
+                    message += "; new container removed"
+                except (DockerError, OSError):
+                    self.jobs.transition(
+                        job_id, "interrupted",
+                        "Rollback not verified; administrator recovery required",
+                    )
+                    return
+            self.jobs.transition(job_id, "failed", message)
         except Exception:
             # Never disclose secrets or host exception data to browser clients.
             self.jobs.transition(job_id, "failed", "Unexpected controller error")
