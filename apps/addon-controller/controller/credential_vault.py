@@ -7,6 +7,7 @@ into application containers; that requires a separately reviewed broker.
 from __future__ import annotations
 
 import base64
+import binascii
 import os
 import re
 import sqlite3
@@ -58,7 +59,7 @@ def read_master_key(path: Path) -> bytes:
     try:
         encoded = path.read_bytes().strip()
         raw = base64.urlsafe_b64decode(encoded)
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, binascii.Error) as exc:
         raise VaultError("Encryption key is unreadable") from exc
     if len(raw) != 32 or len(encoded) != 44:
         raise VaultError("Encryption key has invalid length")
@@ -87,6 +88,17 @@ class CredentialVault:
                     updated_at TEXT NOT NULL,
                     revoked INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY(addon_id, credential_name)
+                )"""
+            )
+            db.execute(
+                """CREATE TABLE IF NOT EXISTS credential_events (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    addon_id TEXT NOT NULL,
+                    credential_name TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    revision INTEGER NOT NULL,
+                    actor_uid INTEGER NOT NULL,
+                    timestamp TEXT NOT NULL
                 )"""
             )
 
@@ -122,6 +134,16 @@ class CredentialVault:
                 "revision=excluded.revision, updated_at=excluded.updated_at, revoked=0",
                 (addon_id, name, nonce, encrypted, revision, _now()),
             )
+            db.execute(
+                "INSERT INTO credential_events "
+                "(addon_id,credential_name,action,revision,actor_uid,timestamp) "
+                "VALUES (?,?,?,?,?,?)",
+                (
+                    addon_id, name, "set", revision,
+                    os.getuid() if hasattr(os, "getuid") else -1,
+                    _now(),
+                ),
+            )
             return revision
 
     def revoke(self, addon_id: str, name: str) -> int:
@@ -139,6 +161,16 @@ class CredentialVault:
                 "UPDATE credentials SET ciphertext=?, nonce=?, revoked=1, "
                 "revision=?, updated_at=? WHERE addon_id=? AND credential_name=?",
                 (b"", b"", revision, _now(), addon_id, name),
+            )
+            db.execute(
+                "INSERT INTO credential_events "
+                "(addon_id,credential_name,action,revision,actor_uid,timestamp) "
+                "VALUES (?,?,?,?,?,?)",
+                (
+                    addon_id, name, "revoke", revision,
+                    os.getuid() if hasattr(os, "getuid") else -1,
+                    _now(),
+                ),
             )
             return revision
 
@@ -167,3 +199,16 @@ class CredentialVault:
                 for item in rows
             ]
 
+
+
+    def audit_events(self, addon_id: str, limit: int = 50) -> list[dict]:
+        if not ADDON.fullmatch(addon_id):
+            raise VaultError("Invalid add-on identifier")
+        with self._lock, self._connection() as db:
+            rows = db.execute(
+                "SELECT addon_id,credential_name,action,revision,actor_uid,timestamp "
+                "FROM credential_events WHERE addon_id=? "
+                "ORDER BY event_id DESC LIMIT ?",
+                (addon_id, min(max(limit, 1), 100)),
+            ).fetchall()
+            return [dict(row) for row in rows]
