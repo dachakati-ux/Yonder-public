@@ -15,9 +15,14 @@ services:
       YONDER_CONTROLLER_TOKEN: ${YONDER_CONTROLLER_TOKEN:?Set a random controller secret}
       YONDER_CONTROLLER_DEPLOYMENTS: /etc/yonder/deployments.json
       YONDER_CONTROLLER_DB: /var/lib/yonder/controller.db
+      YONDER_CONTROLLER_REQUIRE_SIGNATURES: "true"
+      YONDER_CONTROLLER_RELEASE_ROOT: /etc/yonder/releases
+      YONDER_CONTROLLER_PUBLISHER_KEYS: /etc/yonder/trust/publishers.json
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config/addon-deployments.json:/etc/yonder/deployments.json:ro
+      - ./config/addon-releases:/etc/yonder/releases:ro
+      - ./config/addon-trust:/etc/yonder/trust:ro
       - addon_controller_state:/var/lib/yonder
     networks:
       - default
