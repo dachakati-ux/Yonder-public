@@ -62,6 +62,7 @@ type DeploymentPlan = {
   action: "install" | "remove";
   adapter: string;
   image: string;
+  image_acquisition: "preloaded" | "signed_pull";
   limits: { memory_mb: number; cpus: number; pids: number; network: string };
   plan_sha256: string;
   publisher_verification: string;
@@ -151,6 +152,7 @@ export function AddonsWorkspace() {
       const details = [
         "APPROVE " + action.toUpperCase() + ": " + item.name,
         "Image: " + plan.image,
+        "Image acquisition: " + plan.image_acquisition,
         "Version: " + plan.version,
         "Memory: " + plan.limits.memory_mb + " MiB",
         "CPU limit: " + plan.limits.cpus,
