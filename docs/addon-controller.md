@@ -358,3 +358,38 @@ An internal network also does not by itself guarantee container isolation
 against a malicious administrator, compromised Docker daemon or kernel
 vulnerability. Network/DNS and host access controls remain the operator's
 responsibility.
+
+
+### Optional automatic preparation of managed resources
+
+For a simpler first-time installation, an administrator may add:
+
+```json
+{
+  "provision_managed_resources": true,
+  "data_volume": true,
+  "network": "yonder-addon-net-example-addon"
+}
+```
+
+The controller will then create **only** the missing dedicated internal bridge
+network and persistent data volume, using the exact preapproved names and
+Yonder ownership/policy labels. It subsequently inspects those resources
+and refuses a name collision with unexpected labels. These operations are
+covered by the administrator-reviewed plan SHA-256.
+
+The controller **never creates a secrets volume** automatically. If
+`secret_volume` is requested, a properly labeled credential volume must
+already exist, and its contents must have been prepared by approved
+administrator tooling. No arbitrary host paths, public ports, external
+network access or new Docker privileges become available.
+
+Data volumes and networks are **not automatically deleted on uninstall or
+failed readiness**. Existing projects, database files and administrator-created
+secrets remain in place. Removal of those resources is a separate,
+administrator-controlled retention and backup decision.
+
+The default remains `provision_managed_resources: false`, which requires all
+referenced resources to already exist. Production/school environments should
+not use the Docker-socket controller prototype without a hardened deployment
+and security review.
