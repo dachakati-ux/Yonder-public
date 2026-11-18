@@ -11,7 +11,7 @@ extension) can receive an image upgrade, Yonder must establish that the **previo
 release's data is recoverable**. Container rollback never reverses a database schema
 migration, and retaining a Docker volume is not a backup.
 
-The first slice introduces an offline single-export-file bundle:
+The foundation includes offline export bundles and SQLite-native snapshots:
 
 - a local administrator declares that a database export is already transactionally
   consistent or that the source has been stopped;
@@ -75,6 +75,46 @@ python verify_backup.py \
 5. Independently run the add-on's database restore and application-level
    integrity checks against the sandbox. Those application-specific checks
    are **not** implemented by this generic helper.
+
+## SQLite-native consistent snapshot
+
+SQLite-backed add-ons can now use a dedicated **SQLite online backup API**
+instead of manually exporting a quiesced database. This method creates an
+internally consistent copy of SQLite's pages (including a database that uses
+WAL mode) using `sqlite3.Connection.backup`, then checks its SQLite structure
+with `PRAGMA quick_check` and packages the snapshot in a private bundle.
+
+The SQLite database is opened read-only. The resulting snapshot is an
+independent file, so its bundle metadata records
+`consistency_method: sqlite_online_backup` and
+`source_quiesced: false` — it does **not** claim the original database or
+application stopped running.
+
+```bash
+cd apps/addon-controller
+python backup_sqlite.py \
+  --source-database /secure/app-data/yonder-addon.db \
+  --output-directory /secure/backups/sqlite-addon \
+  --addon-id sqlite-addon \
+  --version 1.0.0 \
+  --image 'ghcr.io/example/sqlite-addon@sha256:<64-hex-digest>'
+```
+
+**Scope:** Only one SQLite database is made consistent by this method.
+Unrelated application data, auxiliary stores, external attachments,
+multiple SQLite databases, and in-flight application workflows are not
+snapshotted atomically with that file. Use the add-on's documented
+quiescence/backup procedure if its state spans multiple stores.
+
+The generated bundle remains **plaintext on disk**. Private local file
+permissions do not substitute for encrypted off-host backup storage,
+independent key recovery, retention rules and access auditing.
+
+The restore verifier still checks file bytes, not the add-on's business
+logic. Opening the restored SQLite file and running `PRAGMA quick_check`
+or `PRAGMA integrity_check` is a useful structural check, but does not
+prove an upgraded application can read old records or safely roll back
+schema migrations. Stateful upgrade execution remains blocked.
 
 ## Controller integration
 
