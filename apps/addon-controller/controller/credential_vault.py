@@ -174,6 +174,24 @@ class CredentialVault:
             )
             return revision
 
+    def read_for_offline_delivery(self, addon_id: str, name: str) -> bytes:
+        """Privileged local CLI only; MUST NOT be exposed by the controller API."""
+        aad = self._identity(addon_id, name)
+        with self._lock, self._connection() as db:
+            row = db.execute(
+                "SELECT nonce,ciphertext,revoked FROM credentials "
+                "WHERE addon_id=? AND credential_name=?",
+                (addon_id, name),
+            ).fetchone()
+            if row is None or row["revoked"]:
+                raise VaultError("Credential is missing or revoked")
+            try:
+                return AESGCM(read_master_key(self.key_path)).decrypt(
+                    row["nonce"], row["ciphertext"], aad
+                )
+            except Exception as exc:
+                raise VaultError("Credential authentication failed") from exc
+
     def metadata(self, addon_id: str | None = None) -> list[dict]:
         if addon_id is not None and not ADDON.fullmatch(addon_id):
             raise VaultError("Invalid add-on identifier")
