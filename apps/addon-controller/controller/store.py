@@ -107,6 +107,19 @@ class JobStore:
             ).fetchone()
             if pending:
                 raise JobConflict("An operation is already active for this add-on")
+            existing_release = db.execute(
+                "SELECT version,image,desired_state FROM desired_addons WHERE addon_id=?",
+                (addon_id,),
+            ).fetchone()
+            if (
+                action == "install"
+                and existing_release is not None
+                and existing_release["desired_state"] == "running"
+            ):
+                raise JobConflict(
+                    "A running release is recorded; install is not an upgrade. "
+                    "Use a reviewed removal/recovery workflow first"
+                )
             now = utcnow()
             item_id = str(uuid.uuid4())
             db.execute(
