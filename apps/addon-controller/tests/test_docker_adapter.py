@@ -9,6 +9,7 @@ from controller.docker_adapter import DockerAdapter, DockerError
 from controller.models import ApprovedDeployment
 
 IMAGE = "registry.example.org/yonder/demo@sha256:" + "a" * 64
+GHCR_IMAGE = "ghcr.io/example/reviewed-addon@sha256:" + "b" * 64
 
 
 class Recorder(DockerAdapter):
@@ -19,10 +20,12 @@ class Recorder(DockerAdapter):
         self.owned = True
         self.running = False
 
-    async def _run(self, *args):
+    async def _run(self, *args, **kwargs):
         self.commands.append(args)
         if args[:2] == ("image", "inspect"):
-            return json.dumps([{"RepoDigests": [IMAGE]}])
+            return json.dumps([{"RepoDigests": [IMAGE, GHCR_IMAGE]}])
+        if args[0] == "pull":
+            return ""
         if args[0] == "run":
             self.exists = True
             self.running = True
@@ -95,3 +98,30 @@ async def test_existing_managed_container_cannot_be_overwritten():
     adapter.exists = True
     with pytest.raises(DockerError, match="already deployed"):
         await adapter.install(deployment())
+
+
+@pytest.mark.asyncio
+async def test_signed_digest_pull_requires_allowed_registry(monkeypatch):
+    adapter = Recorder()
+    monkeypatch.setenv("YONDER_CONTROLLER_ALLOWED_REGISTRIES", "ghcr.io")
+    approved = ApprovedDeployment(
+        addon_id="reviewed-addon",
+        version="0.1.0",
+        image=GHCR_IMAGE,
+        image_acquisition="signed_pull",
+    )
+    await adapter.acquire(approved)
+    assert any(
+        command == ("pull", "--quiet", GHCR_IMAGE)
+        for command in adapter.commands
+    )
+    blocked = approved.model_copy(update={"image": IMAGE})
+    with pytest.raises(DockerError, match="allowlist"):
+        await adapter.acquire(blocked)
+
+
+@pytest.mark.asyncio
+async def test_preloaded_image_cannot_invoke_pull():
+    adapter = Recorder()
+    with pytest.raises(DockerError, match="not approved"):
+        await adapter.acquire(deployment())
