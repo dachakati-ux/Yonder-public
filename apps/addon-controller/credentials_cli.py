@@ -32,11 +32,13 @@ def main() -> int:
     rotate_cmd.add_argument("new_key_path", type=Path)
     backup_cmd = operations.add_parser("backup")
     backup_cmd.add_argument("destination", type=Path)
-    for name in ("set", "revoke", "status", "audit", "deliver", "remove-delivered"):
+    for name in ("set", "revoke", "status", "audit", "deliver", "remove-delivered", "ack-sync"):
         command = operations.add_parser(name)
         command.add_argument("addon_id")
-        if name in ("set", "revoke", "deliver", "remove-delivered"):
+        if name in ("set", "revoke", "deliver", "remove-delivered", "ack-sync"):
             command.add_argument("credential_name")
+        if name == "ack-sync":
+            command.add_argument("--revision", type=int, default=None)
     args = parser.parse_args()
     try:
         if args.action == "init-key":
@@ -69,6 +71,11 @@ def main() -> int:
         elif args.action == "revoke":
             revision = vault.revoke(args.addon_id, args.credential_name)
             print("Credential revoked. Revision:", revision)
+        elif args.action == "ack-sync":
+            revision = vault.record_sync_ack(
+                args.addon_id, args.credential_name, args.revision
+            )
+            print("Credential sync acknowledged. Revision:", revision)
         elif args.action in ("deliver", "remove-delivered"):
             # Explicit local operator invocation, never an HTTP request.
             if hasattr(os, "geteuid") and os.geteuid() != 0:

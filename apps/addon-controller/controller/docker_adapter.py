@@ -12,23 +12,83 @@ CONTAINER_PREFIX = "yonder-addon-"
 DOCKER_LABEL = "io.yonder.addon"
 OWNER_LABEL = "io.yonder.managed"
 HEX_ID = re.compile(r"^[a-f0-9]{12,64}$")
+REGISTRY_HOST = re.compile(r"^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?(?::[0-9]{1,5})?$")
 
 
 class DockerError(RuntimeError):
     pass
 
 
+def validate_docker_host(raw: str) -> str:
+    """Validate an isolated Docker socket-proxy or TLS endpoint.
+
+    Permits local UNIX sockets, loopback TCP socket proxies, or HTTPS endpoints.
+    Refuses unencrypted non-loopback TCP and userinfo smuggling.
+    """
+    value = raw.strip()
+    if not value or any(ch.isspace() for ch in value) or "@" in value:
+        raise DockerError("Invalid DOCKER_HOST configuration")
+    if value.startswith("unix:///"):
+        socket_path = value.removeprefix("unix://")
+        if ".." in socket_path.split("/"):
+            raise DockerError("Invalid UNIX socket path in DOCKER_HOST")
+        return value
+    if value.startswith(("tcp://127.0.0.1:", "tcp://localhost:")):
+        port_part = value.rsplit(":", 1)[-1]
+        if not port_part.isdigit() or not (1 <= int(port_part) <= 65535):
+            raise DockerError("Invalid loopback TCP port in DOCKER_HOST")
+        return value
+    if value.startswith("https://"):
+        host_port = value.removeprefix("https://")
+        if "/" in host_port or not REGISTRY_HOST.fullmatch(host_port.lower()):
+            raise DockerError("Invalid HTTPS DOCKER_HOST endpoint")
+        return value
+    raise DockerError("DOCKER_HOST must be unix:///, loopback tcp://, or https://")
+
+
+def validate_registry_allowlist(raw: str) -> set[str]:
+    """Parse and validate allowed OCI registries; reject wildcards and schemes."""
+    entries = {item.strip().lower() for item in raw.split(",") if item.strip()}
+    if not entries:
+        raise DockerError("OCI registry allowlist cannot be empty")
+    for entry in entries:
+        if "*" in entry or "@" in entry or "://" in entry or "/" in entry:
+            raise DockerError("Invalid OCI registry entry in allowlist")
+        if not REGISTRY_HOST.fullmatch(entry):
+            raise DockerError("Malformed OCI registry hostname in allowlist")
+    return entries
+
+
 class DockerAdapter:
-    def __init__(self, docker_bin: str = "/usr/bin/docker"):
+    def __init__(
+        self,
+        docker_bin: str = "/usr/bin/docker",
+        *,
+        docker_host: str | None = None,
+    ):
         self.docker_bin = docker_bin
+        raw_host = (
+            docker_host
+            if docker_host is not None
+            else os.getenv("YONDER_CONTROLLER_DOCKER_HOST", "")
+        )
+        self.docker_host = validate_docker_host(raw_host) if raw_host.strip() else None
 
     async def _run(self, *args: str, timeout: float = 60.0) -> str:
+        env = {"PATH": "/usr/bin:/bin", "HOME": "/tmp"}
+        if self.docker_host:
+            env["DOCKER_HOST"] = self.docker_host
+            if self.docker_host.startswith("https://"):
+                env["DOCKER_TLS_VERIFY"] = "1"
+                cert_path = os.getenv("YONDER_CONTROLLER_DOCKER_CERT_PATH", "").strip()
+                if cert_path:
+                    env["DOCKER_CERT_PATH"] = cert_path
         try:
             process = await asyncio.create_subprocess_exec(
                 self.docker_bin, *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env={"PATH": "/usr/bin:/bin", "HOME": "/tmp"},
+                env=env,
             )
         except OSError as exc:
             raise DockerError("Docker executable is unavailable") from exc
@@ -88,14 +148,10 @@ class DockerAdapter:
         """
         if deployment.image_acquisition != "signed_pull":
             raise DockerError("Remote acquisition is not approved for this add-on")
-        registry = deployment.image.split("/", 1)[0]
-        permitted = {
-            name.strip().lower()
-            for name in os.getenv(
-                "YONDER_CONTROLLER_ALLOWED_REGISTRIES", "ghcr.io"
-            ).split(",")
-            if name.strip()
-        }
+        registry = deployment.image.split("/", 1)[0].lower()
+        permitted = validate_registry_allowlist(
+            os.getenv("YONDER_CONTROLLER_ALLOWED_REGISTRIES", "ghcr.io")
+        )
         if registry not in permitted:
             raise DockerError("OCI registry is not in the operator allowlist")
         # The approved image is a full immutable repository@sha256 digest.

@@ -405,3 +405,36 @@ def test_approved_credential_names_are_explicit_and_bound_to_plan():
             addon_id="demo-addon", image=IMAGE, version="0.1.0",
             secret_volume=True, credential_names=["SERVICE_TOKEN", "SERVICE_TOKEN"],
         )
+
+
+def test_controller_api_token_rotation_and_mtls_gate(tmp_path, monkeypatch):
+    from controller.api import create_app
+    from fastapi.testclient import TestClient
+
+    old_tok = "old-token-" + "a" * 32
+    new_tok = "new-token-" + "b" * 32
+    monkeypatch.setenv("YONDER_CONTROLLER_PREVIOUS_TOKEN", old_tok)
+    monkeypatch.setenv("YONDER_CONTROLLER_REQUIRE_MTLS", "true")
+    app = create_app(
+        config_path=config(tmp_path),
+        database_path=tmp_path / "jobs.db",
+        token=new_tok,
+    )
+    client = TestClient(app)
+
+    # Missing mTLS client identity headers must be rejected even with a valid token.
+    res = client.get("/v1/approved", headers={"Authorization": f"Bearer {new_tok}"})
+    assert res.status_code == 401
+    # Both current and previous tokens succeed when mTLS headers are present.
+    mtls_headers = {
+        "X-Yonder-Client-Cert-Verified": "true",
+        "X-Yonder-Client-Subject": "spiffe://yonder.local/gateway",
+    }
+    assert client.get(
+        "/v1/approved",
+        headers={"Authorization": f"Bearer {new_tok}", **mtls_headers},
+    ).status_code == 200
+    assert client.get(
+        "/v1/approved",
+        headers={"Authorization": f"Bearer {old_tok}", **mtls_headers},
+    ).status_code == 200

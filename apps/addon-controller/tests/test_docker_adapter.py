@@ -214,3 +214,31 @@ async def test_reviewed_resource_provisioning_only_creates_data_and_network():
         for item in adapter.commands
     )
     assert not any(item[0] == "run" for item in adapter.commands)
+
+
+def test_docker_host_and_registry_allowlist_validation():
+    from controller.docker_adapter import validate_docker_host, validate_registry_allowlist
+
+    assert validate_docker_host("unix:///run/yonder-docker-proxy.sock") == (
+        "unix:///run/yonder-docker-proxy.sock"
+    )
+    assert validate_docker_host("tcp://127.0.0.1:2375") == "tcp://127.0.0.1:2375"
+    assert validate_docker_host("https://docker-proxy.internal:2376") == (
+        "https://docker-proxy.internal:2376"
+    )
+    for bad_host in (
+        "tcp://0.0.0.0:2375",
+        "tcp://10.0.0.5:2375",
+        "unix:///run/../var/run/docker.sock",
+        "https://user:pass@docker-proxy.internal:2376",
+    ):
+        with pytest.raises(DockerError):
+            validate_docker_host(bad_host)
+
+    assert validate_registry_allowlist("ghcr.io, registry.internal:5000") == {
+        "ghcr.io",
+        "registry.internal:5000",
+    }
+    for bad_reg in ("", "*", "*.ghcr.io", "https://ghcr.io", "user@ghcr.io"):
+        with pytest.raises(DockerError):
+            validate_registry_allowlist(bad_reg)

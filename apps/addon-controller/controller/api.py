@@ -40,6 +40,16 @@ def create_app(
     shared_token = token if token is not None else os.getenv("YONDER_CONTROLLER_TOKEN", "")
     if len(shared_token) < TOKEN_LENGTH or shared_token.strip() != shared_token:
         raise RuntimeError("Controller requires a generated token of at least 32 characters")
+    previous_token = os.getenv("YONDER_CONTROLLER_PREVIOUS_TOKEN", "")
+    if previous_token and (
+        len(previous_token) < TOKEN_LENGTH or previous_token.strip() != previous_token
+    ):
+        raise RuntimeError("Previous controller token must be at least 32 characters")
+    require_mtls = os.getenv("YONDER_CONTROLLER_REQUIRE_MTLS", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
     engine = controller or Controller(
         config_path or Path(
             os.getenv("YONDER_CONTROLLER_DEPLOYMENTS", "/etc/yonder/deployments.json")
@@ -55,16 +65,32 @@ def create_app(
         docs_url=None, redoc_url=None, openapi_url=None,
     )
 
-    def authenticate(authorization: str | None = Header(default=None)) -> None:
+    def authenticate(
+        authorization: str | None = Header(default=None),
+        x_yonder_client_cert_verified: str | None = Header(default=None),
+        x_yonder_client_subject: str | None = Header(default=None),
+    ) -> None:
         supplied = authorization.removeprefix("Bearer ") if authorization else ""
-        if (
-            not authorization
-            or not authorization.startswith("Bearer ")
-            or not secrets.compare_digest(supplied, shared_token)
-        ):
+        token_ok = bool(
+            authorization
+            and authorization.startswith("Bearer ")
+            and (
+                secrets.compare_digest(supplied, shared_token)
+                or (previous_token and secrets.compare_digest(supplied, previous_token))
+            )
+        )
+        if not token_ok:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Controller authentication required",
+            )
+        if require_mtls and (
+            x_yonder_client_cert_verified != "true"
+            or not (x_yonder_client_subject or "").strip()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Verified client certificate identity required",
             )
 
     @app.get("/health")

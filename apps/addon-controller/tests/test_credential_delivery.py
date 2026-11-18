@@ -154,3 +154,29 @@ def test_docker_volume_policy_and_host_mountpoint_are_validated(
     details["Driver"] = "unsafe-volume-plugin"
     with pytest.raises(DeliveryError, match="not approved"):
         _volume_details("convyx")
+
+
+def test_sync_acknowledgment_lifecycle(tmp_path, monkeypatch):
+    vault, directory = vault_fixture(tmp_path)
+    monkeypatch.setattr(
+        "controller.credential_delivery._volume_details", lambda _addon: directory
+    )
+    with pytest.raises(VaultError, match="not been delivered"):
+        vault.record_sync_ack("convyx", "SERVICE_TOKEN")
+
+    deliver(vault, "convyx", "SERVICE_TOKEN", approved_addon_ids={"convyx"})
+    assert vault.delivery_record("convyx", "SERVICE_TOKEN")["status"] == "delivered_unverified"
+
+    assert vault.record_sync_ack("convyx", "SERVICE_TOKEN") == 1
+    assert vault.delivery_record("convyx", "SERVICE_TOKEN") == {
+        "status": "synced",
+        "delivered_revision": 1,
+        "synced_revision": 1,
+    }
+    assert vault.audit_events("convyx")[0]["action"] == "sync_acknowledged"
+
+    # Rotating the secret invalidates sync and marks delivery stale until re-delivered.
+    vault.put("convyx", "SERVICE_TOKEN", b"rotated-token")
+    assert vault.delivery_record("convyx", "SERVICE_TOKEN")["status"] == "stale_delivery"
+    with pytest.raises(VaultError, match="does not match"):
+        vault.record_sync_ack("convyx", "SERVICE_TOKEN")

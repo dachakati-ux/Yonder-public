@@ -107,11 +107,22 @@ class CredentialVault:
                     addon_id TEXT NOT NULL,
                     credential_name TEXT NOT NULL,
                     delivered_revision INTEGER NOT NULL,
+                    synced_revision INTEGER,
                     removed INTEGER NOT NULL DEFAULT 0,
                     updated_at TEXT NOT NULL,
                     PRIMARY KEY(addon_id, credential_name)
                 )"""
             )
+            cols = {
+                row[1]
+                for row in db.execute(
+                    "PRAGMA table_info(credential_delivery_receipts)"
+                ).fetchall()
+            }
+            if "synced_revision" not in cols:
+                db.execute(
+                    "ALTER TABLE credential_delivery_receipts ADD COLUMN synced_revision INTEGER"
+                )
 
     def _connection(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.database, timeout=20)
@@ -213,7 +224,7 @@ class CredentialVault:
                 (addon_id, name),
             ).fetchone()
             receipt = db.execute(
-                "SELECT delivered_revision,removed,updated_at "
+                "SELECT delivered_revision,synced_revision,removed,updated_at "
                 "FROM credential_delivery_receipts "
                 "WHERE addon_id=? AND credential_name=?",
                 (addon_id, name),
@@ -227,13 +238,20 @@ class CredentialVault:
                 "status": "revoked_removed" if secret["revoked"] else "not_delivered",
                 "delivered_revision": receipt["delivered_revision"],
             }
+        synced_rev = receipt["synced_revision"]
         if secret["revoked"]:
             status = "revoked_cleanup_required"
         elif secret["revision"] == receipt["delivered_revision"]:
-            status = "delivered_unverified"
+            if synced_rev is not None and synced_rev == receipt["delivered_revision"]:
+                status = "synced"
+            else:
+                status = "delivered_unverified"
         else:
             status = "stale_delivery"
-        return {"status": status, "delivered_revision": receipt["delivered_revision"]}
+        result = {"status": status, "delivered_revision": receipt["delivered_revision"]}
+        if synced_rev is not None:
+            result["synced_revision"] = synced_rev
+        return result
 
     def record_delivery(self, addon_id: str, name: str, revision: int) -> None:
         """Only offline delivery code calls this after filesystem fsync."""
@@ -248,10 +266,11 @@ class CredentialVault:
                 raise VaultError("Credential changed during delivery; repeat delivery")
             db.execute(
                 "INSERT INTO credential_delivery_receipts "
-                "(addon_id,credential_name,delivered_revision,removed,updated_at) "
-                "VALUES (?,?,?,0,?) "
+                "(addon_id,credential_name,delivered_revision,synced_revision,removed,updated_at) "
+                "VALUES (?,?,?,NULL,0,?) "
                 "ON CONFLICT(addon_id,credential_name) DO UPDATE SET "
-                "delivered_revision=excluded.delivered_revision,removed=0,"
+                "delivered_revision=excluded.delivered_revision,"
+                "synced_revision=NULL,removed=0,"
                 "updated_at=excluded.updated_at",
                 (addon_id, name, revision, _now()),
             )
@@ -274,7 +293,8 @@ class CredentialVault:
             if record is None or not record["revoked"]:
                 raise VaultError("Credential must be revoked before delivered-file cleanup")
             db.execute(
-                "UPDATE credential_delivery_receipts SET removed=1,updated_at=? "
+                "UPDATE credential_delivery_receipts "
+                "SET removed=1,synced_revision=NULL,updated_at=? "
                 "WHERE addon_id=? AND credential_name=?",
                 (_now(), addon_id, name),
             )
@@ -285,6 +305,45 @@ class CredentialVault:
                 (addon_id, name, "delivered_removed", record["revision"],
                  os.getuid() if hasattr(os, "getuid") else -1, _now()),
             )
+
+    def record_sync_ack(self, addon_id: str, name: str, revision: int | None = None) -> int:
+        """Record explicit synchronization acknowledgment after add-on reload/restart."""
+        self._identity(addon_id, name)
+        with self._lock, self._connection() as db:
+            secret = db.execute(
+                "SELECT revision,revoked FROM credentials "
+                "WHERE addon_id=? AND credential_name=?",
+                (addon_id, name),
+            ).fetchone()
+            receipt = db.execute(
+                "SELECT delivered_revision,removed FROM credential_delivery_receipts "
+                "WHERE addon_id=? AND credential_name=?",
+                (addon_id, name),
+            ).fetchone()
+            if secret is None or secret["revoked"]:
+                raise VaultError("Cannot acknowledge sync for missing or revoked credential")
+            if receipt is None or receipt["removed"]:
+                raise VaultError("Credential has not been delivered")
+            target_rev = int(secret["revision"]) if revision is None else int(revision)
+            if (
+                int(secret["revision"]) != target_rev
+                or int(receipt["delivered_revision"]) != target_rev
+            ):
+                raise VaultError("Delivered revision does not match current vault revision")
+            now = _now()
+            db.execute(
+                "UPDATE credential_delivery_receipts SET synced_revision=?,updated_at=? "
+                "WHERE addon_id=? AND credential_name=?",
+                (target_rev, now, addon_id, name),
+            )
+            db.execute(
+                "INSERT INTO credential_events "
+                "(addon_id,credential_name,action,revision,actor_uid,timestamp) "
+                "VALUES (?,?,?,?,?,?)",
+                (addon_id, name, "sync_acknowledged", target_rev,
+                 os.getuid() if hasattr(os, "getuid") else -1, now),
+            )
+            return target_rev
 
     def metadata(self, addon_id: str | None = None) -> list[dict]:
         if addon_id is not None and not ADDON.fullmatch(addon_id):

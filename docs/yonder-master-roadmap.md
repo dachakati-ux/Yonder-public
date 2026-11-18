@@ -510,8 +510,20 @@ Do **not** assume a `configured` credential is installed or active.
   `credentials_cli.py status`, added `audit_events` / `stale_count` /
   `cleanup_required_count` to `Controller.credential_status()`, and blocked
   `preflight` `secrets` check when `revoked_cleanup_required` is present.
-- [ ] Authenticated runtime delivery and centralized KMS/Vault adapters
-  remain pending security review.
+### M02.6 / M02.9 controller isolation, token rotation & sync ack — 2026-11-18
+
+- [x] `DockerAdapter` now supports validated `YONDER_CONTROLLER_DOCKER_HOST`
+  (`unix:///`, loopback `tcp://`, or `https://` TLS-verified socket proxies)
+  and strict `validate_registry_allowlist()` (rejecting wildcards, schemes,
+  and userinfo).
+- [x] Controller API now supports zero-downtime `YONDER_CONTROLLER_PREVIOUS_TOKEN`
+  rotation and optional `YONDER_CONTROLLER_REQUIRE_MTLS` client-cert header
+  enforcement.
+- [x] Added `CredentialVault.record_sync_ack()` and `credentials_cli.py ack-sync`
+  to transition `delivered_unverified` → `synced` with `sync_acknowledged`
+  audit logging, invalidated on rotation.
+- [ ] Full external KMS/Vault provider adapters and institutional multi-host
+  deployment service packaging remain pending.
 
 **M01.6 — CI baseline cleanup** should be maintained as a parallel
 release-enabling workstream so the final green signal is meaningful.
