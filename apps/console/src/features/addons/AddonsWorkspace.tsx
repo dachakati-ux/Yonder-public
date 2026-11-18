@@ -86,6 +86,12 @@ type DesiredAddon = {
   observed_state: string;
   drift: boolean;
 };
+type PreflightReport = {
+  addon_id: string;
+  can_submit: boolean;
+  checks: Array<{ name: string; status: string; message: string }>;
+  note: string;
+};
 type ControllerJob = {
   id: string;
   addon_id: string;
@@ -121,6 +127,7 @@ export function AddonsWorkspace() {
   const [deployments, setDeployments] = useState<ControllerJob[]>([]);
   const [desiredItems, setDesiredItems] = useState<DesiredAddon[]>([]);
   const [setupAddon, setSetupAddon] = useState<string | null>(null);
+  const [preflight, setPreflight] = useState<PreflightReport | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -165,6 +172,15 @@ export function AddonsWorkspace() {
   async function manageService(item: Addon, action: "install" | "remove") {
     setBusyId(item.id);
     try {
+      if (action === "install") {
+        const report = await api<PreflightReport>(
+          "/api/admin/addons/" + encodeURIComponent(item.id) + "/controller/preflight"
+        );
+        setPreflight(report);
+        if (!report.can_submit) {
+          throw new Error("Installation requirements are not met. Review preflight below.");
+        }
+      }
       const planResult = await api<{ plan: DeploymentPlan }>(
         "/api/admin/addons/" + encodeURIComponent(item.id) +
         "/controller/plan?action=" + action
@@ -248,6 +264,21 @@ export function AddonsWorkspace() {
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Add-on operation failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function checkRequirements(item: Addon) {
+    setBusyId(item.id);
+    setError(null);
+    try {
+      const report = await api<PreflightReport>(
+        "/api/admin/addons/" + encodeURIComponent(item.id) + "/controller/preflight"
+      );
+      setPreflight(report);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not check requirements");
     } finally {
       setBusyId(null);
     }
@@ -404,8 +435,13 @@ export function AddonsWorkspace() {
                 <>
                   <button className="btn btn-ghost" type="button"
                     disabled={busyId != null}
-                    onClick={() => setSetupAddon(item.id)}>
+                    onClick={() => { setSetupAddon(item.id); setPreflight(null); }}>
                     Configure
+                  </button>
+                  <button className="btn btn-ghost" type="button"
+                    disabled={busyId != null}
+                    onClick={() => void checkRequirements(item)}>
+                    Check requirements
                   </button>
                   <button className="btn" type="button"
                     disabled={busyId != null}
@@ -435,6 +471,25 @@ export function AddonsWorkspace() {
         ))}
       </div>
 
+      {preflight ? (
+        <section className="models-panel" aria-label="Add-on preflight">
+          <div className="panel-head">
+            <h2>Installation requirements: {preflight.addon_id}</h2>
+            <span className="entity-meta">
+              {preflight.can_submit ? "Ready for approval" : "Action required"}
+            </span>
+          </div>
+          <div className="addons-checks">
+            {preflight.checks.map((check) => (
+              <div key={check.name} className="addons-check">
+                <strong>{check.status}</strong>
+                <span>{check.name}: {check.message}</span>
+              </div>
+            ))}
+          </div>
+          <p className="entity-meta">{preflight.note}</p>
+        </section>
+      ) : null}
       {setupAddon ? (
         <AddonSetupWizard addonId={setupAddon} onClose={() => setSetupAddon(null)} />
       ) : null}
