@@ -151,3 +151,56 @@ uv run pytest -q tests/test_addon_contract.py tests/test_addons.py
 A separate, fully reviewed school-ready release will require real login/SSO,
 class/student authorization, retention/deletion policies, and adversarial
 security testing.
+
+
+## Separate-service adapter foundation (implemented, not a deployer)
+
+The Gateway now includes a restricted, admin-configured connection registry for
+future independently deployed add-ons:
+
+- `GET /api/admin/addons/{addon_id}/service/health` requires
+  `operations.view` and returns `not_installed`, `not_configured`,
+  `verified`, or `unavailable`. Unknown add-ons are rejected.
+- `POST /api/admin/addons/services/reload` requires `operations.manage`.
+  Only the server's preconfigured file is read—no browser-supplied URL.
+- `/addon/v1/capabilities` is the proposed service-side handshake, checked
+  with a bounded HTTPS request, strict response schema, expected add-on ID,
+  expected service ID and API version. Redirects and environment HTTP proxies
+  are disabled. Unverifiable responses fail closed.
+- The optional configuration file is
+  `/etc/yonder/addon-services.json` and must be **operator mounted** as a
+  private, nonsymlink file (0600 on POSIX). The registry never returns its
+  tokens in an API response.
+- A missing configuration file is normal on a basic Yonder installation:
+  Core runs without any external add-on services.
+
+Example **template only** (do not put real tokens in Git):
+
+```json
+{
+  "schema_version": 1,
+  "endpoints": [
+    {
+      "addon_id": "convyx",
+      "expected_service_id": "convyx-service",
+      "base_url": "https://convyx.example.org",
+      "bearer_token": "REPLACE-WITH-A-LONG-RANDOM-SECRET"
+    }
+  ]
+}
+```
+
+The optional file must be created by a trusted administrator and made
+accessible only to the Gateway process. This is the foundation for connection
+checks, **not a completed mTLS/service mesh integration**. The current
+client uses certificate-validated HTTPS and a bearer token. Operators must
+restrict outbound traffic with firewall/network allowlists and protect DNS:
+DNS rebinding and a compromised configured domain can still threaten
+internal resources without additional egress enforcement.
+
+A future installer/controller must implement signed artifact verification,
+isolated runtime provisioning, migrations, snapshots, rollback, service
+credentials and restart/health monitoring **outside the Gateway**. The current
+manager does not start a remote container or a VM. For school deployments,
+external agent/compute modules are not considered production-ready without
+resource-scoped identity, isolation and audit.
