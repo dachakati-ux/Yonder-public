@@ -71,6 +71,13 @@ def create_app(
     async def health():
         return {"status": "ok", "service": "yonder-addon-controller"}
 
+    @app.get("/v1/credentials/{addon_id}", dependencies=[Depends(authenticate)])
+    async def credential_inventory(addon_id: str):
+        try:
+            return engine.credential_status(addon_id)
+        except ControllerError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @app.get("/v1/preflight/{addon_id}", dependencies=[Depends(authenticate)])
     async def preflight(addon_id: str):
         try:
