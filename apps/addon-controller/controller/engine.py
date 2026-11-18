@@ -140,6 +140,8 @@ class Controller:
                 else:
                     await self.docker.preflight(deployment)
                 self.jobs.transition(job_id, "deploying")
+                if deployment.provision_managed_resources:
+                    await self.docker.prepare_resources(deployment)
                 await self.docker.install(deployment)
                 self.jobs.transition(job_id, "verifying")
                 deadline = asyncio.get_running_loop().time() + (
