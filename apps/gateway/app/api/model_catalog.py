@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 from yonder_contracts.errors import ErrorCode
 
 from app.context import get_principal, get_request_id
@@ -21,13 +22,13 @@ GGUF_SUFFIX = ".gguf"
 MAX_RESULTS = 25
 
 
-def _capability(request: Request):
+def _capability(request: Request, capability: str = "models.view"):
     principal = get_principal(request)
-    if principal.has_capability("models.view"):
+    if principal.has_capability(capability):
         return None
     return error_response(
         ErrorCode.PERMISSION_CONTEXT_REQUIRED,
-        "Principal lacks models.view capability.",
+        f"Principal lacks {capability} capability.",
         get_request_id(request),
     )
 
@@ -152,3 +153,42 @@ async def model_details(request: Request, owner: str, name: str):
             "error": "Could not fetch model metadata.",
             "detail_type": type(exc).__name__,
         }
+
+
+class InstallGGUFBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    repo: str = Field(min_length=3, max_length=190)
+    filename: str = Field(min_length=6, max_length=200)
+
+
+@router.get("/installs")
+async def list_installs(request: Request):
+    denied = _capability(request)
+    if denied:
+        return denied
+    return {
+        "jobs": request.app.state.model_installs.public_jobs(),
+        "note": "Job state is in-memory; installed files persist in the model volume.",
+    }
+
+
+@router.post("/installs", status_code=202)
+async def install_gguf(body: InstallGGUFBody, request: Request):
+    denied = _capability(request, "models.manage")
+    if denied:
+        return denied
+    try:
+        job = await request.app.state.model_installs.start(body.repo, body.filename)
+    except ValueError as exc:
+        return error_response(ErrorCode.INVALID_REQUEST, str(exc), get_request_id(request))
+    return {"job": job, "note": "Installation does not automatically load models."}
+
+
+@router.post("/installs/{job_id}/cancel")
+async def cancel_install(job_id: str, request: Request):
+    denied = _capability(request, "models.manage")
+    if denied:
+        return denied
+    cancelled = await request.app.state.model_installs.cancel(job_id)
+    return {"cancel_requested": cancelled}
