@@ -7,6 +7,8 @@ import os
 import sys
 from pathlib import Path
 
+from controller.credential_delivery import DeliveryError, deliver, remove_delivered
+from controller.engine import ControllerError, load_deployments
 from controller.credential_vault import (
     CredentialVault,
     VaultError,
@@ -21,14 +23,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Yonder local credential inventory")
     parser.add_argument("--database", type=Path, default=Path(DEFAULT_STORE))
     parser.add_argument("--key-file", type=Path, default=Path(DEFAULT_KEY))
+    parser.add_argument(
+        "--approvals", type=Path, default=Path("/etc/yonder/deployments.json")
+    )
     operations = parser.add_subparsers(dest="action", required=True)
     operations.add_parser("init-key")
     backup_cmd = operations.add_parser("backup")
     backup_cmd.add_argument("destination", type=Path)
-    for name in ("set", "revoke", "status", "audit"):
+    for name in ("set", "revoke", "status", "audit", "deliver", "remove-delivered"):
         command = operations.add_parser(name)
         command.add_argument("addon_id")
-        if name in ("set", "revoke"):
+        if name in ("set", "revoke", "deliver", "remove-delivered"):
             command.add_argument("credential_name")
     args = parser.parse_args()
     try:
@@ -55,6 +60,27 @@ def main() -> int:
         elif args.action == "revoke":
             revision = vault.revoke(args.addon_id, args.credential_name)
             print("Credential revoked. Revision:", revision)
+        elif args.action in ("deliver", "remove-delivered"):
+            # Explicit local operator invocation, never an HTTP request.
+            if hasattr(os, "geteuid") and os.geteuid() != 0:
+                raise DeliveryError("Docker credential delivery requires local host admin")
+            approvals = load_deployments(args.approvals)
+            approved = {
+                name for name, config in approvals.items() if config.secret_volume
+            }
+            if args.action == "deliver":
+                deliver(
+                    vault, args.addon_id, args.credential_name,
+                    approved_addon_ids=approved,
+                )
+                print("Credential delivered to approved local Docker volume.")
+                print("Restart or reload the add-on if it does not watch credential files.")
+            else:
+                remove_delivered(
+                    vault, args.addon_id, args.credential_name,
+                    approved_addon_ids=approved,
+                )
+                print("Delivered file removed; revoke provider-side credentials separately.")
         elif args.action == "audit":
             for event in vault.audit_events(args.addon_id):
                 print(
@@ -68,7 +94,7 @@ def main() -> int:
                     "revision", entry["revision"],
                 )
         return 0
-    except (VaultError, OSError, UnicodeError) as exc:
+    except (VaultError, DeliveryError, ControllerError, OSError, UnicodeError) as exc:
         print("Credential operation rejected:", str(exc), file=sys.stderr)
         return 1
 
