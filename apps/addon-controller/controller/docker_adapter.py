@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 
 from .models import ApprovedDeployment
@@ -21,7 +22,7 @@ class DockerAdapter:
     def __init__(self, docker_bin: str = "/usr/bin/docker"):
         self.docker_bin = docker_bin
 
-    async def _run(self, *args: str) -> str:
+    async def _run(self, *args: str, timeout: float = 60.0) -> str:
         try:
             process = await asyncio.create_subprocess_exec(
                 self.docker_bin, *args,
@@ -32,7 +33,7 @@ class DockerAdapter:
         except OSError as exc:
             raise DockerError("Docker executable is unavailable") from exc
         try:
-            out, err = await asyncio.wait_for(process.communicate(), timeout=60)
+            out, err = await asyncio.wait_for(process.communicate(), timeout=timeout)
         except TimeoutError as exc:
             process.kill()
             await process.communicate()
@@ -78,6 +79,30 @@ class DockerAdapter:
             raise DockerError("Could not validate the local pinned image") from exc
         if deployment.image not in records:
             raise DockerError("Local image digest does not match the approved artifact")
+
+    async def acquire(self, deployment: ApprovedDeployment) -> None:
+        """Fetch an exact publisher-signed OCI digest from an approved registry.
+
+        The controller verifies publisher signatures before this method is invoked.
+        No arbitrary tags, registry logins, or user-specified Docker flags.
+        """
+        if deployment.image_acquisition != "signed_pull":
+            raise DockerError("Remote acquisition is not approved for this add-on")
+        registry = deployment.image.split("/", 1)[0]
+        permitted = {
+            name.strip().lower()
+            for name in os.getenv(
+                "YONDER_CONTROLLER_ALLOWED_REGISTRIES", "ghcr.io"
+            ).split(",")
+            if name.strip()
+        }
+        if registry not in permitted:
+            raise DockerError("OCI registry is not in the operator allowlist")
+        # The approved image is a full immutable repository@sha256 digest.
+        # Pulling by digest does not itself prove publisher identity: the
+        # separate Ed25519 signature gate is mandatory.
+        await self._run("pull", "--quiet", deployment.image, timeout=900.0)
+        await self.preflight(deployment)
 
     async def install(self, deployment: ApprovedDeployment) -> None:
         name = CONTAINER_PREFIX + deployment.addon_id
