@@ -15,6 +15,7 @@ from .docker_adapter import DockerAdapter, DockerError
 from .models import ApprovedDeployment, ControllerConfig
 from .release_trust import ReleaseTrustError, verify_release
 from .store import JobConflict, JobStore
+from .upgrade_planner import UpgradePolicy, assess_upgrade
 
 APPROVAL = re.compile(r"^[a-f0-9]{64}$")
 KEY = re.compile(r"^[A-Za-z0-9_-]{12,128}$")
