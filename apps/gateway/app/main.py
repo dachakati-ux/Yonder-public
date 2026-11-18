@@ -32,10 +32,12 @@ from app.api import (
     help,
     lab,
     mcp,
+    model_catalog,
     ops,
     platform,
     speech,
     v1,
+    updates,
     workers,
 )
 from app.config.bootstrap import (
@@ -59,6 +61,7 @@ from app.services.coder_workspace import CoderWorkspaceService
 from app.services.generation_jobs import GenerationJobService
 from app.services.lifecycle import LifecycleService
 from app.services.mcp_client import McpClientManager
+from app.services.model_install import DownloadManager
 from app.services.rag import LexicalRetriever, RagStore, seed_lab_corpus
 from app.services.speech import SpeechService
 from app.services.structured import build_default_schema_registry
@@ -196,6 +199,7 @@ def create_app() -> FastAPI:
     app.state.state_store = state_store
     app.state.providers = build_provider_registry(settings)
     app.state.model_definitions = build_model_definitions(settings)
+    app.state.model_installs = DownloadManager(Path("/app/data/models"))
     app.state.routes = build_route_registry(settings, app.state.model_definitions)
     # Overlay durable alias/deployment state from previous runs.
     state_store.load_into(app.state.routes)
@@ -489,6 +493,8 @@ def create_app() -> FastAPI:
     app.include_router(ops.router)
     app.include_router(admin.router)
     app.include_router(addons.router)
+    app.include_router(model_catalog.router)
+    app.include_router(updates.router)
     app.include_router(workers.router)
     app.include_router(chat.router)
     app.include_router(v1.router)

@@ -46,6 +46,7 @@ import {
 } from "@/lib/placement";
 import { fetchHardware, type HardwareNode } from "@/lib/ops";
 import { ModelLabSheet } from "@/features/models/ModelLabSheet";
+import { ModelLibrary } from "@/features/models/ModelLibrary";
 
 const READY_STATUSES = ["ready", "loaded"];
 
@@ -635,6 +636,8 @@ export function ModelsWorkspace() {
           Refresh
         </button>
       </header>
+
+      <ModelLibrary />
 
       {error ? <div className="message-error models-error">{error}</div> : null}
       {capacityBanner ? (

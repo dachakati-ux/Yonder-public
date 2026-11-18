@@ -90,3 +90,6 @@ config/addon-controller-secrets.json
 # Local publisher trust and release approvals (operator-managed)
 config/addon-releases/
 config/addon-trust/
+
+# Local update backups contain private configuration and data
+backups/

@@ -18,6 +18,7 @@ for arg in "$@"; do
     --postgres)     WITH_POSTGRES=1 ;;
     --stop|--down)  ACTION="down" ;;
     --logs)         ACTION="logs" ;;
+    --update)       ACTION="update" ;;
     -h|--help)      ACTION="help" ;;
     *)
       echo "Unknown option: $arg"
@@ -65,6 +66,7 @@ Options:
       --postgres  Start with PostgreSQL persistence enabled (in addition to SQLite)
       --stop      Stop all running Yonder containers
       --logs      Follow container logs
+      --update    Back up local data, pull main, and rebuild
   -h, --help      Show this help message
 
 Examples:
@@ -78,6 +80,10 @@ EOF
 if [[ "$ACTION" == "help" ]]; then
   print_help
   exit 0
+fi
+
+if [[ "$ACTION" == "update" ]]; then
+  exec bash "$ROOT_DIR/scripts/update-yonder.sh"
 fi
 
 # Detect Docker Compose command (v2 plugin preferred, v1 fallback)
@@ -262,6 +268,9 @@ CONSOLE_PORT="${YONDER_CONSOLE_PORT:-3000}"
 GATEWAY_PORT="${YONDER_GATEWAY__PORT:-8080}"
 WORKER_PORT="${YONDER_WORKER__PORT:-8090}"
 MCP_PORT="${YONDER_MCP_PORT:-8095}"
+
+# Record the checked-out revision; unknown revisions never trigger a false update alert.
+export YONDER_BUILD_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 
 # 6. Check for port conflicts if not already owned by Yonder
 check_port() {
