@@ -118,3 +118,31 @@ class Controller:
         except Exception:
             # Never disclose secrets or host exception data to browser clients.
             self.jobs.transition(job_id, "failed", "Unexpected controller error")
+
+
+    async def observed(self, addon_id: str) -> str:
+        if addon_id not in self.approved():
+            raise ControllerError("Add-on is not approved on this host")
+        try:
+            state = await self.docker.status(addon_id)
+        except DockerError as exc:
+            raise ControllerError("Could not verify Docker state") from exc
+        if state not in ("running", "stopped", "not_deployed", "unmanaged_container_collision"):
+            raise ControllerError("Unexpected Docker state")
+        return state
+
+    async def acknowledge(self, job_id: str, observed_state: str) -> dict:
+        """Require an operator-approved, freshly rechecked observation."""
+        async with self._lock:
+            job = self.jobs.get(job_id)
+            if job is None or job["status"] != "interrupted":
+                raise ControllerError("Job is not awaiting recovery review")
+            actual = await self.observed(job["addon_id"])
+            if actual == "unmanaged_container_collision":
+                raise ControllerError("Cannot acknowledge an unowned Docker container")
+            if actual != observed_state:
+                raise ControllerError("Container state changed; review it again")
+            try:
+                return self.jobs.acknowledge(job_id, actual)
+            except JobConflict as exc:
+                raise ControllerError(str(exc)) from exc
