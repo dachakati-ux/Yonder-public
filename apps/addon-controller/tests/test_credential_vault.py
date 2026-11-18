@@ -113,7 +113,7 @@ def test_audit_events_record_metadata_not_secret_values(tmp_path):
     assert [event["revision"] for event in history] == [3, 2, 1]
     assert "super-private-value" not in str(history)
     assert "replacement-value" not in str(history)
-    assert "super-private-value" not in db.read_bytes()
+    assert b"super-private-value" not in db.read_bytes()
     assert vault.audit_events("workspaces") == []
 
 
