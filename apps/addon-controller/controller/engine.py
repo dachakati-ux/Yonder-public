@@ -13,8 +13,8 @@ from pydantic import ValidationError
 from .backup_verifier import BackupError, verify_bundle
 from .credential_vault import CredentialVault, VaultError, read_master_key
 from .docker_adapter import DockerAdapter, DockerError
-from .models import ApprovedDeployment, ControllerConfig
 from .migration_trust import MigrationTrustError, verify_migration_attestation
+from .models import ApprovedDeployment, ControllerConfig
 from .release_trust import ReleaseTrustError, verify_release
 from .sqlite_migration import MigrationError, read_contract
 from .store import JobConflict, JobStore
