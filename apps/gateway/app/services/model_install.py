@@ -126,7 +126,12 @@ class DownloadManager:
             # No attacker-controlled subpath; no preexisting symlink directories.
             if any(
                 ancestor.is_symlink()
-                for ancestor in (self.root, self.root / repo.replace("/", "--"), folder.parent, folder)
+                for ancestor in (
+                    self.root,
+                    self.root / repo.replace("/", "--"),
+                    folder.parent,
+                    folder,
+                )
             ):
                 raise ValueError("Install directory must not use symlinks.")
             if folder.exists():
