@@ -95,6 +95,7 @@ type CredentialInventory = {
     revision: number;
     configured: boolean;
     updated_at: string;
+    delivery: { status: string; delivered_revision: number | null };
   }>;
 };
 type PreflightReport = {
@@ -524,8 +525,13 @@ export function AddonsWorkspace() {
           <div className="addons-checks">
             {credentialInventory.credentials.map((entry) => (
               <div key={entry.name} className="addons-check">
-                <strong>{entry.configured ? "Stored" : "Revoked"}</strong>
-                <span>{entry.name} · revision {entry.revision}</span>
+                <strong>{entry.delivery.status === "stale_delivery" || entry.delivery.status === "revoked_cleanup_required" ? "Attention" : entry.configured ? "Stored" : "Revoked"}</strong>
+                <span>
+                  {entry.name} · vault revision {entry.revision}
+                  {" · "}delivery: {entry.delivery.status.replaceAll("_", " ")}
+                  {entry.delivery.delivered_revision != null
+                    ? " (revision " + entry.delivery.delivered_revision + ")" : ""}
+                </span>
               </div>
             ))}
           </div>
