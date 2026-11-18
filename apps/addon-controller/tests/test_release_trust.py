@@ -7,6 +7,7 @@ import json
 import os
 
 import pytest
+from controller.engine import Controller, ControllerError
 from controller.models import ApprovedDeployment
 from controller.release_trust import ReleaseDescriptor, ReleaseTrustError, verify_release
 from cryptography.hazmat.primitives import serialization
@@ -103,3 +104,24 @@ def test_group_writable_policy_rejected(tmp_path):
     os.chmod(trust, 0o666)
     with pytest.raises(ReleaseTrustError, match="trust policy"):
         verify_release(deployment, release, trust)
+
+
+def test_controller_plan_requires_trusted_publisher_when_enforced(
+    tmp_path, monkeypatch
+):
+    deployment, release, trust = fixtures(tmp_path)
+    cfg = tmp_path / "deployments.json"
+    cfg.write_text(json.dumps({
+        "schema_version": 1,
+        "deployments": [deployment.model_dump()],
+    }))
+    monkeypatch.setenv("YONDER_CONTROLLER_REQUIRE_SIGNATURES", "true")
+    monkeypatch.setenv("YONDER_CONTROLLER_PUBLISHER_KEYS", str(trust))
+    monkeypatch.setenv("YONDER_CONTROLLER_RELEASE_ROOT", str(tmp_path))
+    controller = Controller(cfg, tmp_path / "state.db")
+    plan = controller.plan("demo-addon", "install")
+    assert plan["publisher_key_id"] == "yonder-official"
+    assert plan["publisher_verification"] == "ed25519_valid"
+    release.unlink()
+    with pytest.raises(ControllerError, match="publisher verification"):
+        controller.plan("demo-addon", "install")
