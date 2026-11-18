@@ -118,6 +118,62 @@ def test_unknown_migration_policy_blocks_without_guessing():
     )
 
 
+@pytest.mark.asyncio
+async def test_stateful_upgrade_reports_matching_migration_contract_but_stays_blocked(
+    tmp_path, monkeypatch
+):
+    backups = tmp_path / "offline-backups"
+    root = backups / "demo-addon"
+    root.mkdir(parents=True, mode=0o700)
+    db_bytes = b"offline export"
+    (root / "database.dump").write_bytes(db_bytes)
+    (root / "manifest.json").write_text(json.dumps({
+        "schema_version": 1, "addon_id": "demo-addon",
+        "version": "1.0.0", "image": IMAGE,
+        "created_at": datetime.now(UTC).isoformat(),
+        "source_quiesced": True, "backup_kind": "database_export",
+        "files": [{
+            "name": "database.dump", "size": len(db_bytes),
+            "sha256": hashlib.sha256(db_bytes).hexdigest(),
+        }],
+    }))
+    contracts = tmp_path / "migration-contracts"
+    contracts.mkdir()
+    migration_path = contracts / "demo-addon.json"
+    migration = {
+        "schema_version": 1, "addon_id": "demo-addon",
+        "source_version": "1.0.0", "source_image": IMAGE,
+        "target_version": "2.0.0", "target_image": NEXT_IMAGE,
+        "source_db_revision": 0, "target_db_revision": 1,
+        "steps": [{
+            "kind": "add_nullable_column", "table": "documents",
+            "column": "owner", "data_type": "TEXT",
+        }],
+    }
+    migration_path.write_text(json.dumps(migration))
+    monkeypatch.setenv("YONDER_CONTROLLER_STATEFUL_BACKUP_ROOT", str(backups))
+    monkeypatch.setenv("YONDER_CONTROLLER_MIGRATION_ROOT", str(contracts))
+    approved = tmp_path / "approved.json"
+    approved.write_text(json.dumps({
+        "schema_version": 1, "deployments": [{
+            "addon_id": "demo-addon", "version": "2.0.0",
+            "image": NEXT_IMAGE, "data_volume": True,
+            "upgrade_data_migration": "requires_migration",
+        }],
+    }))
+    engine = Controller(approved, tmp_path / "jobs.db", adapter=FakeDocker())
+    engine.jobs.set_desired("demo-addon", "1.0.0", IMAGE, "running")
+    report = await engine.upgrade_assessment("demo-addon")
+    assert report["backup_integrity"] == "verified_contents_only"
+    assert report["migration_contract"] == "identity_verified_only"
+    assert report["can_execute"] is False
+    migration["source_image"] = NEXT_IMAGE
+    migration_path.write_text(json.dumps(migration))
+    rejected = await engine.upgrade_assessment("demo-addon")
+    assert rejected["migration_contract"] == "not_verified"
+    assert rejected["can_execute"] is False
+
+
 def test_running_release_cannot_be_reinstalled_as_disguised_upgrade(tmp_path):
     approved = tmp_path / "approved.json"
     approved.write_text(json.dumps({
