@@ -36,8 +36,8 @@ from app.api import (
     platform,
     speech,
     v1,
-    workers,
     updates,
+    workers,
 )
 from app.config.bootstrap import (
     build_model_definitions,
@@ -55,8 +55,8 @@ from app.services.chat import ChatService
 from app.services.coder_workspace import CoderWorkspaceService
 from app.services.generation_jobs import GenerationJobService
 from app.services.lifecycle import LifecycleService
-from app.services.model_install import DownloadManager
 from app.services.mcp_client import McpClientManager
+from app.services.model_install import DownloadManager
 from app.services.rag import LexicalRetriever, RagStore, seed_lab_corpus
 from app.services.speech import SpeechService
 from app.services.structured import build_default_schema_registry
