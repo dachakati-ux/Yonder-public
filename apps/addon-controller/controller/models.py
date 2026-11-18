@@ -34,6 +34,7 @@ class ApprovedDeployment(BaseModel):
     public_settings: dict[str, str] = Field(default_factory=dict, max_length=24)
     secret_volume: bool = False
     data_volume: bool = False
+    provision_managed_resources: bool = False
     image_acquisition: Literal["preloaded", "signed_pull"] = "preloaded"
     readiness: Literal["running", "docker_healthy"] = "running"
     readiness_timeout_seconds: int = Field(default=30, ge=5, le=300)
@@ -83,6 +84,7 @@ class ApprovedDeployment(BaseModel):
                 "network": self.network,
             },
             "configuration": {
+                "provision_managed_resources": self.provision_managed_resources,
                 "public_settings": self.public_settings,
                 "secret_volume": f"yonder-addon-secrets-{self.addon_id}"
                 if self.secret_volume else None,
