@@ -152,6 +152,16 @@ def test_private_journal_permissions_and_symlink_rejected(tmp_path):
         MigrationJournal(alias)
 
 
+def test_read_only_journal_open_does_not_interrupt_active_rehearsal(tmp_path):
+    location = tmp_path / "journal.db"
+    live = MigrationJournal(location)
+    run = live.start("demo-addon", OLD, NEW, "a" * 64, "b" * 64)
+    reviewer = MigrationJournal(location, recover_on_init=False)
+    assert reviewer.get(run)["state"] == "running"
+    assert live.get(run)["state"] == "running"
+    live.finish(run, "failed")
+
+
 def test_journal_never_marks_passed_without_a_verified_output(tmp_path):
     journal = MigrationJournal(tmp_path / "journal.db")
     run = journal.start("demo-addon", OLD, NEW, "a" * 64, "b" * 64)
