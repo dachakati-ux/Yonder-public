@@ -24,6 +24,25 @@ class Recorder(DockerAdapter):
         self.commands.append(args)
         if args[:2] == ("image", "inspect"):
             return json.dumps([{"RepoDigests": [IMAGE, GHCR_IMAGE]}])
+        if args[:2] == ("network", "inspect"):
+            return json.dumps([{
+                "Labels": {
+                    "io.yonder.approved": "true",
+                    "io.yonder.addon": "demo-addon",
+                },
+                "Internal": True,
+                "Driver": "bridge",
+            }])
+        if args[:2] == ("volume", "inspect"):
+            name = args[2]
+            return json.dumps([{
+                "Name": name,
+                "Labels": {
+                    "io.yonder.approved": "true",
+                    "io.yonder.addon": "demo-addon",
+                    "io.yonder.purpose": name.split("-")[2],
+                },
+            }])
         if args[0] == "pull":
             return ""
         if args[0] == "run":
@@ -125,3 +144,42 @@ async def test_preloaded_image_cannot_invoke_pull():
     adapter = Recorder()
     with pytest.raises(DockerError, match="not approved"):
         await adapter.acquire(deployment())
+
+
+@pytest.mark.asyncio
+async def test_restricted_settings_and_preapproved_resources():
+    adapter = Recorder()
+    approved = deployment().model_copy(update={
+        "public_settings": {"CLASSROOM_MODE": "enabled", "MAX_USERS": "30"},
+        "secret_volume": True,
+        "data_volume": True,
+        "network": "yonder-addon-net-demo-addon",
+    })
+    await adapter.install(approved)
+    cmd = next(item for item in adapter.commands if item[0] == "run")
+    assert "--env" in cmd
+    assert "CLASSROOM_MODE=enabled" in cmd
+    assert "MAX_USERS=30" in cmd
+    assert any("yonder-addon-secrets-demo-addon" in arg for arg in cmd)
+    assert any("yonder-addon-data-demo-addon" in arg for arg in cmd)
+    assert "yonder-addon-net-demo-addon" in cmd
+    assert ("network", "inspect", "yonder-addon-net-demo-addon") in adapter.commands
+    assert ("volume", "inspect", "yonder-addon-secrets-demo-addon") in adapter.commands
+    assert ("volume", "inspect", "yonder-addon-data-demo-addon") in adapter.commands
+
+
+@pytest.mark.asyncio
+async def test_unapproved_network_refused():
+    class UnapprovedNetwork(Recorder):
+        async def _run(self, *args, **kwargs):
+            if args[:2] == ("network", "inspect"):
+                return json.dumps([{"Labels": {}, "Internal": False, "Driver": "bridge"}])
+            return await super()._run(*args, **kwargs)
+
+    adapter = UnapprovedNetwork()
+    approved = deployment().model_copy(update={
+        "network": "yonder-addon-net-demo-addon"
+    })
+    with pytest.raises(DockerError, match="not approved"):
+        await adapter.install(approved)
+    assert not any(args[0] == "run" for args in adapter.commands)
