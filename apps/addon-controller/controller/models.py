@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 ADDON = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 NON_SECRET_KEY = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
-SAFE_VALUE = re.compile(r"^[^\\x00-\\x1f\\x7f]{0,256}$")
 SENSITIVE_KEY = re.compile(
     r"(SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|AUTH_KEY)", re.IGNORECASE
 )
@@ -54,7 +53,8 @@ class ApprovedDeployment(BaseModel):
             if (
                 not NON_SECRET_KEY.fullmatch(key)
                 or SENSITIVE_KEY.search(key)
-                or not SAFE_VALUE.fullmatch(text)
+                or len(text) > 256
+                or any(ord(char) < 32 or ord(char) == 127 for char in text)
             ):
                 raise ValueError("Public settings cannot contain secrets or control characters")
         return value
