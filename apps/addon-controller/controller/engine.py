@@ -220,6 +220,18 @@ class Controller:
             check("configuration", "blocked", "Complete the setup wizard first.")
 
         policy = self.approved()[addon_id]
+        desired = next(
+            (item for item in self.jobs.desired() if item["addon_id"] == addon_id),
+            None,
+        )
+        if desired is not None and desired["desired_state"] == "running":
+            check(
+                "existing_release", "blocked",
+                "A running release is recorded. Fresh install cannot bypass "
+                "stateful upgrade and recovery checks.",
+            )
+        else:
+            check("existing_release", "ready", "No running release is recorded.")
         try:
             self.plan(addon_id, "install")
         except ControllerError:
