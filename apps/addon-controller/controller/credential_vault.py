@@ -10,7 +10,6 @@ import base64
 import os
 import re
 import sqlite3
-import tempfile
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -168,17 +167,3 @@ class CredentialVault:
                 for item in rows
             ]
 
-    def _decrypt(self, item: sqlite3.Row, key: bytes) -> bytes:
-        return AESGCM(key).decrypt(
-            item["nonce"], item["ciphertext"],
-            self._identity(item["addon_id"], item["credential_name"]),
-        )
-
-    def rotate_master_key(self, replacement: Path) -> int:
-        """Re-encrypt every active record, atomically, after external key backup.
-
-        The caller must swap the master-key file only AFTER commit. To avoid
-        unsafe two-phase key cutover, this method intentionally does not expose
-        an automatic rotation API; use a coordinated offline rotation procedure.
-        """
-        raise VaultError("Offline master-key rotation needs coordinated key cutover")
