@@ -61,6 +61,10 @@ class Controller:
             os.getenv("YONDER_CONTROLLER_REQUIRE_SIGNATURES", "false").lower()
             in ("true", "1", "yes")
         )
+        self.enable_stateless_upgrades = (
+            os.getenv("YONDER_CONTROLLER_ENABLE_STATELESS_UPGRADES", "false").lower()
+            in ("true", "1", "yes")
+        )
         self.release_root = Path(
             os.getenv("YONDER_CONTROLLER_RELEASE_ROOT", "/etc/yonder/releases")
         )
@@ -168,21 +172,60 @@ class Controller:
         )
 
     def plan(self, addon_id: str, action: str) -> dict:
-        if action not in ("install", "remove"):
+        if action not in ("install", "remove", "upgrade"):
             raise ControllerError("Unsupported action")
-        selected = self.effective(addon_id) if action == "install" else (
-            self.approved().get(addon_id)
+        selected = (
+            self.effective(addon_id)
+            if action in ("install", "upgrade")
+            else self.approved().get(addon_id)
         )
         if selected is None:
             raise ControllerError("Add-on is not approved for deployment on this host")
-        plan = selected.plan(action)
+
+        previous = None
+        if action == "upgrade":
+            if not self.enable_stateless_upgrades:
+                raise ControllerError("Experimental stateless upgrades are disabled")
+            if not self.require_signed_releases:
+                raise ControllerError("Upgrades require signed publisher verification")
+            if (
+                selected.data_volume or selected.secret_volume
+                or selected.network != "none"
+                or selected.upgrade_data_migration != "none"
+            ):
+                raise ControllerError(
+                    "Upgrade requires a stateless, isolated, migration-free add-on"
+                )
+            previous = next(
+                (item for item in self.jobs.desired()
+                 if item["addon_id"] == addon_id and item["desired_state"] == "running"),
+                None,
+            )
+            if previous is None:
+                raise ControllerError("No running previous release is recorded")
+            if (
+                previous["version"] == selected.version
+                or previous["image"] == selected.image
+            ):
+                raise ControllerError("Upgrade must change version and image digest")
+
+        plan = selected.plan("install" if action == "upgrade" else action)
+        plan["action"] = action
+        if previous is not None:
+            plan["previous"] = {
+                "version": previous["version"],
+                "image": previous["image"],
+            }
+            plan["upgrade_strategy"] = "staged_stateless_only"
+            plan["rollback_container_retained"] = True
+
         if (
-            action == "install"
+            action in ("install", "upgrade")
             and selected.image_acquisition == "signed_pull"
             and not self.require_signed_releases
         ):
-            raise ControllerError("Remote image pulling requires signed release enforcement")
-        if action == "install":
+            raise ControllerError("Remote image pulling requires signed releases")
+        if action in ("install", "upgrade"):
             if self.require_signed_releases:
                 try:
                     proof = verify_release(
