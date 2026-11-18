@@ -100,7 +100,8 @@ class JobStore:
                     json.dumps(plan, sort_keys=True), "queued", now, now,
                 ),
             )
-            return self.get(item_id), True
+            row = db.execute("SELECT * FROM jobs WHERE id=?", (item_id,)).fetchone()
+            return self._row(row), True
 
     def get(self, job_id: str) -> dict | None:
         with self.lock, self._db() as db:
