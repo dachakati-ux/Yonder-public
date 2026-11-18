@@ -275,6 +275,28 @@ class DockerAdapter:
             raise DockerError("Staged container provenance/health could not be verified")
         return candidate
 
+    async def upgrade_recovery_clean(
+        self, deployment: ApprovedDeployment, old_image: str, job_id: str
+    ) -> bool:
+        """True only if the previous release is running under its original name.
+
+        All job-specific staging and rollback names must be absent. Never
+        auto-delete or rename containers during this read-only verification.
+        """
+        canonical, staged, rollback = self._upgrade_names(
+            deployment.addon_id, job_id
+        )
+        candidate = await self._inspect(staged)
+        retained = await self._inspect(rollback)
+        original = await self._inspect(canonical)
+        if candidate is not None or retained is not None or original is None:
+            return False
+        return bool(
+            self._owned(original, deployment.addon_id)
+            and original.get("Config", {}).get("Image") == old_image
+            and original.get("State", {}).get("Running")
+        )
+
     async def discard_stateless_stage(
         self, deployment: ApprovedDeployment, job_id: str
     ) -> None:
