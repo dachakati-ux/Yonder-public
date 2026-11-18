@@ -17,6 +17,15 @@ type Addon = {
   installable: boolean;
   removable: boolean;
   requires_restart: boolean;
+  api_version: number;
+  min_core_version: string;
+  max_core_version_exclusive: string | null;
+  compatibility: string;
+  dependencies: string[];
+  missing_dependencies: string[];
+  config_schema_version: number;
+  service_id: string | null;
+  requires_attention: boolean;
   in_public_catalog: boolean | null;
 };
 
@@ -167,7 +176,17 @@ export function AddonsWorkspace() {
               </span>
             </div>
             <p>{item.summary}</p>
-            <p className="entity-meta">Version {item.version} · ID: {item.id}</p>
+            <p className="entity-meta">Version {item.version} · API v{item.api_version} · ID: {item.id}</p>
+            <p className="entity-meta">Core compatibility: {item.min_core_version} to {item.max_core_version_exclusive ?? "latest"} (exclusive upper bound)</p>
+            {item.compatibility !== "compatible" ? (
+              <p className="message-error">Blocked: {item.compatibility.replaceAll("_", " ")}</p>
+            ) : null}
+            {item.missing_dependencies.length > 0 ? (
+              <p className="message-error">Install dependencies first: {item.missing_dependencies.join(", ")}</p>
+            ) : null}
+            {item.requires_attention ? (
+              <p className="message-error">Version mismatch: reviewed migration required.</p>
+            ) : null}
             <p className="entity-meta">
               Permissions: {item.permissions.join(", ") || "none"}
             </p>
