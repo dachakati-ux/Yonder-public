@@ -161,10 +161,16 @@ class Controller:
                     if asyncio.get_running_loop().time() >= deadline:
                         raise ControllerError("Readiness exceeded approved timeout")
                     await asyncio.sleep(1)
+                self.jobs.set_desired(
+                    deployment.addon_id, deployment.version, deployment.image, "running"
+                )
                 self.jobs.transition(job_id, "succeeded", "Readiness verified")
             elif action == "remove":
                 self.jobs.transition(job_id, "removing")
                 await self.docker.remove(deployment)
+                self.jobs.set_desired(
+                    deployment.addon_id, deployment.version, deployment.image, "absent"
+                )
                 self.jobs.transition(job_id, "succeeded", "Container removed")
             else:
                 raise ControllerError("Unknown operation")
@@ -225,3 +231,22 @@ class Controller:
                 return self.jobs.acknowledge(job_id, actual)
             except JobConflict as exc:
                 raise ControllerError(str(exc)) from exc
+
+
+    async def inventory(self) -> list[dict]:
+        """Report expected vs observed status without mutating the host."""
+        rows = []
+        for item in self.jobs.desired():
+            try:
+                observed = await self.observed(item["addon_id"])
+            except ControllerError:
+                observed = "unavailable"
+            expected = (
+                "running" if item["desired_state"] == "running" else "not_deployed"
+            )
+            rows.append({
+                **item,
+                "observed_state": observed,
+                "drift": observed != expected,
+            })
+        return rows
