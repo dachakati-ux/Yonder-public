@@ -447,6 +447,19 @@ Status: planned | in_progress | draft_implemented | verified | released
   and [controller guide](docs/addon-controller.md). Automated fake-Docker
   tests are not a substitute for crash/power-loss and real daemon testing.
 
+### Offline backup verification foundation — 2026-11-18
+
+- [x] **M02.8 draft sub-slice:** offline one-file backup package creation,
+  strict previous-release manifest validation, SHA-256 checksums, path
+  restrictions, freshness and operator quiescence declaration; an explicit
+  private empty-directory restore test is available.
+- [x] Read-only upgrade preview reports matching offline backup content proof,
+  without marking live database consistency or stateful migration safe.
+- [ ] Database-native backup adapters, trusted/signed backup provenance,
+  application-level restore acceptance, migration recovery, durable cutover,
+  and real-host failure testing remain open.
+- [Guide](stateful-upgrade-backups.md) and [M02 tracking issue](https://github.com/dachakati-ux/Yonder-public/issues/7).
+
 ## Immediate next sub-goal
 
 **M02.9 — Credential lifecycle hardening:** finalize scoped offline credential
