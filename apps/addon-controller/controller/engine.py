@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from .credential_vault import CredentialVault, VaultError, read_master_key
 from .docker_adapter import DockerAdapter, DockerError
 from .models import ApprovedDeployment, ControllerConfig
 from .release_trust import ReleaseTrustError, verify_release
@@ -49,6 +50,12 @@ class Controller:
         self.docker = adapter or DockerAdapter()
         self._tasks: dict[str, asyncio.Task] = {}
         self._lock = asyncio.Lock()
+        self.vault_key = Path(os.getenv(
+            "YONDER_CONTROLLER_CREDENTIAL_KEY", "/etc/yonder/credentials.key"
+        ))
+        self.vault_db = Path(os.getenv(
+            "YONDER_CONTROLLER_CREDENTIAL_DB", "/var/lib/yonder/credentials.db"
+        ))
         self.vault_key = Path(os.getenv(
             "YONDER_CONTROLLER_CREDENTIAL_KEY", "/etc/yonder/credentials.key"
         ))
