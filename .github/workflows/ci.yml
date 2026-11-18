@@ -79,6 +79,8 @@ jobs:
         run: uv python install 3.12
       - name: Sync dependency workspace
         run: uv sync --all-packages --group dev
+      - name: Install release verification dependency
+        run: uv pip install 'cryptography>=44,<47'
       - name: Test standalone controller
         run: |
           cd apps/addon-controller
