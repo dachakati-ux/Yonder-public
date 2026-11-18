@@ -595,6 +595,11 @@ class Controller:
             job = self.jobs.get(job_id)
             if job is None or job["status"] != "interrupted":
                 raise ControllerError("Job is not awaiting recovery review")
+            if job["action"] == "upgrade":
+                raise ControllerError(
+                    "Interrupted upgrades require full host reconciliation; "
+                    "generic acknowledgment cannot verify staged/rollback containers"
+                )
             actual = await self.observed(job["addon_id"])
             if actual == "unmanaged_container_collision":
                 raise ControllerError("Cannot acknowledge an unowned Docker container")
