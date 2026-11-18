@@ -147,7 +147,7 @@ async def reload_services(request: Request):
 class ControllerOperation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    action: Literal["install", "remove"]
+    action: Literal["install", "remove", "upgrade"]
     plan_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     idempotency_key: str = Field(pattern=r"^[A-Za-z0-9_-]{12,128}$")
 
