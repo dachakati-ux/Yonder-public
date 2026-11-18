@@ -5,7 +5,6 @@ for a bundled, reviewed add-on present in the running Gateway image.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re
@@ -14,6 +13,10 @@ import time
 from pathlib import Path
 from threading import RLock
 from typing import Any
+
+from pydantic import ValidationError
+
+from app.services.addon_contract import AddonManifest
 
 import httpx
 
@@ -100,16 +103,11 @@ class AddonRegistry:
                 if manifest_path.stat().st_size > 16_384:
                     continue
                 item = json.loads(manifest_path.read_text(encoding="utf-8"))
-                if (
-                    not isinstance(item, dict)
-                    or item.get("id") != directory.name
-                    or not isinstance(item.get("name"), str)
-                    or not SEMVER.fullmatch(str(item.get("version", "")))
-                    or item.get("status") not in ("available", "planned")
-                ):
+                manifest = AddonManifest.model_validate(item)
+                if manifest.id != directory.name:
                     continue
-                result[directory.name] = item
-            except (OSError, ValueError):
+                result[directory.name] = manifest.display()
+            except (OSError, ValueError, ValidationError):
                 continue
         return result
 
@@ -118,10 +116,18 @@ class AddonRegistry:
             packaged = self._bundled()
             items = []
             for addon_id, item in sorted(packaged.items()):
+                manifest = AddonManifest.model_validate(item)
                 enabled = addon_id in self._installed
+                compatibility = manifest.compatibility()
+                missing_dependencies = [
+                    dep for dep in manifest.dependencies if dep not in self._installed
+                ]
+                installed_version = self._installed.get(addon_id)
                 installable = (
                     item.get("status") == "available"
                     and item.get("install_mode") == INSTALLABLE_MODE
+                    and compatibility == "compatible"
+                    and not missing_dependencies
                 )
                 items.append({
                     "id": addon_id,
@@ -133,7 +139,19 @@ class AddonRegistry:
                     "warning": item.get("warning", ""),
                     "requires_restart": bool(item.get("requires_restart", False)),
                     "status": "installed" if enabled else item["status"],
-                    "installed_version": self._installed.get(addon_id),
+                    "installed_version": installed_version,
+                    "api_version": manifest.api_version,
+                    "min_core_version": manifest.min_core_version,
+                    "max_core_version_exclusive": manifest.max_core_version_exclusive,
+                    "compatibility": compatibility,
+                    "dependencies": manifest.dependencies,
+                    "missing_dependencies": missing_dependencies,
+                    "config_schema_version": manifest.config_schema_version,
+                    "service_id": manifest.service_id,
+                    "requires_attention": bool(
+                        enabled and (installed_version != item["version"]
+                                     or compatibility != "compatible")
+                    ),
                     "installable": bool(installable and not enabled),
                     "removable": enabled,
                     "in_public_catalog": (
@@ -168,7 +186,24 @@ class AddonRegistry:
                 raise AddonError("Add-on is not bundled in this Yonder release.")
             if item.get("status") != "available" or item.get("install_mode") != INSTALLABLE_MODE:
                 raise AddonError("This add-on is not implemented or installable yet.")
+            manifest = AddonManifest.model_validate(item)
+            compatibility = manifest.compatibility()
+            if compatibility != "compatible":
+                raise AddonError(
+                    f"Add-on is incompatible with Yonder Core: {compatibility}."
+                )
+            missing = [
+                dependency
+                for dependency in manifest.dependencies
+                if dependency not in self._installed
+            ]
+            if missing:
+                raise AddonError(
+                    "Install required add-ons first: " + ", ".join(missing)
+                )
             if addon_id in self._installed:
+                if self._installed[addon_id] != item["version"]:
+                    raise AddonError("Installed version differs; migration required.")
                 return {"id": addon_id, "status": "installed", "changed": False}
             self._installed[addon_id] = item["version"]
             try:
@@ -182,6 +217,15 @@ class AddonRegistry:
         with self._lock:
             if addon_id not in self._installed:
                 return {"id": addon_id, "status": "not_installed", "changed": False}
+            blocking = [
+                name
+                for name, item in self._bundled().items()
+                if name in self._installed and addon_id in item.get("dependencies", [])
+            ]
+            if blocking:
+                raise AddonError(
+                    "Disable dependent add-ons first: " + ", ".join(blocking)
+                )
             version = self._installed.pop(addon_id)
             try:
                 self._save_state()
@@ -191,7 +235,11 @@ class AddonRegistry:
             return {"id": addon_id, "status": "not_installed", "changed": True}
 
     async def refresh_remote(self, *, force: bool = False) -> None:
-        if not force and self._remote_checked and time.monotonic() - self._remote_checked < CHECK_INTERVAL:
+        if (
+            not force
+            and self._remote_checked
+            and time.monotonic() - self._remote_checked < CHECK_INTERVAL
+        ):
             return
         self._remote_checked = time.monotonic()
         try:
@@ -237,13 +285,19 @@ class AddonRegistry:
             checks.append({
                 "id": "development_auth",
                 "status": "warning",
-                "message": "Development authentication injects a mock user; keep deployment local only.",
+                "message": (
+                    "Development authentication injects a mock user; "
+                    "keep deployment local only."
+                ),
             })
         else:
             checks.append({
                 "id": "trusted_ingress",
                 "status": "review",
-                "message": "Verify reverse-proxy header stripping, identity validation and network isolation.",
+                "message": (
+                    "Verify reverse-proxy header stripping, identity "
+                    "validation and network isolation."
+                ),
             })
         checks.append({
             "id": "worker_secret",
@@ -257,7 +311,10 @@ class AddonRegistry:
         checks.append({
             "id": "multi_user",
             "status": "review",
-            "message": "School/business deployments need tested SSO, per-user permissions and retention.",
+            "message": (
+                "School/business deployments need tested SSO, "
+                "per-user permissions and retention."
+            ),
         })
         return {
             "checks": checks,
