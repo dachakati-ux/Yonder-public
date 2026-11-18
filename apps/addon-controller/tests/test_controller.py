@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from controller.api import create_app
 from controller.engine import Controller, ControllerError, load_deployments
+from controller.docker_adapter import DockerError
 from controller.models import ApprovedDeployment
 from controller.store import JobStore
 from fastapi.testclient import TestClient
@@ -36,6 +37,9 @@ class FakeDocker:
 
     async def status(self, addon_id):
         return "running" if addon_id in self.running else "not_deployed"
+
+    async def readiness(self, deployment):
+        return "ready" if deployment.addon_id in self.running else "not_deployed"
 
 
 def config(tmp_path: Path) -> Path:
@@ -189,3 +193,46 @@ async def test_interrupted_jobs_require_explicit_observed_state_review(tmp_path)
     assert created
     await restarted._tasks[new_job["id"]]
     assert restarted.jobs.get(new_job["id"])["status"] == "succeeded"
+
+
+@pytest.mark.asyncio
+async def test_failed_readiness_removes_only_new_container(tmp_path):
+    class UnhealthyDocker(FakeDocker):
+        async def readiness(self, deployment):
+            return "unhealthy"
+
+    adapter = UnhealthyDocker()
+    engine = Controller(config(tmp_path), tmp_path / "failed.db", adapter=adapter)
+    plan = engine.plan("demo-addon", "install")
+    job, created = await engine.submit(
+        "demo-addon", "install", plan["plan_sha256"], "unhealthy-test-123"
+    )
+    assert created
+    await engine._tasks[job["id"]]
+    result = engine.jobs.get(job["id"])
+    assert result["status"] == "failed"
+    assert "new container removed" in result["message"]
+    assert adapter.actions == ["preflight", "preflight", "install", "remove"]
+
+
+@pytest.mark.asyncio
+async def test_failed_rollback_blocks_followup_until_review(tmp_path):
+    class StuckDocker(FakeDocker):
+        async def readiness(self, deployment):
+            return "unhealthy"
+
+        async def remove(self, deployment):
+            raise DockerError("Cannot remove")
+
+    adapter = StuckDocker()
+    engine = Controller(config(tmp_path), tmp_path / "stuck.db", adapter=adapter)
+    plan = engine.plan("demo-addon", "install")
+    job, _ = await engine.submit(
+        "demo-addon", "install", plan["plan_sha256"], "rollback-test-123"
+    )
+    await engine._tasks[job["id"]]
+    assert engine.jobs.get(job["id"])["status"] == "interrupted"
+    with pytest.raises(ControllerError, match="already active"):
+        await engine.submit(
+            "demo-addon", "install", plan["plan_sha256"], "new-request-1234"
+        )
