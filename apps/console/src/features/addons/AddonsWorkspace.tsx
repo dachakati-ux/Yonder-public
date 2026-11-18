@@ -86,6 +86,17 @@ type DesiredAddon = {
   observed_state: string;
   drift: boolean;
 };
+type CredentialInventory = {
+  addon_id: string;
+  vault_available: boolean;
+  runtime_delivery: string;
+  credentials: Array<{
+    name: string;
+    revision: number;
+    configured: boolean;
+    updated_at: string;
+  }>;
+};
 type PreflightReport = {
   addon_id: string;
   can_submit: boolean;
@@ -128,6 +139,7 @@ export function AddonsWorkspace() {
   const [desiredItems, setDesiredItems] = useState<DesiredAddon[]>([]);
   const [setupAddon, setSetupAddon] = useState<string | null>(null);
   const [preflight, setPreflight] = useState<PreflightReport | null>(null);
+  const [credentialInventory, setCredentialInventory] = useState<CredentialInventory | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -264,6 +276,22 @@ export function AddonsWorkspace() {
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Add-on operation failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function inspectCredentials(item: Addon) {
+    setBusyId(item.id);
+    setError(null);
+    try {
+      const info = await api<CredentialInventory>(
+        "/api/admin/addons/" + encodeURIComponent(item.id) +
+        "/controller/credentials"
+      );
+      setCredentialInventory(info);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Credential inventory unavailable");
     } finally {
       setBusyId(null);
     }
@@ -440,6 +468,11 @@ export function AddonsWorkspace() {
                   </button>
                   <button className="btn btn-ghost" type="button"
                     disabled={busyId != null}
+                    onClick={() => void inspectCredentials(item)}>
+                    Credential status
+                  </button>
+                  <button className="btn btn-ghost" type="button"
+                    disabled={busyId != null}
                     onClick={() => void checkRequirements(item)}>
                     Check requirements
                   </button>
@@ -471,6 +504,33 @@ export function AddonsWorkspace() {
         ))}
       </div>
 
+      {credentialInventory ? (
+        <section className="models-panel" aria-label="Credential status">
+          <div className="panel-head">
+            <h2>Credentials: {credentialInventory.addon_id}</h2>
+            <button type="button" className="btn btn-ghost"
+              onClick={() => setCredentialInventory(null)}>Close</button>
+          </div>
+          <p className="entity-meta">
+            {credentialInventory.vault_available
+              ? "Encrypted local credential inventory is available."
+              : "Local encrypted credential inventory is not configured."}
+            {" "}Runtime delivery: {credentialInventory.runtime_delivery.replaceAll("_", " ")}.
+          </p>
+          <p className="entity-meta">
+            Secret values cannot be read or changed from this UI.
+            Configure them using the trusted administrator CLI.
+          </p>
+          <div className="addons-checks">
+            {credentialInventory.credentials.map((entry) => (
+              <div key={entry.name} className="addons-check">
+                <strong>{entry.configured ? "Stored" : "Revoked"}</strong>
+                <span>{entry.name} · revision {entry.revision}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {preflight ? (
         <section className="models-panel" aria-label="Add-on preflight">
           <div className="panel-head">
