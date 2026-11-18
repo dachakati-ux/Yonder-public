@@ -35,6 +35,8 @@ def assess_upgrade(
     observed_state: str,
     candidate: ApprovedDeployment,
     policy: UpgradePolicy,
+    *,
+    staged_stateless_approved: bool = False,
 ) -> dict:
     """Return requirements and blockers; never claim a backup was performed."""
     checks: list[dict[str, str]] = []
@@ -99,11 +101,26 @@ def assess_upgrade(
     else:
         check("migration", "ready", "No data migration declared")
 
-    check(
-        "rollback", "blocked",
-        "Verified staged rollback, previous-image preservation and durable cutover "
-        "are not implemented in the current controller",
+    eligible = bool(
+        staged_stateless_approved and previous is not None
+        and observed_state == "running"
+        and previous["version"] != candidate.version
+        and previous["image"] != candidate.image
+        and not candidate.data_volume and not candidate.secret_volume
+        and candidate.network == "none"
+        and policy.data_migration == "none"
     )
+    if eligible:
+        check(
+            "rollback", "ready",
+            "Experimental stateless cutover stages a signed image and keeps "
+            "the original stopped for recovery. Host errors may require manual review.",
+        )
+    else:
+        check(
+            "rollback", "blocked",
+            "Verified staged upgrade is unavailable for this policy or host",
+        )
 
     return {
         "addon_id": candidate.addon_id,
@@ -115,11 +132,13 @@ def assess_upgrade(
         "strategy": policy.strategy,
         "data_migration": policy.data_migration,
         "backup_required": policy.backup_required,
-        "rollback_supported": False,
+        "rollback_supported": eligible,
         "checks": checks,
-        "can_execute": False,
+        "can_execute": eligible,
         "reason": (
-            "Upgrade execution is deliberately disabled until durable backup, "
-            "staged rollout and recovery mechanisms are verified"
+            "Experimental staged stateless upgrade eligible; real-host approval "
+            "and verification are still required" if eligible else
+            "Upgrade blocked until signed stateless eligibility or durable backup, "
+            "staged rollout and migration recovery are verified"
         ),
     }
