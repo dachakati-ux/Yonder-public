@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "model-library",
+  "name": "Model Library",
+  "version": "0.1.0",
+  "category": "models",
+  "summary": "Hugging Face discovery and managed model downloads (separate PR in progress).",
+  "status": "planned",
+  "install_mode": "not_available",
+  "permissions": [
+    "models.view",
+    "models.manage"
+  ],
+  "requires_restart": false,
+  "docs": "addons/model-library/README.md",
+  "warning": "Not installable until the Model Library implementation is reviewed and merged."
+}
