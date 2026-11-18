@@ -54,6 +54,15 @@ class JobStore:
                 """CREATE INDEX IF NOT EXISTS jobs_by_addon
                    ON jobs(addon_id, created_at)"""
             )
+            db.execute(
+                """CREATE TABLE IF NOT EXISTS desired_addons (
+                    addon_id TEXT PRIMARY KEY,
+                    version TEXT NOT NULL,
+                    image TEXT NOT NULL,
+                    desired_state TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )"""
+            )
             placeholders = ",".join("?" for _ in ACTIVE)
             db.execute(
                 "UPDATE jobs SET status='interrupted', "
@@ -137,3 +146,27 @@ class JobStore:
             )
             after = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
             return self._row(after)
+
+
+    def set_desired(self, addon_id: str, version: str, image: str, state: str) -> None:
+        """Only successful controller operations should update desired-state records."""
+        if state not in ("running", "absent"):
+            raise ValueError("Unsupported desired state")
+        with self.lock, self._db() as db:
+            db.execute(
+                "INSERT INTO desired_addons "
+                "(addon_id,version,image,desired_state,updated_at) "
+                "VALUES (?,?,?,?,?) "
+                "ON CONFLICT(addon_id) DO UPDATE SET "
+                "version=excluded.version, image=excluded.image, "
+                "desired_state=excluded.desired_state, updated_at=excluded.updated_at",
+                (addon_id, version, image, state, utcnow()),
+            )
+
+    def desired(self) -> list[dict]:
+        with self.lock, self._db() as db:
+            rows = db.execute(
+                "SELECT addon_id,version,image,desired_state,updated_at "
+                "FROM desired_addons ORDER BY addon_id"
+            ).fetchall()
+            return [dict(row) for row in rows]
