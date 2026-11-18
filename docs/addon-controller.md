@@ -416,3 +416,67 @@ unreviewed automatic infrastructure changes today.
 The inventory currently tracks deployments controlled by Yonder, not arbitrary
 Docker resources and not stateful database migration versions. It is not a
 substitute for independent backups or service monitoring.
+
+
+## Guided non-secret setup (schema-driven)
+
+Add-on release maintainers may declare a reviewed `setup_fields` list in the
+administrator-approved deployment record. Yonder automatically renders a setup
+form under **Add-ons → Configure** without requiring a custom UI or changes to
+Yonder Core.
+
+Example deployment settings (other required deployment fields omitted):
+
+```json
+{
+  "setup_fields": [
+    {
+      "key": "CLASS_SUBJECT",
+      "label": "Classroom subject",
+      "help_text": "Determines the default example exercises.",
+      "kind": "choice",
+      "choices": ["math", "science", "coding"],
+      "required": true
+    },
+    {
+      "key": "MAX_STUDENTS",
+      "label": "Student count",
+      "kind": "integer",
+      "default": "30",
+      "required": true
+    },
+    {
+      "key": "LESSON_MODE",
+      "label": "Enable lessons",
+      "kind": "boolean",
+      "default": "true"
+    }
+  ]
+}
+```
+
+The supported types are `text`, `choice`, `integer`, and `boolean`.
+Keys must use uppercase environment-variable names, cannot contain credential
+name patterns, and values have tight size and character restrictions. Custom
+shell commands, network URLs and arbitrary JSON schemas are **not** accepted.
+
+The controller stores setup values in a dedicated SQLite `addon_setup` table,
+preserving choices across controller restarts. It refuses unknown fields,
+invalid choices, control characters, missing required values, and changes
+while a deployment job or running installation exists. Locked
+`public_settings` from the administrator's approval file cannot be changed
+through this UI.
+
+The installer merges validated settings into the effective deployment,
+recalculates the exact plan checksum, and requires administrator confirmation
+of the new plan. **Saving settings does not deploy anything.**
+
+Controller API (authenticated; proxied only to `operations.manage` users):
+
+- `GET /v1/setup/{addon_id}` — approved field schema and current values
+- `PUT /v1/setup/{addon_id}` — validate and store `{"values": {...}}`
+
+Existing bundled add-ons without setup schemas have no editable fields.
+Credentials, provider secrets and private keys **must not** be supplied through
+this wizard. Their lifecycle requires the separate secret-manager integration
+and permissions audit planned for a later phase.
