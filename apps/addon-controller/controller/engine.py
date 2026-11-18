@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from .backup_verifier import BackupError, verify_bundle
 from .credential_vault import CredentialVault, VaultError, read_master_key
 from .docker_adapter import DockerAdapter, DockerError
 from .models import ApprovedDeployment, ControllerConfig
@@ -61,6 +62,9 @@ class Controller:
             os.getenv("YONDER_CONTROLLER_REQUIRE_SIGNATURES", "false").lower()
             in ("true", "1", "yes")
         )
+        self.stateful_backup_root = Path(os.getenv(
+            "YONDER_CONTROLLER_STATEFUL_BACKUP_ROOT", "/var/lib/yonder/offline-backups"
+        ))
         self.enable_stateless_upgrades = (
             os.getenv("YONDER_CONTROLLER_ENABLE_STATELESS_UPGRADES", "false").lower()
             in ("true", "1", "yes")
@@ -667,7 +671,7 @@ class Controller:
                 verified = False
             else:
                 verified = True
-        return assess_upgrade(
+        report = assess_upgrade(
             desired, observed, selected,
             UpgradePolicy(
                 data_migration=selected.upgrade_data_migration,
@@ -675,6 +679,39 @@ class Controller:
             ),
             staged_stateless_approved=verified,
         )
+        if selected.data_volume:
+            try:
+                if desired is None or desired["desired_state"] != "running":
+                    raise BackupError("No previous running release")
+                proof = await asyncio.to_thread(
+                    verify_bundle,
+                    self.stateful_backup_root / addon_id,
+                    addon_id=addon_id,
+                    version=desired["version"],
+                    image=desired["image"],
+                )
+            except (BackupError, OSError):
+                report["checks"].append({
+                    "name": "offline_backup",
+                    "status": "blocked",
+                    "explanation": (
+                        "No fresh verified offline backup for the previous release; "
+                        "stateful upgrade remains disabled"
+                    ),
+                })
+                report["backup_integrity"] = "not_verified"
+            else:
+                report["checks"].append({
+                    "name": "offline_backup",
+                    "status": "ready",
+                    "explanation": (
+                        "Offline backup file checksums verified; independent restore "
+                        "and live database consistency remain unverified"
+                    ),
+                })
+                report["backup_integrity"] = proof["status"]
+            report["can_execute"] = False
+        return report
 
     async def inventory(self) -> list[dict]:
         """Report expected vs observed status without mutating the host."""
