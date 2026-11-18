@@ -692,3 +692,43 @@ backend; do not assume this command works across hosts.
 
 **No school/business production deployment should use this prototype
 without a documented threat model and independent security review.**
+
+
+## Stateful upgrade readiness assessment — draft M02.8
+
+An authenticated operator can now select **Review upgrade** in the
+Add-ons UI. The controller exposes a read-only assessment at
+`GET /v1/upgrades/{addon_id}`; Yonder Gateway authorizes access through
+`GET /api/admin/addons/{addon_id}/controller/upgrade`.
+
+The assessment compares the *recorded desired* version and immutable image
+digest against the currently approved candidate and observed container
+status. It reports blockers such as unknown/absent prior releases,
+unverified running state, identical version/image, and any persistent
+data volume requiring a verified migration/backup procedure.
+
+**Execution is intentionally disabled (`can_execute=false`)**. This is an
+up-front safety contract, *not* working transactional upgrades. Replacing
+a container does not undo schema changes, and retaining a Docker data
+volume does not constitute a tested backup.
+
+Before enabling the upgrade action, implement and test these gates:
+
+1. Complete immutable previous-release metadata and verified signature
+   retention. Never overwrite a running image by name.
+2. Snapshot/backup approved stateful volumes and databases; prove a clean
+   restore on a disposable isolated target.
+3. Validate declared forward and backward migrations, including irreversible
+   operations and required maintenance windows.
+4. Stage the new version separately; perform application-level health checks
+   with data continuity and authorization/secret boundaries intact.
+5. Commit desired state only after verified health and migration completion.
+   Track every change in a durable, restart-safe journal.
+6. If validation fails, roll forward or recover from tested backups as
+   appropriate. Never claim image rollback reverses data migration.
+7. Add adversarial real-host tests for full disks, interrupted jobs,
+   unavailable databases, invalid signatures, expired tokens and missing
+   backups.
+
+This is the roadmap's **M02.8** foundation; it must not be marked complete
+until the gates above are actually implemented and verified.
