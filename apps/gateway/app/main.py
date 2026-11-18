@@ -31,6 +31,7 @@ from app.api import (
     help,
     lab,
     mcp,
+    model_catalog,
     ops,
     platform,
     speech,
@@ -469,6 +470,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(ops.router)
     app.include_router(admin.router)
+    app.include_router(model_catalog.router)
     app.include_router(workers.router)
     app.include_router(chat.router)
     app.include_router(v1.router)
