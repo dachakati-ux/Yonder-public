@@ -8,7 +8,10 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-ACTIVE = ("queued", "preflight", "acquiring", "deploying", "verifying", "rolling_back", "removing")
+ACTIVE = (
+    "queued", "preflight", "acquiring", "deploying", "staging",
+    "cutover", "verifying", "rolling_back", "removing",
+)
 BLOCKING = (*ACTIVE, "interrupted")
 
 
@@ -120,6 +123,13 @@ class JobStore:
                     "A running release is recorded; install is not an upgrade. "
                     "Use a reviewed removal/recovery workflow first"
                 )
+            if action == "upgrade" and (
+                existing_release is None
+                or existing_release["desired_state"] != "running"
+                or existing_release["version"] != plan["previous"]["version"]
+                or existing_release["image"] != plan["previous"]["image"]
+            ):
+                raise JobConflict("Previous release changed; review a fresh upgrade plan")
             now = utcnow()
             item_id = str(uuid.uuid4())
             db.execute(
