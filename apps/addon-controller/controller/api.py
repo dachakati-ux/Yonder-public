@@ -14,6 +14,11 @@ from .engine import Controller, ControllerError
 TOKEN_LENGTH = 32
 
 
+class SetupValues(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    values: dict[str, str] = Field(default_factory=dict, max_length=24)
+
+
 class RecoveryReview(BaseModel):
     model_config = ConfigDict(extra="forbid")
     observed_state: Literal["running", "stopped", "not_deployed"]
