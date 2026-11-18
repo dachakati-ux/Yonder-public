@@ -212,3 +212,30 @@ class CredentialVault:
                 (addon_id, min(max(limit, 1), 100)),
             ).fetchall()
             return [dict(row) for row in rows]
+
+
+    def backup(self, destination: Path) -> None:
+        """Online, exclusive SQLite backup containing only encrypted records.
+
+        Master key is deliberately not copied and must be backed up separately.
+        Never overwrite an existing backup or follow an output symlink.
+        """
+        destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if destination.exists() or destination.is_symlink():
+            raise VaultError("Backup path already exists; refusing overwrite")
+        try:
+            fd = os.open(
+                destination,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                0o600,
+            )
+            os.close(fd)
+            with self._lock, self._connection() as source:
+                with sqlite3.connect(destination) as target:
+                    source.backup(target)
+            _secure_file(destination)
+            with destination.open("rb") as handle:
+                os.fsync(handle.fileno())
+        except (OSError, sqlite3.Error) as exc:
+            destination.unlink(missing_ok=True)
+            raise VaultError("Encrypted credential backup failed") from exc
