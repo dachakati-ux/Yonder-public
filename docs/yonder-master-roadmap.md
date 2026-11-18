@@ -463,6 +463,14 @@ Status: planned | in_progress | draft_implemented | verified | released
   and real-host failure testing remain open.
 - [Guide](stateful-upgrade-backups.md) and [M02 tracking issue](https://github.com/dachakati-ux/Yonder-public/issues/7).
 
+### M02.8 SQLite migration contract and rehearsal foundation — 2026-11-18
+
+- [x] Draft **versioned declarative** SQLite migration contracts bind an add-on, old/new version and pinned image digest, and old/new database revision. Unsupported/raw SQL and shell commands are rejected.
+- [x] Offline sandbox runner restores a previously verified SQLite snapshot, validates the starting schema revision and integrity, and rehearses nullable-column and index additions within one transactional migration.
+- [x] Controller read-only upgrade assessment checks administrator-owned migration contract identity and reports it separately from backup integrity. It never runs a live migration or unlocks a stateful cutover.
+- [ ] Publisher-signed contract provenance, application-level schema/data validation, reversible/destructive migration planning, durable migration receipts, multi-store workflows and real-host fault injection remain release gates.
+- [Guide](sqlite-migration-rehearsal.md) · [M02 issue #7](https://github.com/dachakati-ux/Yonder-public/issues/7).
+
 ## Immediate next sub-goal
 
 **M02.9 — Credential lifecycle hardening:** finalize scoped offline credential
