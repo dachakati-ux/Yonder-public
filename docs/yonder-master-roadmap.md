@@ -421,6 +421,32 @@ Status: planned | in_progress | draft_implemented | verified | released
 - **Remaining:** dependency auditing, a host-level Docker
   smoke test, and security review before either sub-goal is released.
 
+## M02.7/M02.8 implementation evidence — 2026-11-18
+
+- **M02.7 draft:** trusted Ed25519 publisher keys can now be revoked or
+  expired via administrator-owned trust policy. Revoked/expired keys fail
+  release verification; tests cover normal validity and failure cases.
+  Fleet-wide propagation, key rotation procedures, artifact transparency and
+  incident recovery are still incomplete.
+- **M02.8 draft:** a read-only upgrade assessment reports source/target
+  digests, migration and backup requirements and all safety blockers.
+  Stateless-only staged upgrades have an **experimental opt-in** controller
+  implementation: signed release plans, candidate readiness, previous image
+  identity checks, Docker rename-based cutover, preserved stopped old
+  containers, and bounded restoration on failed readiness. Restart/cutover
+  uncertainty marks the job interrupted and blocks retries.
+- **Recovery gate:** an interrupted upgrade can be acknowledged only after
+  the controller verifies the previous image is running under its canonical
+  name, with no job-specific staging/rollback artifacts.
+- **Restrictions:** feature flag defaults off; no persistent data volumes,
+  secret volumes, external networking, or declared data migrations may use
+  this stateless path. No live-host smoke test has run. State-aware backups,
+  transactional database migrations, reversible upgrades for stateful add-ons,
+  and production-grade controller isolation remain open.
+- **Evidence:** [PR #5](https://github.com/dachakati-ux/Yonder-public/pull/5)
+  and [controller guide](docs/addon-controller.md). Automated fake-Docker
+  tests are not a substitute for crash/power-loss and real daemon testing.
+
 ## Immediate next sub-goal
 
 **M02.9 — Credential lifecycle hardening:** finalize scoped offline credential
