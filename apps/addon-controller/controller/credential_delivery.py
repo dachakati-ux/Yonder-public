@@ -125,11 +125,20 @@ def deliver(
     if addon_id not in approved_addon_ids:
         raise DeliveryError("Add-on is not in the local operator-approved deployment list")
     plaintext = vault.read_for_offline_delivery(addon_id, credential_name)
+    current = next(
+        (item for item in vault.metadata(addon_id) if item["name"] == credential_name),
+        None,
+    )
+    if current is None or not current["configured"]:
+        raise DeliveryError("Credential was revoked before delivery")
+    revision = int(current["revision"])
     directory = _open_directory(_volume_details(addon_id))
     try:
         _atomic_write(directory, credential_name, plaintext)
     finally:
         os.close(directory)
+    # A receipt proves the file write completed, not that the app read it.
+    vault.record_delivery(addon_id, credential_name, revision)
 
 
 def remove_delivered(
@@ -151,10 +160,12 @@ def remove_delivered(
                 credential_name, dir_fd=directory, follow_symlinks=False
             )
         except FileNotFoundError:
+            vault.record_removal(addon_id, credential_name)
             return
         if not stat.S_ISREG(current.st_mode) or current.st_nlink != 1:
             raise DeliveryError("Delivered target is not a safe regular file")
         os.unlink(credential_name, dir_fd=directory)
         os.fsync(directory)
+        vault.record_removal(addon_id, credential_name)
     finally:
         os.close(directory)
