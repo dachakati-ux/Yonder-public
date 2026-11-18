@@ -220,6 +220,67 @@ async def controller_jobs(request: Request):
         )
 
 
+class SetupValuesBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    values: dict[str, str] = Field(default_factory=dict, max_length=24)
+
+
+@router.get("/{addon_id}/controller/setup")
+async def controller_setup(addon_id: str, request: Request):
+    denied = _authorize(request, "operations.manage")
+    if denied:
+        return denied
+    if not _deployable(request, addon_id):
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Add-on must be installed and compatible.",
+            get_request_id(request),
+        )
+    client = _controller(request)
+    if client is None:
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Controller is not configured.",
+            get_request_id(request),
+        )
+    try:
+        return await client.request("GET", f"/v1/setup/{addon_id}")
+    except ControllerUnavailable:
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Setup schema is unavailable.",
+            get_request_id(request),
+        )
+
+
+@router.put("/{addon_id}/controller/setup")
+async def controller_save_setup(
+    addon_id: str, body: SetupValuesBody, request: Request
+):
+    denied = _authorize(request, "operations.manage")
+    if denied:
+        return denied
+    if not _deployable(request, addon_id):
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Add-on must be installed and compatible.",
+            get_request_id(request),
+        )
+    client = _controller(request)
+    if client is None:
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Controller is not configured.",
+            get_request_id(request),
+        )
+    try:
+        result = await client.request(
+            "PUT", f"/v1/setup/{addon_id}", body.model_dump()
+        )
+    except ControllerUnavailable:
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Setup rejected. Check declared values and job state.",
+            get_request_id(request),
+        )
+    _audit(request, addon_id, "controller.setup.changed")
+    return result
+
+
 @router.get("/{addon_id}/controller/plan")
 async def controller_plan(
     addon_id: str, request: Request, action: Literal["install", "remove"] = "install"
