@@ -150,3 +150,38 @@ def test_remote_pull_is_blocked_without_required_signatures(
     result = verified.plan("demo-addon", "install")
     assert result["image_acquisition"] == "signed_pull"
     assert result["publisher_verification"] == "ed25519_valid"
+
+
+def test_revoked_publisher_key_fails_closed(tmp_path):
+    deployment, release, trust = fixtures(tmp_path)
+    payload = json.loads(trust.read_text())
+    payload["publishers"][0]["revoked"] = True
+    trust.write_text(json.dumps(payload))
+    with pytest.raises(ReleaseTrustError, match="revoked"):
+        verify_release(deployment, release, trust)
+
+
+def test_expired_publisher_key_fails_closed(tmp_path):
+    deployment, release, trust = fixtures(tmp_path)
+    payload = json.loads(trust.read_text())
+    payload["publishers"][0]["not_after_utc"] = "2020-01-01T00:00:00+00:00"
+    trust.write_text(json.dumps(payload))
+    with pytest.raises(ReleaseTrustError, match="expired"):
+        verify_release(deployment, release, trust)
+
+
+def test_future_expiration_allows_valid_signature(tmp_path):
+    deployment, release, trust = fixtures(tmp_path)
+    payload = json.loads(trust.read_text())
+    payload["publishers"][0]["not_after_utc"] = "2099-01-01T00:00:00+00:00"
+    trust.write_text(json.dumps(payload))
+    assert verify_release(deployment, release, trust)["verification"] == "ed25519_valid"
+
+
+def test_naive_expiration_is_rejected(tmp_path):
+    deployment, release, trust = fixtures(tmp_path)
+    payload = json.loads(trust.read_text())
+    payload["publishers"][0]["not_after_utc"] = "2099-01-01T00:00:00"
+    trust.write_text(json.dumps(payload))
+    with pytest.raises(ReleaseTrustError, match="Invalid signed"):
+        verify_release(deployment, release, trust)
