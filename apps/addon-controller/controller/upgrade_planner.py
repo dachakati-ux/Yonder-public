@@ -18,7 +18,7 @@ class UpgradePolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     strategy: Literal["replace_container"] = "replace_container"
-    data_migration: Literal["none", "compatible", "requires_migration"] = "none"
+    data_migration: Literal["unknown", "none", "compatible", "requires_migration"] = "unknown"
     backup_required: bool = True
     rollback_supported: bool = False
     instructions: str = Field(default="", max_length=300)
@@ -81,7 +81,12 @@ def assess_upgrade(
             "document any external state",
         )
 
-    if policy.data_migration == "requires_migration":
+    if policy.data_migration == "unknown":
+        check(
+            "migration", "blocked",
+            "Release has no reviewed migration compatibility declaration",
+        )
+    elif policy.data_migration == "requires_migration":
         check(
             "migration", "blocked",
             "Migration runner and tested compensating recovery are not implemented",
