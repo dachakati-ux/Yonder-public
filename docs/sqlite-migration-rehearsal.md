@@ -54,6 +54,60 @@ integrity check is file permissions + exact release identity, **not a
 cryptographic publisher signature**. Signatures and immutable migration
 artifact provenance remain release gates.
 
+## Signed migration attestation and durable journal
+
+The offline rehearsal command now requires a **detached Ed25519 attestation**
+created with a publisher's protected private key. The attestation signs
+the canonical migration contract SHA-256, exact prior-release backup manifest
+SHA-256, both release versions/image digests, and publisher key ID. The
+verifier uses only the local administrator-owned `publishers.json` trust
+roots, which may be revoked or expired. The signer never uploads private keys
+or exposes them through Gateway APIs.
+
+Create a dedicated signing key in an administrator-approved private store.
+The current CLI accepts a 0600 file containing a base64-encoded **raw
+32-byte Ed25519 seed**. Protect and rotate it offline; do not commit it.
+
+```bash
+cd apps/addon-controller
+python sign_migration.py \
+  --contract /secure/policies/demo-addon.json \
+  --backup-manifest /secure/backups/demo-addon/manifest.json \
+  --private-key /secure/keys/migration-publisher.key \
+  --publisher-key-id reviewed-migration \
+  --output /secure/policies/demo-addon.attestation.json
+```
+
+The output is created exclusively and cannot overwrite an existing
+attestation. It is not the private key. For rehearsal the verifier requires
+the corresponding trusted public key to have been provisioned by a local
+administrator in `publishers.json`.
+
+A separate SQLite **rehearsal journal** records the add-on, old/new pinned
+images, contract hash, backup hash, result and sandbox hash. Incomplete
+`running` rehearsals become `interrupted` when the journal is reopened
+after a restart. Interrupted records block fresh attempts until explicit
+offline operator acknowledgment; they are **never automatically promoted
+to passed or retried**. Keep the journal on private persistent storage.
+
+Example:
+
+```bash
+python rehearse_migration.py \
+  --contract /secure/policies/demo-addon.json \
+  --backup /secure/backups/demo-addon \
+  --sandbox /secure/yonder/rehearsal-demo \
+  --attestation /secure/policies/demo-addon.attestation.json \
+  --publisher-trust /secure/policies/publishers.json \
+  --journal /secure/yonder/migration-rehearsals.db
+```
+
+A pass records the sandbox SQLite checksum and a durable local run ID.
+Signing and journaling establish evidence for an **offline rehearsal only**;
+the journal remains locally mutable by a privileged host administrator.
+They do **not** authorize a production migration, prove application
+compatibility, or reverse data changes.
+
 ## Sandbox rehearsal
 
 First generate or inspect a *SQLite-native* backup bundle with
@@ -67,7 +121,10 @@ cd apps/addon-controller
 python rehearse_migration.py \
   --contract /etc/yonder/migration-contracts/demo-addon.json \
   --backup /secure/yonder/offline-backups/demo-addon \
-  --sandbox /secure/yonder/rehearsal-demo
+  --sandbox /secure/yonder/rehearsal-demo \
+  --attestation /secure/policies/demo-addon.attestation.json \
+  --publisher-trust /secure/policies/publishers.json \
+  --journal /secure/yonder/migration-rehearsals.db
 ```
 
 The runner:
