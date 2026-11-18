@@ -467,7 +467,21 @@ class Controller:
             self.jobs.transition(job_id, "failed", message)
         except Exception:
             # Never disclose secrets or host exception data to browser clients.
-            self.jobs.transition(job_id, "failed", "Unexpected controller error")
+            # Unknown errors during a cutover cannot be considered safe failures.
+            if (
+                job["action"] == "upgrade"
+                and self.jobs.get(job_id)["status"] in (
+                    "staging", "cutover", "verifying", "rolling_back",
+                )
+            ):
+                self.jobs.transition(
+                    job_id, "interrupted",
+                    "Unexpected upgrade error; all container identities need review",
+                )
+            else:
+                self.jobs.transition(
+                    job_id, "failed", "Unexpected controller error"
+                )
 
 
     async def _execute_stateless_upgrade(
