@@ -762,3 +762,27 @@ incident response or revoking existing application credentials. Rolling out
 revocation to multiple controller hosts, signed timestamp transparency,
 publisher trust-root rotation and previously installed-image remediation
 remain future work.
+
+
+### Declaring upgrade compatibility without assuming it
+
+The approved deployment schema now has an optional
+`upgrade_data_migration` field with values `unknown` (the default),
+`none`, `compatible`, or `requires_migration`. An explicitly reviewed
+declaration identifies how the publisher believes on-disk data will be
+affected. **Unknown always blocks upgrade readiness**, and even a
+`none` declaration does not enable execution before rollback, backups and
+application-level verification exist.
+
+Example:
+
+```json
+{
+  "upgrade_data_migration": "requires_migration"
+}
+```
+
+Data-volume presence alone is not evidence that a database migration is
+required or that its absence is safe. The upgrade assessment reports this
+uncertainty explicitly rather than guessing. No new upgrade execution route
+has been introduced.
