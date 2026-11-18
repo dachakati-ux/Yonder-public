@@ -59,6 +59,9 @@ def test_rehearses_schema_on_separate_snapshot_without_touching_original(tmp_pat
     result = rehearse_sqlite_migration(backup, sandbox, contract)
     assert result["sandbox_integrity"] == "passed"
     assert result["steps_rehearsed"] == 2
+    assert result["row_counts_preserved"] is True
+    assert result["foreign_keys_valid"] is True
+    assert result["tables_checked"] == 1
     assert result["production_migration_allowed"] is False
     assert result["application_compatibility_verified"] is False
     with sqlite3.connect(source) as db:
@@ -162,3 +165,48 @@ def test_release_binding_rejects_different_backup(tmp_path):
     })
     with pytest.raises(MigrationError, match="verification"):
         rehearse_sqlite_migration(backup, sandbox, updated)
+
+
+def test_foreign_key_violations_block_rehearsal_before_migration(tmp_path):
+    source = tmp_path / "broken-refs.db"
+    with sqlite3.connect(source) as db:
+        db.execute("CREATE TABLE documents (id INTEGER PRIMARY KEY, title TEXT)")
+        db.execute("CREATE TABLE refs (id INTEGER PRIMARY KEY, document_id INTEGER "
+                   "REFERENCES documents(id))")
+        db.execute("INSERT INTO refs(document_id) VALUES (999)")
+    from controller.sqlite_backup import snapshot_sqlite_bundle
+
+    bundle = tmp_path / "bundle"
+    snapshot_sqlite_bundle(
+        source, bundle, addon_id="demo-addon",
+        version="1.0.0", image=OLD_IMAGE,
+    )
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir(mode=0o700)
+    os.chmod(sandbox, 0o700)
+    contract = MigrationContract.model_validate({
+        "schema_version": 1,
+        "addon_id": "demo-addon",
+        "source_version": "1.0.0", "source_image": OLD_IMAGE,
+        "target_version": "2.0.0", "target_image": NEW_IMAGE,
+        "source_db_revision": 0, "target_db_revision": 1,
+        "steps": [{
+            "kind": "add_nullable_column", "table": "documents",
+            "column": "owner", "data_type": "TEXT",
+        }],
+    })
+    with pytest.raises(MigrationError, match="foreign keys"):
+        rehearse_sqlite_migration(bundle, sandbox, contract)
+    with sqlite3.connect(source) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 0
+
+
+def test_missing_table_fails_before_begin_migration(tmp_path):
+    _, backup, sandbox, original = inputs(tmp_path)
+    nonexistent = original.model_copy(update={
+        "steps": [
+            original.steps[0].model_copy(update={"table": "not_a_table"})
+        ]
+    })
+    with pytest.raises(MigrationError, match="does not exist"):
+        rehearse_sqlite_migration(backup, sandbox, nonexistent)
