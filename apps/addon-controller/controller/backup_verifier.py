@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 import stat
 from datetime import UTC, datetime
 from pathlib import Path
@@ -225,6 +226,19 @@ def verify_bundle(
                 digest.update(block)
             if count != item.size or digest.hexdigest() != item.sha256:
                 raise BackupError("Backup checksum verification failed")
+        if manifest.consistency_method == "sqlite_online_backup":
+            if item.name != "database.sqlite3":
+                raise BackupError("SQLite snapshot must use its dedicated file name")
+            try:
+                with sqlite3.connect(
+                    (root / item.name).resolve().as_uri() + "?mode=ro",
+                    uri=True, timeout=10,
+                ) as sqlite_source:
+                    result = sqlite_source.execute("PRAGMA quick_check").fetchone()
+                    if result is None or result[0] != "ok":
+                        raise BackupError("SQLite backup integrity verification failed")
+            except sqlite3.Error as exc:
+                raise BackupError("SQLite backup structure is invalid") from exc
     return {
         "status": "verified_contents_only",
         "addon_id": addon_id,
