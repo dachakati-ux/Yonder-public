@@ -12,5 +12,10 @@
   ],
   "requires_restart": true,
   "docs": "addons/identity-security/README.md",
-  "warning": "Authentication connectors are not implemented. Yonder Core already requires verified trusted ingress for production."
+  "warning": "Authentication connectors are not implemented. Yonder Core already requires verified trusted ingress for production.",
+  "api_version": 1,
+  "min_core_version": "0.1.0",
+  "max_core_version_exclusive": "1.0.0",
+  "dependencies": [],
+  "config_schema_version": 1
 }
