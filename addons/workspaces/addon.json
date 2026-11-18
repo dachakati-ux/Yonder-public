@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "workspaces",
+  "name": "Private Workspaces",
+  "version": "0.1.0",
+  "category": "education",
+  "summary": "Isolated projects, compute sessions, class policies and optional Proxmox (planned).",
+  "status": "planned",
+  "install_mode": "not_available",
+  "permissions": [
+    "coder.use",
+    "operations.manage"
+  ],
+  "requires_restart": true,
+  "docs": "addons/workspaces/README.md",
+  "warning": "This is not a secure student VM implementation. No compute is provisioned."
+}
