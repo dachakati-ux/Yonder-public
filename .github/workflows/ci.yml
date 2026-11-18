@@ -82,7 +82,7 @@ jobs:
       - name: Test standalone controller
         run: |
           cd apps/addon-controller
-          uv run pytest -q tests/
+          PYTHONPATH=. uv run pytest -q tests/
       - name: Lint controller and gateway bridge
         run: |
           uv run ruff check apps/addon-controller/controller/ apps/addon-controller/tests/ apps/gateway/app/services/addon_controller_client.py
