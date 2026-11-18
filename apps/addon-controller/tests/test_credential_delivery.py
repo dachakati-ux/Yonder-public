@@ -105,3 +105,42 @@ def test_delivery_refuses_cross_scope_and_path_traversal(tmp_path, monkeypatch):
     with pytest.raises(VaultError):
         deliver(vault, "../convyx", "SERVICE_TOKEN", approved_addon_ids={"convyx"})
     assert list(directory.iterdir()) == []
+
+
+def test_docker_volume_policy_and_host_mountpoint_are_validated(
+    tmp_path, monkeypatch
+):
+    import json
+    from types import SimpleNamespace
+    from controller.credential_delivery import _volume_details
+
+    directory = tmp_path / "secrets"
+    directory.mkdir()
+    details = {
+        "Name": "yonder-addon-secrets-convyx",
+        "Driver": "local",
+        "Labels": {
+            "io.yonder.approved": "true",
+            "io.yonder.addon": "convyx",
+            "io.yonder.purpose": "secrets",
+        },
+        "Mountpoint": str(directory),
+    }
+
+    def stub_run(*args, **kwargs):
+        assert args[0] == [
+            "/usr/bin/docker", "volume", "inspect",
+            "yonder-addon-secrets-convyx",
+        ]
+        assert kwargs.get("capture_output") is True
+        return SimpleNamespace(stdout=json.dumps([details]).encode())
+
+    monkeypatch.setattr("controller.credential_delivery.subprocess.run", stub_run)
+    assert _volume_details("convyx") == directory
+    details["Labels"]["io.yonder.addon"] = "workspaces"
+    with pytest.raises(DeliveryError, match="not approved"):
+        _volume_details("convyx")
+    details["Labels"]["io.yonder.addon"] = "convyx"
+    details["Driver"] = "unsafe-volume-plugin"
+    with pytest.raises(DeliveryError, match="not approved"):
+        _volume_details("convyx")
