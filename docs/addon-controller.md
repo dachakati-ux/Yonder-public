@@ -694,6 +694,10 @@ backend; do not assume this command works across hosts.
 without a documented threat model and independent security review.**
 
 
+For offline bundle packaging and sandbox recovery checks, see
+[Stateful Upgrade Backups](stateful-upgrade-backups.md). These tools verify
+content checksums but **do not** enable stateful upgrade execution.
+
 ## Stateful upgrade readiness assessment — draft M02.8
 
 An authenticated operator can now select **Review upgrade** in the
