@@ -1,15 +1,20 @@
 """Read-only upgrade assessments must not execute Docker or mutate data."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from datetime import UTC, datetime
 
 import pytest
 from controller.engine import Controller
+from controller.migration_trust import MigrationAttestation, canonical_contract_hash
 from controller.models import ApprovedDeployment
+from controller.sqlite_migration import MigrationContract
 from controller.store import JobConflict
 from controller.upgrade_planner import UpgradePolicy, assess_upgrade
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from pydantic import ValidationError
 
 IMAGE = "ghcr.io/example/demo@sha256:" + "a" * 64
@@ -166,7 +171,47 @@ async def test_stateful_upgrade_reports_matching_migration_contract_but_stays_bl
     report = await engine.upgrade_assessment("demo-addon")
     assert report["backup_integrity"] == "verified_contents_only"
     assert report["migration_contract"] == "identity_verified_only"
+    assert report["migration_signature"] == "not_verified"
     assert report["can_execute"] is False
+
+    signing_key = Ed25519PrivateKey.generate()
+    pub = signing_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    trust = tmp_path / "publishers.json"
+    trust.write_text(json.dumps({
+        "schema_version": 1,
+        "publishers": [{
+            "key_id": "migration-publisher",
+            "public_key_ed25519_base64": base64.b64encode(pub).decode(),
+        }],
+    }))
+    engine.publisher_trust = trust
+    contract = MigrationContract.model_validate(migration)
+    unsigned = MigrationAttestation(
+        schema_version=1, addon_id="demo-addon",
+        source_version="1.0.0", source_image=IMAGE,
+        target_version="2.0.0", target_image=NEXT_IMAGE,
+        contract_sha256=canonical_contract_hash(contract),
+        backup_manifest_sha256=hashlib.sha256(
+            (root / "manifest.json").read_bytes()
+        ).hexdigest(),
+        publisher_key_id="migration-publisher",
+        signature_ed25519_base64=base64.b64encode(b"0" * 64).decode(),
+    )
+    signed = unsigned.model_copy(update={
+        "signature_ed25519_base64": base64.b64encode(
+            signing_key.sign(unsigned.signing_bytes())
+        ).decode(),
+    })
+    (contracts / "demo-addon.attestation.json").write_text(
+        json.dumps(signed.model_dump())
+    )
+    accepted = await engine.upgrade_assessment("demo-addon")
+    assert accepted["migration_signature"] == "ed25519_verified"
+    assert accepted["can_execute"] is False
+
     migration["source_image"] = NEXT_IMAGE
     migration_path.write_text(json.dumps(migration))
     rejected = await engine.upgrade_assessment("demo-addon")
