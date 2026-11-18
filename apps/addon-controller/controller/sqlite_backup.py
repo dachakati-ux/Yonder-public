@@ -13,11 +13,7 @@ import stat
 import tempfile
 from pathlib import Path
 
-from .backup_verifier import (
-    BackupError,
-    _MAX_TOTAL,
-    create_offline_bundle,
-)
+from .backup_verifier import _MAX_TOTAL, BackupError, create_offline_bundle
 
 
 def snapshot_sqlite_bundle(
