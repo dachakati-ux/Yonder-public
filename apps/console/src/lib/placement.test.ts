@@ -388,7 +388,7 @@ describe("evaluatePlacement", () => {
     expect(plan.requiresConfirmation).toBe(true);
     expect(check(plan, "gpu_occupancy").level).toBe("warn");
     expect(plan.occupantDeploymentIds).toEqual(["chat-lane"]);
-    expect(check(plan, "gpu_occupancy").detail).toContain("chat-lane");
+    expect(check(plan, "gpu_occupancy").detail).toContain("GPU 0: 1/3");
   });
 
   it("blocks placement onto a worker in maintenance", () => {
