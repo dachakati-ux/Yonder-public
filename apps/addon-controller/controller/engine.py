@@ -168,6 +168,90 @@ class Controller:
         plan["plan_sha256"] = hashlib.sha256(data).hexdigest()
         return plan
 
+    async def preflight_report(self, addon_id: str) -> dict:
+        """Read-only requirement checks; never starts Docker or pulls an image."""
+        checks: list[dict[str, str]] = []
+
+        def check(name: str, state: str, message: str) -> None:
+            checks.append({"name": name, "status": state, "message": message})
+
+        try:
+            current_setup = self.setup(addon_id)
+        except ControllerError:
+            raise ControllerError("Add-on is not approved on this host") from None
+        if current_setup["configured"]:
+            check("configuration", "ready", "Required non-secret settings are complete.")
+        else:
+            check("configuration", "blocked", "Complete the setup wizard first.")
+
+        policy = self.approved()[addon_id]
+        try:
+            self.plan(addon_id, "install")
+        except ControllerError:
+            check("release", "blocked", "Approved publisher/release or setup is incomplete.")
+        else:
+            check("release", "ready", "Approved release and plan can be verified.")
+
+        try:
+            await self.docker._run("version", "--format", "{{.Server.Version}}")
+        except DockerError:
+            check("docker", "blocked", "Controller cannot contact Docker daemon.")
+        else:
+            check("docker", "ready", "Docker daemon is reachable.")
+
+        if policy.image_acquisition == "signed_pull":
+            check("image", "managed", "Signed immutable image is acquired after approval.")
+        else:
+            try:
+                await self.docker.preflight(policy)
+            except DockerError:
+                check("image", "blocked", "Approved image digest is not available locally.")
+            else:
+                check("image", "ready", "Approved image digest is already present.")
+
+        if policy.secret_volume:
+            secret_only = policy.model_copy(update={
+                "network": "none", "data_volume": False,
+            })
+            try:
+                await self.docker.preflight_resources(secret_only)
+            except DockerError:
+                check(
+                    "secrets", "blocked",
+                    "Administrator must provision the approved read-only secrets volume.",
+                )
+            else:
+                check("secrets", "ready", "Approved secret-volume labels are verified.")
+        else:
+            check("secrets", "ready", "No credentials are requested.")
+
+        if policy.provision_managed_resources:
+            check(
+                "resources", "managed",
+                "Controller may create approved data/network resources after approval.",
+            )
+        else:
+            resources_only = policy.model_copy(update={"secret_volume": False})
+            try:
+                await self.docker.preflight_resources(resources_only)
+            except DockerError:
+                check(
+                    "resources", "blocked",
+                    "Required approved data volume or network is missing or untrusted.",
+                )
+            else:
+                check("resources", "ready", "Required resource labels are verified.")
+
+        return {
+            "addon_id": addon_id,
+            "checks": checks,
+            "can_submit": all(row["status"] != "blocked" for row in checks),
+            "note": (
+                "Read-only preflight is a snapshot. The controller validates all "
+                "policies again when executing an approved installation."
+            ),
+        }
+
     async def submit(
         self, addon_id: str, action: str, digest: str, key: str
     ) -> tuple[dict, bool]:
