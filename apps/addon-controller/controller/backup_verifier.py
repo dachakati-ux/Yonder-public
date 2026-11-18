@@ -13,6 +13,7 @@ import re
 import stat
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -51,6 +52,9 @@ class BackupManifest(BaseModel):
     image: str
     created_at: datetime
     source_quiesced: bool
+    consistency_method: Literal[
+        "operator_quiesced", "sqlite_online_backup"
+    ] = "operator_quiesced"
     backup_kind: str = Field(pattern=r"^(files|database_export)$")
     files: list[BackupEntry] = Field(min_length=1, max_length=_MAX_FILES)
 
@@ -76,6 +80,9 @@ def create_offline_bundle(
     backup_name: str = "database.dump",
     kind: str = "database_export",
     source_quiesced_acknowledged: bool = False,
+    consistency_method: Literal[
+        "operator_quiesced", "sqlite_online_backup"
+    ] = "operator_quiesced",
 ) -> dict:
     """Copy one already-quiesced export into a new, private backup directory.
 
@@ -128,7 +135,8 @@ def create_offline_bundle(
                 version=version,
                 image=image,
                 created_at=datetime.now(UTC),
-                source_quiesced=True,
+                source_quiesced=consistency_method == "operator_quiesced",
+                consistency_method=consistency_method,
                 backup_kind=kind,
                 files=[BackupEntry(
                     name=backup_name, size=written,
@@ -194,7 +202,10 @@ def verify_bundle(
         or manifest.image != image
     ):
         raise BackupError("Backup belongs to a different release")
-    if not manifest.source_quiesced:
+    if (
+        not manifest.source_quiesced
+        and manifest.consistency_method != "sqlite_online_backup"
+    ):
         raise BackupError("Source must be quiesced for consistent backup")
     age_seconds = (datetime.now(UTC) - manifest.created_at).total_seconds()
     if age_seconds < -300 or age_seconds > max_age_hours * 3600:
@@ -221,7 +232,8 @@ def verify_bundle(
         "image": image,
         "file_count": len(manifest.files),
         "total_bytes": sum(item.size for item in manifest.files),
-        "source_quiesced_declared": True,
+        "source_quiesced_declared": manifest.source_quiesced,
+        "consistency_method": manifest.consistency_method,
         "restore_tested": False,
         "migration_safe": False,
     }
