@@ -1,9 +1,9 @@
 """Add-on API v1 contract compatibility tests."""
+
 from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
-
 from app.services.addon_contract import AddonManifest
 
 
