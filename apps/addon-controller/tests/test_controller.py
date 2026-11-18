@@ -1,4 +1,5 @@
 """Standalone controller tests, without a Docker daemon or network."""
+
 from __future__ import annotations
 
 import json
