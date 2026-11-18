@@ -104,6 +104,43 @@ class DockerAdapter:
         await self._run("pull", "--quiet", deployment.image, timeout=900.0)
         await self.preflight(deployment)
 
+    async def preflight_resources(self, deployment: ApprovedDeployment) -> None:
+        """Check that every referenced resource already exists and is approved."""
+        if deployment.network != "none":
+            response = await self._run("network", "inspect", deployment.network)
+            try:
+                network = json.loads(response)[0]
+                labels = network.get("Labels") or {}
+                if (
+                    labels.get("io.yonder.approved") != "true"
+                    or labels.get(DOCKER_LABEL) != deployment.addon_id
+                    or network.get("Internal") is not True
+                    or network.get("Driver") != "bridge"
+                ):
+                    raise DockerError("Add-on network policy is not approved")
+            except (ValueError, IndexError, TypeError, KeyError) as exc:
+                raise DockerError("Invalid network policy response") from exc
+        for kind, enabled in (
+            ("secrets", deployment.secret_volume),
+            ("data", deployment.data_volume),
+        ):
+            if not enabled:
+                continue
+            name = f"yonder-addon-{kind}-{deployment.addon_id}"
+            result = await self._run("volume", "inspect", name)
+            try:
+                volume = json.loads(result)[0]
+                labels = volume.get("Labels") or {}
+                if (
+                    volume.get("Name") != name
+                    or labels.get("io.yonder.approved") != "true"
+                    or labels.get(DOCKER_LABEL) != deployment.addon_id
+                    or labels.get("io.yonder.purpose") != kind
+                ):
+                    raise DockerError(f"Add-on {kind} volume policy is not approved")
+            except (ValueError, IndexError, TypeError, KeyError) as exc:
+                raise DockerError("Invalid volume policy response") from exc
+
     async def install(self, deployment: ApprovedDeployment) -> None:
         name = CONTAINER_PREFIX + deployment.addon_id
         existing = await self._inspect(name)
@@ -112,6 +149,20 @@ class DockerAdapter:
                 raise DockerError("Container name is owned by another application")
             raise DockerError("Add-on is already deployed; explicit upgrade is required")
         await self.preflight(deployment)
+        await self.preflight_resources(deployment)
+        extra: list[str] = []
+        for key, value in sorted(deployment.public_settings.items()):
+            extra.extend(("--env", f"{key}={value}"))
+        if deployment.secret_volume:
+            extra.extend((
+                "--mount", "type=volume,source=yonder-addon-secrets-"
+                + deployment.addon_id + ",target=/run/yonder-secrets,readonly",
+            ))
+        if deployment.data_volume:
+            extra.extend((
+                "--mount", "type=volume,source=yonder-addon-data-"
+                + deployment.addon_id + ",target=/var/lib/yonder-addon",
+            ))
         output = await self._run(
             "run", "--detach", "--name", name,
             "--label", f"{OWNER_LABEL}=true",
@@ -124,6 +175,7 @@ class DockerAdapter:
             "--network", deployment.network,
             "--restart", "no",
             "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+            *extra,
             deployment.image,
         )
         if not HEX_ID.fullmatch(output):
