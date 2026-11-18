@@ -63,10 +63,81 @@ class Controller:
     def approved(self) -> dict[str, ApprovedDeployment]:
         return load_deployments(self.config)
 
+    def setup(self, addon_id: str) -> dict:
+        deployment = self.approved().get(addon_id)
+        if deployment is None:
+            raise ControllerError("Add-on is not approved for setup")
+        saved = self.jobs.get_setup(addon_id)
+        fields = deployment.setup_fields
+        effective = {
+            field.key: saved.get(
+                field.key, field.default if field.default is not None else ""
+            )
+            for field in fields
+        }
+        return {
+            "addon_id": addon_id,
+            "fields": [field.model_dump() for field in fields],
+            "values": effective,
+            "configured": all(
+                (not field.required or bool(effective[field.key]))
+                and (not effective[field.key]
+                     or self._safe_field(field, effective[field.key]))
+                for field in fields
+            ),
+            "locked_settings": sorted(deployment.public_settings),
+            "secrets_required": deployment.secret_volume,
+            "note": "Only non-secret fields are accepted. Secrets are provisioned separately.",
+        }
+
+    @staticmethod
+    def _safe_field(field, value: str) -> bool:
+        try:
+            field.validate_value(value)
+            return True
+        except ValueError:
+            return False
+
+    async def configure(self, addon_id: str, values: dict[str, str]) -> dict:
+        async with self._lock:
+            deployment = self.approved().get(addon_id)
+            if deployment is None:
+                raise ControllerError("Add-on is not approved for setup")
+            fields = {field.key: field for field in deployment.setup_fields}
+            if not fields:
+                raise ControllerError("This add-on has no editable setup fields")
+            if set(values) != set(fields):
+                raise ControllerError("Provide only the declared setup fields")
+            try:
+                for name, value in values.items():
+                    fields[name].validate_value(value)
+                self.jobs.save_setup(addon_id, values)
+            except (ValueError, JobConflict) as exc:
+                raise ControllerError("Setup rejected: " + str(exc)) from exc
+            return self.setup(addon_id)
+
+    def effective(self, addon_id: str) -> ApprovedDeployment:
+        deployment = self.approved().get(addon_id)
+        if deployment is None:
+            raise ControllerError("Add-on is not approved for deployment on this host")
+        state = self.setup(addon_id)
+        if not state["configured"]:
+            raise ControllerError("Complete the declared setup fields first")
+        configured = {
+            key: value
+            for key, value in state["values"].items()
+            if value != ""
+        }
+        return deployment.model_copy(
+            update={"public_settings": {**deployment.public_settings, **configured}}
+        )
+
     def plan(self, addon_id: str, action: str) -> dict:
         if action not in ("install", "remove"):
             raise ControllerError("Unsupported action")
-        selected = self.approved().get(addon_id)
+        selected = self.effective(addon_id) if action == "install" else (
+            self.approved().get(addon_id)
+        )
         if selected is None:
             raise ControllerError("Add-on is not approved for deployment on this host")
         plan = selected.plan(action)
@@ -128,7 +199,10 @@ class Controller:
         try:
             self.jobs.transition(job_id, "preflight")
             action = job["action"]
-            deployment = self.approved().get(job["addon_id"])
+            deployment = (
+                self.effective(job["addon_id"]) if action == "install"
+                else self.approved().get(job["addon_id"])
+            )
             if deployment is None:
                 raise ControllerError("Approved deployment is no longer available")
             if self.plan(deployment.addon_id, action)["plan_sha256"] != job["plan_sha256"]:
