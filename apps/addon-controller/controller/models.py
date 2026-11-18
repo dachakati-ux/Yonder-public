@@ -91,6 +91,9 @@ class ApprovedDeployment(BaseModel):
     readiness: Literal["running", "docker_healthy"] = "running"
     readiness_timeout_seconds: int = Field(default=30, ge=5, le=300)
     rollback_on_failed_readiness: bool = True
+    upgrade_data_migration: Literal[
+        "unknown", "none", "compatible", "requires_migration"
+    ] = "unknown"
 
     @field_validator("network")
     @classmethod
