@@ -163,6 +163,10 @@ class ApprovedDeployment(BaseModel):
                 "data_volume": f"yonder-addon-data-{self.addon_id}"
                 if self.data_volume else None,
             },
+            "upgrade_policy": {
+                "data_migration": self.upgrade_data_migration,
+                "execution_enabled": False,
+            },
             "readiness": {
                 "mode": self.readiness,
                 "timeout_seconds": self.readiness_timeout_seconds,
