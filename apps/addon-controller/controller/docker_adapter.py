@@ -43,10 +43,15 @@ class DockerAdapter:
         return out.decode("utf-8", errors="replace").strip()[:16_384]
 
     async def _inspect(self, name: str) -> dict | None:
-        try:
-            result = await self._run("container", "inspect", name)
-        except DockerError:
+        # Distinguish an absent container from an unavailable Docker daemon.
+        # Never silently treat a connection/permission error as "not installed".
+        names = await self._run(
+            "container", "ls", "--all", "--filter", f"name=^/{name}$",
+            "--format", "{{.Names}}",
+        )
+        if name not in names.splitlines():
             return None
+        result = await self._run("container", "inspect", name)
         try:
             data = json.loads(result)
         except ValueError as exc:
