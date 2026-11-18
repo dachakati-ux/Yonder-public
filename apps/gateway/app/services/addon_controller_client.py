@@ -45,7 +45,7 @@ class AddonControllerClient:
     async def request(
         self, method: str, path: str, body: dict | None = None
     ) -> dict:
-        if method not in ("GET", "POST") or not path.startswith("/v1/"):
+        if method not in ("GET", "POST", "PUT") or not path.startswith("/v1/"):
             raise ValueError("Unsupported controller request")
         try:
             async with httpx.AsyncClient(
