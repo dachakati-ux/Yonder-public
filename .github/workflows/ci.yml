@@ -90,4 +90,4 @@ jobs:
         run: |
           cd apps/console
           npm ci
-          npx tsc --noEmit
+          npx tsc --noEmit -p tsconfig.addons.json
