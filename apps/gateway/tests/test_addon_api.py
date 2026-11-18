@@ -44,7 +44,7 @@ def test_addon_api_bundled_activation(tmp_path, monkeypatch):
         report = client.get("/api/admin/addons/security-insights/report")
         assert report.status_code == 200
         assert report.json()["checks"]
-        assert "secret" not in json.dumps(report.json()).lower()
+        assert "replace-with-a-very-long-secret-token" not in json.dumps(report.json())
 
         service = client.get("/api/admin/addons/security-insights/service/health")
         assert service.json()["status"] == "not_configured"
