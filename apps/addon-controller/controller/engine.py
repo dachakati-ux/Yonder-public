@@ -56,12 +56,6 @@ class Controller:
         self.vault_db = Path(os.getenv(
             "YONDER_CONTROLLER_CREDENTIAL_DB", "/var/lib/yonder/credentials.db"
         ))
-        self.vault_key = Path(os.getenv(
-            "YONDER_CONTROLLER_CREDENTIAL_KEY", "/etc/yonder/credentials.key"
-        ))
-        self.vault_db = Path(os.getenv(
-            "YONDER_CONTROLLER_CREDENTIAL_DB", "/var/lib/yonder/credentials.db"
-        ))
         self.require_signed_releases = (
             os.getenv("YONDER_CONTROLLER_REQUIRE_SIGNATURES", "false").lower()
             in ("true", "1", "yes")
