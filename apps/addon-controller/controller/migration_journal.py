@@ -6,6 +6,7 @@ never automatically resumed or promoted to live upgrade jobs.
 """
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
 import uuid
@@ -24,7 +25,18 @@ class JournalError(ValueError):
 class MigrationJournal:
     def __init__(self, path: Path):
         self.path = path
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if self.path.is_symlink():
+            raise JournalError("Migration journal must not be a symlink")
+        if not self.path.exists():
+            fd = os.open(
+                self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
+            )
+            os.close(fd)
+        if not self.path.is_file():
+            raise JournalError("Migration journal must be a regular file")
+        if os.name == "posix" and self.path.stat().st_mode & 0o077:
+            raise JournalError("Migration journal requires private 0600 permissions")
         self.lock = threading.RLock()
         with self.lock, self._connect() as db:
             db.execute(
