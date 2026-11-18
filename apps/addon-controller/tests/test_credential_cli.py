@@ -7,8 +7,8 @@ import os
 import sys
 from types import SimpleNamespace
 
-import pytest
 import credentials_cli
+import pytest
 from controller.credential_vault import CredentialVault, create_master_key
 from credentials_cli import main
 
