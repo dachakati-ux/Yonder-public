@@ -32,6 +32,7 @@ def test_encrypted_storage_never_persists_raw_secret(tmp_path):
         "revision": 1,
         "updated_at": vault.metadata("convyx")[0]["updated_at"],
         "configured": True,
+        "delivery": {"status": "never_delivered", "delivered_revision": None},
     }]
     with sqlite3.connect(db) as connection:
         payload = connection.execute(
