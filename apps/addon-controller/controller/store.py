@@ -8,7 +8,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-ACTIVE = ("queued", "preflight", "deploying", "verifying", "rolling_back", "removing")
+ACTIVE = ("queued", "preflight", "acquiring", "deploying", "verifying", "rolling_back", "removing")
 BLOCKING = (*ACTIVE, "interrupted")
 
 
