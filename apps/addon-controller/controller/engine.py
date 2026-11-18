@@ -70,6 +70,12 @@ class Controller:
         if selected is None:
             raise ControllerError("Add-on is not approved for deployment on this host")
         plan = selected.plan(action)
+        if (
+            action == "install"
+            and selected.image_acquisition == "signed_pull"
+            and not self.require_signed_releases
+        ):
+            raise ControllerError("Remote image pulling requires signed release enforcement")
         if action == "install":
             if self.require_signed_releases:
                 try:
@@ -128,7 +134,11 @@ class Controller:
             if self.plan(deployment.addon_id, action)["plan_sha256"] != job["plan_sha256"]:
                 raise ControllerError("Deployment changed before execution")
             if action == "install":
-                await self.docker.preflight(deployment)
+                if deployment.image_acquisition == "signed_pull":
+                    self.jobs.transition(job_id, "acquiring")
+                    await self.docker.acquire(deployment)
+                else:
+                    await self.docker.preflight(deployment)
                 self.jobs.transition(job_id, "deploying")
                 await self.docker.install(deployment)
                 self.jobs.transition(job_id, "verifying")
