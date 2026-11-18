@@ -202,7 +202,9 @@ def serve_http(
 ) -> None:
     """Loopback-only Streamable HTTP MCP endpoint (JSON-RPC POST)."""
 
-    allow_non_localhost = os.environ.get("YONDER_ALLOW_NON_LOCALHOST_BIND_IN_DEVELOPMENT", "").lower() in {
+    allow_non_localhost = os.environ.get(
+        "YONDER_ALLOW_NON_LOCALHOST_BIND_IN_DEVELOPMENT", ""
+    ).lower() in {
         "1",
         "true",
         "yes",
