@@ -18,6 +18,17 @@ interface CatalogModel {
   has_gguf: boolean;
 }
 
+interface InstallJob {
+  id: string;
+  repo: string;
+  filename: string;
+  status: string;
+  downloaded_bytes: number;
+  total_bytes: number | null;
+  error: string | null;
+  installed_path: string | null;
+}
+
 interface GgufFile {
   filename: string;
   size_bytes: number | null;
@@ -42,6 +53,8 @@ export function ModelLibrary() {
   const [items, setItems] = useState<CatalogModel[]>([]);
   const [selected, setSelected] = useState<DetailsResponse | null>(null);
   const [working, setWorking] = useState(false);
+  const [jobs, setJobs] = useState<InstallJob[]>([]);
+  const [installBusy, setInstallBusy] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState("");
   const [workers, setWorkers] = useState<HardwareNode[] | null>(null);
@@ -55,6 +68,52 @@ export function ModelLibrary() {
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    async function refreshJobs() {
+      try {
+        const response = await fetch(GATEWAY_URL + "/api/admin/catalog/installs");
+        if (!response.ok) return;
+        const body = (await response.json()) as { jobs: InstallJob[] };
+        if (active) setJobs(body.jobs);
+      } catch {
+        // Catalog remains usable while install status is offline.
+      }
+    }
+    void refreshJobs();
+    const timer = window.setInterval(() => void refreshJobs(), 2500);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  async function install(repo: string, filename: string) {
+    if (!window.confirm("Install " + filename + " locally? This downloads model weights. " +
+      "A runtime must be configured separately before loading.")) return;
+    setInstallBusy(true);
+    setError("");
+    try {
+      const response = await fetch(GATEWAY_URL + "/api/admin/catalog/installs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ repo, filename }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error?.message ?? "Install request failed");
+      setJobs((current) => [body.job as InstallJob, ...current]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Installation failed");
+    } finally {
+      setInstallBusy(false);
+    }
+  }
+
+  async function cancelInstall(jobId: string) {
+    const response = await fetch(
+      GATEWAY_URL + "/api/admin/catalog/installs/" + encodeURIComponent(jobId) + "/cancel",
+      { method: "POST" }
+    );
+    if (!response.ok) setError("Unable to cancel installation.");
+  }
 
   async function search(value = query) {
     setWorking(true);
@@ -150,6 +209,31 @@ export function ModelLibrary() {
       ) : !working && !error ? (
         <p className="entity-meta">Search for a model to see catalog results.</p>
       ) : null}
+      {jobs.length > 0 ? (
+        <div className="models-panel" style={{ marginTop: 16 }} aria-label="Model downloads">
+          <h3>Model downloads</h3>
+          {jobs.map((job) => (
+            <div key={job.id} className="compact-row" style={{ padding: 8 }}>
+              <strong>{job.repo} / {job.filename}</strong>
+              <p className="entity-meta">
+                {job.status} · {bytes(job.downloaded_bytes)}
+                {job.total_bytes == null ? "" : " / " + bytes(job.total_bytes)}
+                {job.error ? " — " + job.error : ""}
+              </p>
+              {job.status === "installed_unconfigured" ? (
+                <p className="entity-meta">
+                  Verified download. Bundle prepared at {job.installed_path}.
+                  Configure a compatible runtime before loading.
+                </p>
+              ) : null}
+              {["queued", "validating", "downloading", "verifying"].includes(job.status) ? (
+                <button type="button" className="btn btn-ghost"
+                  onClick={() => void cancelInstall(job.id)}>Cancel download</button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
       {selected ? (
         <div className="models-panel" style={{ marginTop: 16 }}>
           <h3>{selected.model.id}</h3>
@@ -184,6 +268,11 @@ export function ModelLibrary() {
                       </small>
                     ) : null}
                   </span>
+                  <button className="btn" type="button"
+                    disabled={installBusy || selected.model.gated || file.size_bytes == null}
+                    onClick={() => void install(selected.model.id, file.filename)}>
+                    Install locally
+                  </button>
                 </div>
               ))}
             </div>
