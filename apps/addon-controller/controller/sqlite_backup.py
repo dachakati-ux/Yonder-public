@@ -74,6 +74,7 @@ def snapshot_sqlite_bundle(
                 # The completed *snapshot* is transactionally consistent and
                 # no longer changes, even if the original source is live.
                 source_quiesced_acknowledged=True,
+                consistency_method="sqlite_online_backup",
             )
     except sqlite3.Error as exc:
         raise BackupError("SQLite consistent snapshot failed") from exc
