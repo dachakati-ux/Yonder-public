@@ -13,5 +13,10 @@
   ],
   "requires_restart": false,
   "docs": "addons/security-insights/README.md",
-  "warning": "This checks selected configuration risks. It is not an authentication provider or a compliance certification."
+  "warning": "This checks selected configuration risks. It is not an authentication provider or a compliance certification.",
+  "api_version": 1,
+  "min_core_version": "0.1.0",
+  "max_core_version_exclusive": "1.0.0",
+  "dependencies": [],
+  "config_schema_version": 1
 }
