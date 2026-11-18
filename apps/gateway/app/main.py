@@ -37,6 +37,7 @@ from app.api import (
     speech,
     v1,
     workers,
+    updates,
 )
 from app.config.bootstrap import (
     build_model_definitions,
@@ -471,6 +472,7 @@ def create_app() -> FastAPI:
     app.include_router(ops.router)
     app.include_router(admin.router)
     app.include_router(model_catalog.router)
+    app.include_router(updates.router)
     app.include_router(workers.router)
     app.include_router(chat.router)
     app.include_router(v1.router)
