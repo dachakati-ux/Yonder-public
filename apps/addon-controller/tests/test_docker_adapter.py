@@ -183,3 +183,30 @@ async def test_unapproved_network_refused():
     with pytest.raises(DockerError, match="not approved"):
         await adapter.install(approved)
     assert not any(args[0] == "run" for args in adapter.commands)
+
+
+@pytest.mark.asyncio
+async def test_reviewed_resource_provisioning_only_creates_data_and_network():
+    adapter = Recorder()
+    approved = deployment().model_copy(update={
+        "network": "yonder-addon-net-demo-addon",
+        "data_volume": True,
+        "secret_volume": True,
+        "provision_managed_resources": True,
+    })
+    await adapter.prepare_resources(approved)
+    assert any(
+        item[:2] == ("network", "create") and "--internal" in item
+        for item in adapter.commands
+    )
+    assert any(
+        item[:2] == ("volume", "create")
+        and item[-1] == "yonder-addon-data-demo-addon"
+        for item in adapter.commands
+    )
+    assert not any(
+        item[:2] == ("volume", "create")
+        and "secrets" in item[-1]
+        for item in adapter.commands
+    )
+    assert not any(item[0] == "run" for item in adapter.commands)
