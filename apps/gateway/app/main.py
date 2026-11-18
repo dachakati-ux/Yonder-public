@@ -51,6 +51,7 @@ from app.persistence import build_persistence
 from app.routing.gate import DeploymentAdmissionGate
 from app.services.addons import AddonRegistry
 from app.services.addon_service_registry import AddonServiceRegistry
+from app.services.addon_service import ServiceProbeError
 from app.services.artifacts import LocalArtifactStore
 from app.services.chat import ChatService
 from app.services.coder_workspace import CoderWorkspaceService
@@ -181,7 +182,12 @@ def create_app() -> FastAPI:
     app.state.addon_services = AddonServiceRegistry(
         Path("/etc/yonder/addon-services.json")
     )
-    app.state.addon_services.reload()
+    try:
+        app.state.addon_services.reload()
+    except ServiceProbeError:
+        # Optional service misconfiguration must not expose an untrusted adapter.
+        # Core stays online; service health stays not_configured until fixed.
+        app.state.logger.error("Add-on service configuration rejected.")
     app.state.request_ledger = persistence.request_ledger
     app.state.accepting_requests = True
     app.state.persistence = persistence
