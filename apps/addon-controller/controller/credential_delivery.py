@@ -14,7 +14,7 @@ import stat
 import subprocess
 from pathlib import Path
 
-from .credential_vault import CredentialVault, VaultError
+from .credential_vault import CredentialVault
 
 LABEL_ADDON = "io.yonder.addon"
 LABEL_APPROVED = "io.yonder.approved"
@@ -62,9 +62,11 @@ def _open_directory(path: Path) -> int:
     try:
         descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         info = os.fstat(descriptor)
-        if not stat.S_ISDIR(info.st_mode) or info.st_mode & 0o022:
-            raise DeliveryError("Secret destination must not be writable by other users")
+        if not stat.S_ISDIR(info.st_mode) or info.st_mode & 0o077:
+            os.close(descriptor)
+            raise DeliveryError("Secret destination must be private (0700)")
         if hasattr(os, "geteuid") and info.st_uid != os.geteuid():
+            os.close(descriptor)
             raise DeliveryError("Secret destination must be owned by the administrator")
         return descriptor
     except OSError as exc:
@@ -96,6 +98,8 @@ def _atomic_write(directory: int, filename: str, value: bytes) -> None:
         if target_stat is not None and (
             not stat.S_ISREG(target_stat.st_mode)
             or target_stat.st_nlink != 1
+            or target_stat.st_mode & 0o077
+            or (hasattr(os, "geteuid") and target_stat.st_uid != os.geteuid())
         ):
             raise DeliveryError("Existing secret target is not a regular, unlinked file")
         os.replace(
