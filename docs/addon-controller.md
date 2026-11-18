@@ -847,3 +847,26 @@ until real-host crash/restart, rollback, privilege and health testing has
 been completed.** Stateful add-ons such as Workspaces, Authentik and
 Convyx remain blocked from this upgrade method; their correct migrations
 need separately tested backups, snapshots and transactional orchestration.
+
+
+### Recovering an interrupted experimental stateless upgrade
+
+A cutover can be interrupted after the old container is stopped or renamed.
+Yonder therefore **does not automatically replay an upgrade after restart**.
+
+A host administrator must first reconcile containers outside the browser,
+making sure the **original signed release** is back under its canonical
+`yonder-addon-<id>` name and running. Both job-specific
+`...-stage-<job-prefix>` and `...-rollback-<job-prefix>` names must be
+absent. The old immutable image digest must match the recorded previous
+release and its Yonder ownership labels must be intact.
+
+Only then may an administrator use **Review interrupted job** to acknowledge
+the interrupted operation. The controller independently inspects all three
+container identities and running state before clearing the block. If a
+staging/rollback container remains, a name/image does not match, or Docker
+is unreachable, the job remains interrupted.
+
+This is recovery of a tightly isolated stateless container, not a general
+safe database rollback. Even after acknowledgment, a fresh reviewed plan
+and idempotency key are required for another attempt.
