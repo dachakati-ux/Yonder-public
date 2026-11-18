@@ -378,7 +378,7 @@ class Controller:
             self.jobs.transition(job_id, "preflight")
             action = job["action"]
             deployment = (
-                self.effective(job["addon_id"]) if action == "install"
+                self.effective(job["addon_id"]) if action in ("install", "upgrade")
                 else self.approved().get(job["addon_id"])
             )
             if deployment is None:
@@ -417,6 +417,8 @@ class Controller:
                     deployment.addon_id, deployment.version, deployment.image, "running"
                 )
                 self.jobs.transition(job_id, "succeeded", "Readiness verified")
+            elif action == "upgrade":
+                await self._execute_stateless_upgrade(job, deployment)
             elif action == "remove":
                 self.jobs.transition(job_id, "removing")
                 await self.docker.remove(deployment)
@@ -432,6 +434,17 @@ class Controller:
             )
             raise
         except (ControllerError, DockerError, OSError) as exc:
+            if (
+                job["action"] == "upgrade"
+                and self.jobs.get(job_id)["status"] in (
+                    "staging", "cutover", "verifying", "rolling_back",
+                )
+            ):
+                self.jobs.transition(
+                    job_id, "interrupted",
+                    "Upgrade state uncertain; inspect both releases before retry",
+                )
+                return
             message = str(exc)[:220]
             # Roll back only containers created by this install operation.
             # Removal failure must never trigger another destructive action.
@@ -456,6 +469,114 @@ class Controller:
             # Never disclose secrets or host exception data to browser clients.
             self.jobs.transition(job_id, "failed", "Unexpected controller error")
 
+
+    async def _execute_stateless_upgrade(
+        self, job: dict, deployment: ApprovedDeployment
+    ) -> None:
+        """Opt-in stateless-only staged update; never migrates persistent data."""
+        job_id = job["id"]
+        previous = job["plan"]["previous"]
+        old_image = previous["image"]
+        if (
+            not self.enable_stateless_upgrades
+            or not self.require_signed_releases
+            or deployment.data_volume or deployment.secret_volume
+            or deployment.network != "none"
+            or deployment.upgrade_data_migration != "none"
+        ):
+            raise ControllerError("Unsafe or disabled stateless upgrade policy")
+        if deployment.image_acquisition == "signed_pull":
+            self.jobs.transition(job_id, "acquiring")
+            await self.docker.acquire(deployment)
+        else:
+            await self.docker.preflight(deployment)
+
+        self.jobs.transition(job_id, "staging")
+        try:
+            staged_name = await self.docker.stage_stateless(deployment, job_id)
+            deadline = asyncio.get_running_loop().time() + (
+                deployment.readiness_timeout_seconds
+            )
+            while True:
+                state = await self.docker.readiness(
+                    deployment, container_name=staged_name
+                )
+                if state == "ready":
+                    break
+                if state in (
+                    "stopped", "not_deployed", "unhealthy",
+                    "missing_healthcheck", "unmanaged_container_collision",
+                ) or asyncio.get_running_loop().time() >= deadline:
+                    raise ControllerError("Staged upgrade failed readiness checks")
+                await asyncio.sleep(1)
+        except (ControllerError, DockerError, OSError):
+            # A verified stage can be removed without affecting the old release.
+            try:
+                self.jobs.transition(job_id, "rolling_back")
+                await self.docker.discard_stateless_stage(deployment, job_id)
+            except (DockerError, OSError):
+                self.jobs.transition(
+                    job_id, "interrupted",
+                    "Candidate cleanup unverified; administrator review required",
+                )
+                return
+            self.jobs.transition(job_id, "failed", "Candidate not ready; old retained")
+            return
+
+        self.jobs.transition(job_id, "cutover")
+        try:
+            await self.docker.cutover_stateless(deployment, old_image, job_id)
+        except (DockerError, OSError):
+            self.jobs.transition(
+                job_id, "interrupted",
+                "Cutover failed; both containers need administrator review",
+            )
+            return
+
+        self.jobs.transition(job_id, "verifying")
+        deadline = asyncio.get_running_loop().time() + (
+            deployment.readiness_timeout_seconds
+        )
+        failed = False
+        while True:
+            try:
+                state = await self.docker.readiness(deployment)
+            except (DockerError, OSError):
+                failed = True
+                break
+            if state == "ready":
+                break
+            if state in (
+                "stopped", "not_deployed", "unhealthy",
+                "missing_healthcheck", "unmanaged_container_collision",
+            ) or asyncio.get_running_loop().time() >= deadline:
+                failed = True
+                break
+            await asyncio.sleep(1)
+        if failed:
+            self.jobs.transition(job_id, "rolling_back")
+            try:
+                await self.docker.restore_stateless(
+                    deployment, old_image, job_id
+                )
+            except (DockerError, OSError):
+                self.jobs.transition(
+                    job_id, "interrupted",
+                    "Restore not verified; administrator recovery required",
+                )
+                return
+            self.jobs.transition(
+                job_id, "failed", "New release not ready; original restored"
+            )
+            return
+
+        self.jobs.set_desired(
+            deployment.addon_id, deployment.version, deployment.image, "running"
+        )
+        self.jobs.transition(
+            job_id, "succeeded",
+            "Staged upgrade healthy; previous release kept stopped for recovery",
+        )
 
     async def observed(self, addon_id: str) -> str:
         if addon_id not in self.approved():
