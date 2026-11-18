@@ -3,6 +3,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Gauge, StatTile, TonePill } from "@/components/metrics";
 import { GatewayError } from "@/lib/gateway";
+import { UpdateNotice } from "@/features/operations/UpdateNotice";
 import { type StatusTone } from "@/lib/hardware";
 import { ratioPercent } from "@/lib/format";
 import {
@@ -168,6 +169,8 @@ export function OperationsWorkspace() {
           Refresh
         </button>
       </header>
+
+      <UpdateNotice />
 
       {error ? <div className="message-error models-error">{error}</div> : null}
 
