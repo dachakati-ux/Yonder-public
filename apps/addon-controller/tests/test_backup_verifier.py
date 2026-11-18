@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from controller.backup_verifier import (
     BackupError,
+    create_offline_bundle,
     verify_bundle,
     verify_restore_into_empty_directory,
 )
@@ -140,3 +141,64 @@ def test_existing_or_public_restore_target_refused(tmp_path):
                 root, sandbox, addon_id="demo-addon",
                 version="1.0.0", image=IMAGE,
             )
+
+
+def test_create_offline_bundle_requires_quiescence_and_preserves_source(tmp_path):
+    source = tmp_path / "export.dump"
+    source.write_bytes(b"safe-offline-export")
+    destination = tmp_path / "bundle"
+    with pytest.raises(BackupError, match="quiescence"):
+        create_offline_bundle(
+            source, destination, addon_id="demo-addon",
+            version="1.0.0", image=IMAGE,
+        )
+    assert not destination.exists()
+    result = create_offline_bundle(
+        source, destination, addon_id="demo-addon",
+        version="1.0.0", image=IMAGE,
+        source_quiesced_acknowledged=True,
+    )
+    assert result["status"] == "verified_contents_only"
+    assert (destination / "database.dump").read_bytes() == source.read_bytes()
+    assert result["restore_tested"] is False
+    assert result["migration_safe"] is False
+    with pytest.raises(BackupError, match="must not exist"):
+        create_offline_bundle(
+            source, destination, addon_id="demo-addon",
+            version="1.0.0", image=IMAGE,
+            source_quiesced_acknowledged=True,
+        )
+    assert source.read_bytes() == b"safe-offline-export"
+
+
+def test_create_offline_bundle_rejects_symlink_source_and_unsafe_name(tmp_path):
+    source = tmp_path / "export.dump"
+    source.write_bytes(b"example")
+    link = tmp_path / "alias"
+    link.symlink_to(source)
+    with pytest.raises(BackupError):
+        create_offline_bundle(
+            link, tmp_path / "out1", addon_id="demo-addon",
+            version="1.0.0", image=IMAGE,
+            source_quiesced_acknowledged=True,
+        )
+    with pytest.raises(BackupError, match="Invalid backup file name"):
+        create_offline_bundle(
+            source, tmp_path / "out2", addon_id="demo-addon",
+            version="1.0.0", image=IMAGE, backup_name="../credentials",
+            source_quiesced_acknowledged=True,
+        )
+    assert not (tmp_path / "out1").exists()
+    assert not (tmp_path / "out2").exists()
+
+
+def test_create_offline_bundle_rejects_malformed_source_identity(tmp_path):
+    source = tmp_path / "export.dump"
+    source.write_bytes(b"example")
+    with pytest.raises(ValueError):
+        create_offline_bundle(
+            source, tmp_path / "out", addon_id="demo-addon",
+            version="1.0.0", image="ubuntu:latest",
+            source_quiesced_acknowledged=True,
+        )
+    assert not (tmp_path / "out").exists()
