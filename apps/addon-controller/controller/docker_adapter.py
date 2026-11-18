@@ -275,6 +275,24 @@ class DockerAdapter:
             raise DockerError("Staged container provenance/health could not be verified")
         return candidate
 
+    async def discard_stateless_stage(
+        self, deployment: ApprovedDeployment, job_id: str
+    ) -> None:
+        """Remove only a verified stage container, never the existing service."""
+        _, candidate, _ = self._upgrade_names(deployment.addon_id, job_id)
+        staged = await self._inspect(candidate)
+        if staged is None:
+            return
+        if (
+            not self._owned(staged, deployment.addon_id)
+            or (staged.get("Config", {}).get("Labels") or {}).get(
+                "io.yonder.stage"
+            ) != job_id
+            or staged.get("Config", {}).get("Image") != deployment.image
+        ):
+            raise DockerError("Unverified staged container cannot be removed")
+        await self._run("rm", "--force", candidate)
+
     async def cutover_stateless(
         self, deployment: ApprovedDeployment, old_image: str, job_id: str
     ) -> str:
