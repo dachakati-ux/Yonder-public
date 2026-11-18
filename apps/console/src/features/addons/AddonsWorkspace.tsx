@@ -77,6 +77,14 @@ type DeploymentPlan = {
   requires_approval: boolean;
   note: string;
 };
+type DesiredAddon = {
+  addon_id: string;
+  version: string;
+  image: string;
+  desired_state: string;
+  observed_state: string;
+  drift: boolean;
+};
 type ControllerJob = {
   id: string;
   addon_id: string;
@@ -110,6 +118,7 @@ export function AddonsWorkspace() {
   const [serviceHealth, setServiceHealth] = useState<Record<string, AddonServiceHealth>>({});
   const [controller, setController] = useState<ControllerStatus | null>(null);
   const [deployments, setDeployments] = useState<ControllerJob[]>([]);
+  const [desiredItems, setDesiredItems] = useState<DesiredAddon[]>([]);
 
   const refresh = useCallback(async () => {
     try {
@@ -137,6 +146,10 @@ export function AddonsWorkspace() {
             "/api/admin/addons/controller/jobs"
           );
           if (active) setDeployments(result.jobs);
+          const inventory = await api<{ items: DesiredAddon[] }>(
+            "/api/admin/addons/controller/inventory"
+          );
+          if (active) setDesiredItems(inventory.items);
         }
       } catch {
         if (active) setController({ configured: false, deployments: [] });
@@ -426,6 +439,19 @@ export function AddonsWorkspace() {
           Only approved image digests can be deployed. Docker is never controlled
           directly by the browser or Yonder Gateway.
         </p>
+        {desiredItems.length > 0 ? (
+          <div className="addons-checks" aria-label="Desired state inventory">
+            {desiredItems.map((item) => (
+              <div key={item.addon_id} className="addons-check">
+                <strong>{item.drift ? "Review drift" : "In sync"}</strong>
+                <span>
+                  {item.addon_id} v{item.version} · desired {item.desired_state}
+                  {" · "}observed {item.observed_state}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {deployments.length ? (
           <div className="addons-checks">
             {deployments.slice(0, 12).map((job) => (
