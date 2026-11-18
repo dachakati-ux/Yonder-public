@@ -1,11 +1,11 @@
 """Encrypted credential store tests; never contacts a Docker daemon."""
+
 from __future__ import annotations
 
 import os
 import sqlite3
 
 import pytest
-
 from controller.credential_vault import (
     CredentialVault,
     VaultError,
