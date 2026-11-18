@@ -406,9 +406,10 @@ Status: planned | in_progress | draft_implemented | verified | released
 
 - **M01.6 (partial):** all 25 reported Python Ruff lint findings were
   corrected on `feature/addon-controller` without suppressing checks. The
-  Gateway and worker test suites progressed to Console tests. The full
-  release-wide job remains a separate gate until every stage—including the
-  Next.js production build—passes.
+  Gateway/worker and Console tests, Python lint, and production build
+  subsequently passed in full CI run
+  [44393875389](https://github.com/dachakati-ux/Yonder-public/actions/runs/44393875389).
+  Dependency vulnerability review and real-host testing remain release gates.
 - **M02.9 (draft):** encrypted credential inventory and scoped offline
   delivery now have recorded delivery revisions; the UI distinguishes
   `never_delivered`, `delivered_unverified`, `stale_delivery`,
@@ -417,7 +418,7 @@ Status: planned | in_progress | draft_implemented | verified | released
   loaded the secret or that its provider accepted the credential.
 - **Tracking:** [M01 #6](https://github.com/dachakati-ux/Yonder-public/issues/6)
   and [M02 #7](https://github.com/dachakati-ux/Yonder-public/issues/7).
-- **Remaining:** tests, integrated build verification, a host-level Docker
+- **Remaining:** dependency auditing, a host-level Docker
   smoke test, and security review before either sub-goal is released.
 
 ## Immediate next sub-goal
