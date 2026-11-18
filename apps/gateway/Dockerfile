@@ -11,6 +11,7 @@ COPY pyproject.toml uv.lock README.md ./
 COPY packages ./packages
 COPY apps/gateway ./apps/gateway
 COPY config ./config
+COPY addons ./addons
 COPY database ./database
 COPY scripts/docker-gateway-entrypoint.sh /entrypoint.sh
 
