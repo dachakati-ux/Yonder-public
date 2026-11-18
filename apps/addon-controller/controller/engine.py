@@ -74,7 +74,7 @@ class Controller:
         if not self.vault_key.is_file() or not self.vault_db.is_file():
             return {
                 "addon_id": addon_id, "vault_available": False,
-                "credentials": [], "runtime_delivery": "not_implemented",
+                "credentials": [], "runtime_delivery": "offline_admin_only_unverified",
             }
         try:
             read_master_key(self.vault_key)
@@ -88,7 +88,10 @@ class Controller:
         return {
             "addon_id": addon_id, "vault_available": True,
             "credentials": entries, "runtime_delivery": "not_implemented",
-            "note": "Encrypted inventory is not yet mounted into add-on containers.",
+            "note": (
+                "Local administrator may deliver into approved Docker volumes; "
+                "this API does not verify delivered file contents or provider acceptance."
+            ),
         }
 
     def approved(self) -> dict[str, ApprovedDeployment]:
@@ -252,7 +255,11 @@ class Controller:
                     "Administrator must provision the approved read-only secrets volume.",
                 )
             else:
-                check("secrets", "ready", "Approved secret-volume labels are verified.")
+                check(
+                    "secrets", "managed",
+                    "Secret volume labels verified; file delivery and rotation "
+                    "must be confirmed by the host administrator.",
+                )
         else:
             check("secrets", "ready", "No credentials are requested.")
 
