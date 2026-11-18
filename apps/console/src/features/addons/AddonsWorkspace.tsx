@@ -98,6 +98,16 @@ type CredentialInventory = {
     delivery: { status: string; delivered_revision: number | null };
   }>;
 };
+type UpgradeAssessment = {
+  addon_id: string;
+  from: { version: string | null; image: string | null };
+  to: { version: string; image: string };
+  can_execute: boolean;
+  backup_required: boolean;
+  rollback_supported: boolean;
+  checks: Array<{ name: string; status: string; explanation: string }>;
+  reason: string;
+};
 type PreflightReport = {
   addon_id: string;
   can_submit: boolean;
@@ -140,6 +150,7 @@ export function AddonsWorkspace() {
   const [desiredItems, setDesiredItems] = useState<DesiredAddon[]>([]);
   const [setupAddon, setSetupAddon] = useState<string | null>(null);
   const [preflight, setPreflight] = useState<PreflightReport | null>(null);
+  const [upgrade, setUpgrade] = useState<UpgradeAssessment | null>(null);
   const [credentialInventory, setCredentialInventory] = useState<CredentialInventory | null>(null);
 
   const refresh = useCallback(async () => {
@@ -277,6 +288,21 @@ export function AddonsWorkspace() {
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Add-on operation failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function inspectUpgrade(item: Addon) {
+    setBusyId(item.id);
+    setError(null);
+    try {
+      const report = await api<UpgradeAssessment>(
+        "/api/admin/addons/" + encodeURIComponent(item.id) + "/controller/upgrade"
+      );
+      setUpgrade(report);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upgrade review unavailable");
     } finally {
       setBusyId(null);
     }
@@ -469,6 +495,11 @@ export function AddonsWorkspace() {
                   </button>
                   <button className="btn btn-ghost" type="button"
                     disabled={busyId != null}
+                    onClick={() => void inspectUpgrade(item)}>
+                    Review upgrade
+                  </button>
+                  <button className="btn btn-ghost" type="button"
+                    disabled={busyId != null}
                     onClick={() => void inspectCredentials(item)}>
                     Credential status
                   </button>
@@ -505,6 +536,33 @@ export function AddonsWorkspace() {
         ))}
       </div>
 
+      {upgrade ? (
+        <section className="models-panel" aria-label="Upgrade readiness">
+          <div className="panel-head">
+            <h2>Upgrade assessment: {upgrade.addon_id}</h2>
+            <button className="btn btn-ghost" type="button"
+              onClick={() => setUpgrade(null)}>Close</button>
+          </div>
+          <p className="entity-meta">
+            Current: {upgrade.from.version ?? "unknown"} · Proposed: {upgrade.to.version}
+          </p>
+          <p className="message-error" role="status">
+            Upgrade execution is blocked: {upgrade.reason}
+          </p>
+          <div className="addons-checks">
+            {upgrade.checks.map((item) => (
+              <div key={item.name} className="addons-check">
+                <strong>{item.status}</strong>
+                <span>{item.name}: {item.explanation}</span>
+              </div>
+            ))}
+          </div>
+          <p className="entity-meta">
+            Backup required: {upgrade.backup_required ? "yes" : "no"}
+            {" · "}Verified rollback available: {upgrade.rollback_supported ? "yes" : "no"}
+          </p>
+        </section>
+      ) : null}
       {credentialInventory ? (
         <section className="models-panel" aria-label="Credential status">
           <div className="panel-head">
