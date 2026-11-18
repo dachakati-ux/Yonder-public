@@ -1,7 +1,9 @@
 """Read-only upgrade assessments must not execute Docker or mutate data."""
 from __future__ import annotations
 
+import hashlib
 import json
+from datetime import UTC, datetime
 
 import pytest
 from controller.engine import Controller
@@ -134,3 +136,54 @@ def test_running_release_cannot_be_reinstalled_as_disguised_upgrade(tmp_path):
             "replacement-bypass-123", "demo-addon", "install", plan
         )
     assert controller.jobs.desired()[0]["version"] == "1.0.0"
+
+
+@pytest.mark.asyncio
+async def test_stateful_backup_integrity_is_reported_but_never_enables_upgrade(
+    tmp_path, monkeypatch
+):
+    backups = tmp_path / "offline-backups"
+    root = backups / "demo-addon"
+    root.mkdir(parents=True, mode=0o700)
+    data = b"quiesced-sample-data-for-restore"
+    (root / "database.dump").write_bytes(data)
+    (root / "manifest.json").write_text(json.dumps({
+        "schema_version": 1,
+        "addon_id": "demo-addon",
+        "version": "1.0.0",
+        "image": IMAGE,
+        "created_at": datetime.now(UTC).isoformat(),
+        "source_quiesced": True,
+        "backup_kind": "database_export",
+        "files": [{
+            "name": "database.dump",
+            "size": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        }],
+    }))
+    monkeypatch.setenv("YONDER_CONTROLLER_STATEFUL_BACKUP_ROOT", str(backups))
+    approved = tmp_path / "approved.json"
+    approved.write_text(json.dumps({
+        "schema_version": 1,
+        "deployments": [{
+            "addon_id": "demo-addon",
+            "version": "2.0.0",
+            "image": NEXT_IMAGE,
+            "data_volume": True,
+        }],
+    }))
+    engine = Controller(approved, tmp_path / "jobs.db", adapter=FakeDocker())
+    engine.jobs.set_desired("demo-addon", "1.0.0", IMAGE, "running")
+    assessed = await engine.upgrade_assessment("demo-addon")
+    assert assessed["backup_integrity"] == "verified_contents_only"
+    assert assessed["can_execute"] is False
+    assert next(
+        item for item in assessed["checks"] if item["name"] == "offline_backup"
+    )["status"] == "ready"
+    (root / "database.dump").write_bytes(b"tampered")
+    second = await engine.upgrade_assessment("demo-addon")
+    assert second["backup_integrity"] == "not_verified"
+    assert next(
+        item for item in second["checks"] if item["name"] == "offline_backup"
+    )["status"] == "blocked"
+    assert second["can_execute"] is False
