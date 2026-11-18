@@ -471,6 +471,27 @@ Status: planned | in_progress | draft_implemented | verified | released
 - [ ] Publisher-signed contract provenance, application-level schema/data validation, reversible/destructive migration planning, durable migration receipts, multi-store workflows and real-host fault injection remain release gates.
 - [Guide](sqlite-migration-rehearsal.md) · [M02 issue #7](https://github.com/dachakati-ux/Yonder-public/issues/7).
 
+### M02.8 signed migration and durable rehearsal journal — 2026-11-18
+
+- [x] Draft detached Ed25519 migration attestation binds the reviewed
+  canonical contract, old/new immutable image/version and exact source
+  backup manifest digest. Revoked, expired or untrusted publisher keys
+  fail verification. Signing uses offline admin-held private keys.
+- [x] Offline rehearsal CLI now **requires** the trusted signature and
+  a durable SQLite journal. Completed runs record the contract, backup,
+  target image and sandbox checksum. Restart-interrupted runs cannot
+  auto-resume or be recorded as passed.
+- [x] Operator CLI can inspect rehearsal metadata without altering active
+  runs, or explicitly acknowledge an interrupted record without
+  upgrading its result to success.
+- [x] Upgrade readiness now reports **signed migration verification**
+  separately from unsigned identity checks and content-valid backups.
+- [ ] Tamper-resistant centralized audit records, application compatibility,
+  live production data migrations, database-specific recovery, multi-host
+  orchestration and real-host fault tests remain incomplete. Stateful
+  `can_execute` stays false.
+- [Guide](sqlite-migration-rehearsal.md) · [M02 issue #7](https://github.com/dachakati-ux/Yonder-public/issues/7).
+
 ## Immediate next sub-goal
 
 **M02.9 — Credential lifecycle hardening:** finalize scoped offline credential
