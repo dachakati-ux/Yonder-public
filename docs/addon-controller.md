@@ -574,3 +574,41 @@ runtime delivery as `not_implemented` to prevent that confusion.
 This module is a stepping stone toward a dedicated scoped secret broker with
 explicit mount/rotation/revocation semantics, not a production-approved
 enterprise credential manager.
+
+
+### Credential audit and encrypted backups
+
+Local credential `set` and `revoke` operations now write audit events
+containing only add-on ID, credential name, action, revision, timestamp and
+the local process UID. **They never store the secret value in audit events.**
+This is a local administrative audit ledger, not yet an immutable central
+institutional audit log; privileged host users can still modify the database.
+
+```bash
+cd apps/addon-controller
+
+python credentials_cli.py \
+  --key-file /secure/yonder/credentials.key \
+  --database /secure/yonder/credentials.db \
+  audit convyx
+
+python credentials_cli.py \
+  --key-file /secure/yonder/credentials.key \
+  --database /secure/yonder/credentials.db \
+  backup /secure/backups/yonder-credentials-2026-11-18.db
+```
+
+The backup uses SQLite's online backup API, is created with restrictive file
+permissions, and refuses to overwrite an existing file. It includes only the
+encrypted credential database and local metadata/audit events. It does
+**not** include the master key. Back up that key separately with an
+institution-approved secret recovery procedure and test restoration on
+a copy before relying on these backups.
+
+Per-credential replacement increments a revision and revocation invalidates
+the active record, but external systems may still accept previously issued
+tokens. Revoke or rotate those tokens at their provider as well.
+
+**Unimplemented:** atomic master-key rotation, external KMS, secure runtime
+credential delivery, automated expiry schedules, vault unseal/recovery,
+immutable remote audit retention and integrated institutional approvals.
