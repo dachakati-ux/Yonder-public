@@ -66,3 +66,28 @@ jobs:
       - name: Lint framework sources
         run: |
           uv run ruff check apps/gateway/app/services/addon_contract.py apps/gateway/app/services/addons.py apps/gateway/app/api/addons.py apps/gateway/app/services/addon_service.py apps/gateway/app/services/addon_service_registry.py
+
+  addon-controller:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install Python
+        run: uv python install 3.12
+      - name: Sync dependency workspace
+        run: uv sync --all-packages --group dev
+      - name: Test standalone controller
+        run: |
+          cd apps/addon-controller
+          uv run pytest -q tests/
+      - name: Lint controller and gateway bridge
+        run: |
+          uv run ruff check apps/addon-controller/controller/ apps/addon-controller/tests/ apps/gateway/app/services/addon_controller_client.py
+      - name: Type-check Add-ons UI
+        run: |
+          cd apps/console
+          npm ci
+          npx tsc --noEmit
