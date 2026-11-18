@@ -86,6 +86,7 @@ class Controller:
         job = self.jobs.get(job_id)
         if job is None:
             return
+        deployment: ApprovedDeployment | None = None
         try:
             self.jobs.transition(job_id, "preflight")
             action = job["action"]
