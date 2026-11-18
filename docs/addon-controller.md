@@ -112,3 +112,24 @@ uv run ruff check controller/ tests/
 ```
 
 No Docker daemon is needed for the tests.
+
+
+## Recovery after an interrupted operation
+
+An interrupted job is a **blocking state**, not a warning. The controller
+will reject another operation for the same add-on until review.
+
+1. Open Yonder Add-ons and locate the `interrupted` job.
+2. Click **Review interrupted job**. The Gateway asks the controller to inspect
+   the actual Docker container on its host. A failed Docker connection or
+   unowned container is not treated as an absent deployment.
+3. Inspect the actual service state and its data using approved host tools.
+4. Confirm the exact observed state: `running`, `stopped`, or
+   `not_deployed`. The controller rechecks immediately before acknowledging.
+5. The job becomes `acknowledged`; a **new** reviewed plan and idempotency
+   key are required to retry. Acknowledgment never silently replays the job.
+
+This is a first recovery barrier, **not** transactional rollback. If a
+migration changed persistent data, recover it from a tested backup before
+performing further operations. A collision with an unowned container must be
+resolved by an administrator outside the controller.
