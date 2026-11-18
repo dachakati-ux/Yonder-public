@@ -402,6 +402,24 @@ Status: planned | in_progress | draft_implemented | verified | released
   explicit approval for destructive infrastructure/data operations.
 - Update this roadmap when the scope or accepted test evidence changes.
 
+## Progress evidence — 2026-11-18
+
+- **M01.6 (partial):** all 25 reported Python Ruff lint findings were
+  corrected on `feature/addon-controller` without suppressing checks. The
+  Gateway and worker test suites progressed to Console tests. The full
+  release-wide job remains a separate gate until every stage—including the
+  Next.js production build—passes.
+- **M02.9 (draft):** encrypted credential inventory and scoped offline
+  delivery now have recorded delivery revisions; the UI distinguishes
+  `never_delivered`, `delivered_unverified`, `stale_delivery`,
+  `revoked_cleanup_required`, and `revoked_removed`. These receipts
+  describe local file operations, not confirmation that the add-on process
+  loaded the secret or that its provider accepted the credential.
+- **Tracking:** [M01 #6](https://github.com/dachakati-ux/Yonder-public/issues/6)
+  and [M02 #7](https://github.com/dachakati-ux/Yonder-public/issues/7).
+- **Remaining:** tests, integrated build verification, a host-level Docker
+  smoke test, and security review before either sub-goal is released.
+
 ## Immediate next sub-goal
 
 **M02.9 — Credential lifecycle hardening:** finalize scoped offline credential
