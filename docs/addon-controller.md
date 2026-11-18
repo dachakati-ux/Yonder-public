@@ -732,3 +732,33 @@ Before enabling the upgrade action, implement and test these gates:
 
 This is the roadmap's **M02.8** foundation; it must not be marked complete
 until the gates above are actually implemented and verified.
+
+
+## Publisher-key revocation and expiration — draft M02.7
+
+The local trusted publisher policy now accepts optional fields
+`"revoked": true|false` and `"not_after_utc": "<timezone-aware ISO timestamp>"`
+per Ed25519 public key. The installer rejects revoked keys and releases
+signed after a key's expiration window (checked against controller UTC time)
+even when the cryptographic signature itself is valid. Missing expiration
+preserves backward compatibility for existing operator-managed trust files,
+but institutional policies should explicitly require limited lifetimes.
+
+Example trust entry:
+
+```json
+{
+  "key_id": "reviewed-publisher-2026",
+  "public_key_ed25519_base64": "REPLACE_WITH_REAL_32_BYTE_BASE64_KEY",
+  "revoked": false,
+  "not_after_utc": "2027-11-18T00:00:00+00:00"
+}
+```
+
+On suspected compromise, an administrator must revoke the key in the local
+trusted-publisher file and reload/restart the controller as appropriate.
+This blocks **new installations**, but is not a replacement for provider
+incident response or revoking existing application credentials. Rolling out
+revocation to multiple controller hosts, signed timestamp transparency,
+publisher trust-root rotation and previously installed-image remediation
+remain future work.
