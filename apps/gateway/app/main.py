@@ -55,6 +55,7 @@ from app.services.chat import ChatService
 from app.services.coder_workspace import CoderWorkspaceService
 from app.services.generation_jobs import GenerationJobService
 from app.services.lifecycle import LifecycleService
+from app.services.model_install import DownloadManager
 from app.services.mcp_client import McpClientManager
 from app.services.rag import LexicalRetriever, RagStore, seed_lab_corpus
 from app.services.speech import SpeechService
@@ -179,6 +180,7 @@ def create_app() -> FastAPI:
     app.state.state_store = state_store
     app.state.providers = build_provider_registry(settings)
     app.state.model_definitions = build_model_definitions(settings)
+    app.state.model_installs = DownloadManager(Path("/app/data/models"))
     app.state.routes = build_route_registry(settings, app.state.model_definitions)
     # Overlay durable alias/deployment state from previous runs.
     state_store.load_into(app.state.routes)
