@@ -101,5 +101,5 @@ def test_group_writable_policy_rejected(tmp_path):
     if os.name != "posix":
         pytest.skip("POSIX permissions required")
     os.chmod(trust, 0o666)
-    with pytest.raises(ReleaseTrustError, match="release policy"):
+    with pytest.raises(ReleaseTrustError, match="trust policy"):
         verify_release(deployment, release, trust)
