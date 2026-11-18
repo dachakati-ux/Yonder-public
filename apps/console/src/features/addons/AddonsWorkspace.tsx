@@ -60,10 +60,13 @@ type DeploymentPlan = {
   schema_version: number;
   addon_id: string;
   version: string;
-  action: "install" | "remove";
+  action: "install" | "remove" | "upgrade";
   adapter: string;
   image: string;
   image_acquisition: "preloaded" | "signed_pull";
+  previous?: { version: string; image: string };
+  upgrade_strategy?: string;
+  rollback_container_retained?: boolean;
   limits: { memory_mb: number; cpus: number; pids: number; network: string };
   plan_sha256: string;
   configuration: {
@@ -193,7 +196,9 @@ export function AddonsWorkspace() {
     return () => { active = false; window.clearInterval(timer); };
   }, []);
 
-  async function manageService(item: Addon, action: "install" | "remove") {
+  async function manageService(
+    item: Addon, action: "install" | "remove" | "upgrade"
+  ) {
     setBusyId(item.id);
     try {
       if (action === "install") {
@@ -214,6 +219,12 @@ export function AddonsWorkspace() {
         "APPROVE " + action.toUpperCase() + ": " + item.name,
         "Image: " + plan.image,
         "Image acquisition: " + plan.image_acquisition,
+        ...(plan.previous ? [
+          "Previous version: " + plan.previous.version,
+          "Previous image: " + plan.previous.image,
+          "Upgrade strategy: " + plan.upgrade_strategy,
+          "Previous container retained: " + (plan.rollback_container_retained ? "Yes" : "No"),
+        ] : []),
         "Version: " + plan.version,
         "Memory: " + plan.limits.memory_mb + " MiB",
         "CPU limit: " + plan.limits.cpus,
@@ -547,7 +558,9 @@ export function AddonsWorkspace() {
             Current: {upgrade.from.version ?? "unknown"} · Proposed: {upgrade.to.version}
           </p>
           <p className="message-error" role="status">
-            Upgrade execution is blocked: {upgrade.reason}
+            {upgrade.can_execute
+              ? "Experimental stateless upgrade: " + upgrade.reason
+              : "Upgrade execution is blocked: " + upgrade.reason}
           </p>
           <div className="addons-checks">
             {upgrade.checks.map((item) => (
@@ -559,8 +572,20 @@ export function AddonsWorkspace() {
           </div>
           <p className="entity-meta">
             Backup required: {upgrade.backup_required ? "yes" : "no"}
-            {" · "}Verified rollback available: {upgrade.rollback_supported ? "yes" : "no"}
+            {" · "}Staged recovery supported: {upgrade.rollback_supported ? "yes" : "no"}
           </p>
+          {upgrade.can_execute ? (
+            <button className="btn btn-primary" type="button"
+              disabled={busyId != null}
+              onClick={() => {
+                const addon = catalog?.addons.find(
+                  (item) => item.id === upgrade.addon_id
+                );
+                if (addon) void manageService(addon, "upgrade");
+              }}>
+              Approve experimental stateless upgrade
+            </button>
+          ) : null}
         </section>
       ) : null}
       {credentialInventory ? (
