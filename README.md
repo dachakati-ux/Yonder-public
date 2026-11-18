@@ -140,6 +140,19 @@ make worker    # http://127.0.0.1:8090
 make console   # http://127.0.0.1:3000
 ```
 
+## Project Goal & Milestone Tracker
+
+**End goal:** Yonder 1.0 — an accessible, modular self-hosted AI platform for
+individuals, developers, schools, and businesses.
+
+The [Master Roadmap](docs/yonder-master-roadmap.md) is the planning source of
+truth for milestone IDs (M01–M08), sub-goals, dependencies, acceptance criteria,
+draft PR scope, and release gates. Each coding-agent handoff should reference a
+specific sub-goal and provide test evidence. Draft implementation does not
+mean released or production-ready.
+
+---
+
 ## Documentation Index
 
 * [Step-by-Step Deploy & Quick-Start Guide](docs/quickstart.md)
