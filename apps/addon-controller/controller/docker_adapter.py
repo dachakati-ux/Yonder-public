@@ -225,6 +225,120 @@ class DockerAdapter:
             await self._run("rm", "--force", name)
             raise DockerError("The new add-on container did not stay running")
 
+    @staticmethod
+    def _upgrade_names(addon_id: str, job_id: str) -> tuple[str, str, str]:
+        if not re.fullmatch(r"[a-f0-9-]{36}", job_id):
+            raise DockerError("Invalid upgrade job identity")
+        base = CONTAINER_PREFIX + addon_id
+        suffix = job_id[:8]
+        return base, base + "-stage-" + suffix, base + "-rollback-" + suffix
+
+    async def stage_stateless(self, deployment: ApprovedDeployment, job_id: str) -> str:
+        """Create a restricted, isolated candidate; leave the old service untouched."""
+        if (
+            deployment.data_volume or deployment.secret_volume
+            or deployment.network != "none"
+        ):
+            raise DockerError("Only isolated stateless upgrades may be staged")
+        _, candidate, _ = self._upgrade_names(deployment.addon_id, job_id)
+        if await self._inspect(candidate) is not None:
+            raise DockerError("Staging name already exists; manual review required")
+        await self.preflight(deployment)
+        args: list[str] = []
+        for key, value in sorted(deployment.public_settings.items()):
+            args.extend(("--env", f"{key}={value}"))
+        output = await self._run(
+            "run", "--detach", "--name", candidate,
+            "--label", f"{OWNER_LABEL}=true",
+            "--label", f"{DOCKER_LABEL}={deployment.addon_id}",
+            "--label", f"io.yonder.stage={job_id}",
+            "--read-only", "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges",
+            "--pids-limit", str(deployment.pids_limit),
+            "--memory", f"{deployment.memory_mb}m",
+            "--cpus", str(deployment.cpus),
+            "--network", "none", "--restart", "no",
+            "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+            *args, deployment.image,
+        )
+        if not HEX_ID.fullmatch(output):
+            raise DockerError("Staged container identity not verified")
+        found = await self._inspect(candidate)
+        if (
+            found is None or not self._owned(found, deployment.addon_id)
+            or (found.get("Config", {}).get("Labels") or {}).get(
+                "io.yonder.stage"
+            ) != job_id
+            or found.get("Config", {}).get("Image") != deployment.image
+            or not found.get("State", {}).get("Running")
+        ):
+            raise DockerError("Staged container provenance/health could not be verified")
+        return candidate
+
+    async def cutover_stateless(
+        self, deployment: ApprovedDeployment, old_image: str, job_id: str
+    ) -> str:
+        """Rename only verified owned containers; preserve old release stopped."""
+        canonical, candidate, rollback = self._upgrade_names(
+            deployment.addon_id, job_id
+        )
+        existing = await self._inspect(canonical)
+        staged = await self._inspect(candidate)
+        if (
+            existing is None or not self._owned(existing, deployment.addon_id)
+            or existing.get("Config", {}).get("Image") != old_image
+            or not existing.get("State", {}).get("Running")
+        ):
+            raise DockerError("Existing release identity changed; cutover denied")
+        if (
+            staged is None or not self._owned(staged, deployment.addon_id)
+            or staged.get("Config", {}).get("Image") != deployment.image
+            or (staged.get("Config", {}).get("Labels") or {}).get(
+                "io.yonder.stage"
+            ) != job_id
+            or not staged.get("State", {}).get("Running")
+        ):
+            raise DockerError("Staged release identity changed; cutover denied")
+        if await self._inspect(rollback) is not None:
+            raise DockerError("Rollback name collision; manual review required")
+        await self._run("stop", "--time", "10", canonical)
+        await self._run("rename", canonical, rollback)
+        # An interrupted rename is NOT retried automatically: review job state.
+        await self._run("rename", candidate, canonical)
+        return rollback
+
+    async def restore_stateless(
+        self, deployment: ApprovedDeployment, old_image: str, job_id: str
+    ) -> None:
+        """Best-effort restoration for a post-cutover health failure.
+
+        Never delete the old release. On errors, the controller must block
+        further jobs and require manual review.
+        """
+        canonical, candidate, rollback = self._upgrade_names(
+            deployment.addon_id, job_id
+        )
+        old = await self._inspect(rollback)
+        new = await self._inspect(canonical)
+        if (
+            old is None or not self._owned(old, deployment.addon_id)
+            or old.get("Config", {}).get("Image") != old_image
+            or new is None or not self._owned(new, deployment.addon_id)
+            or new.get("Config", {}).get("Image") != deployment.image
+        ):
+            raise DockerError("Cannot verify both releases for safe recovery")
+        await self._run("stop", "--time", "10", canonical)
+        await self._run("rename", canonical, candidate)
+        await self._run("rename", rollback, canonical)
+        await self._run("start", canonical)
+        returned = await self._inspect(canonical)
+        if (
+            returned is None or not self._owned(returned, deployment.addon_id)
+            or returned.get("Config", {}).get("Image") != old_image
+            or not returned.get("State", {}).get("Running")
+        ):
+            raise DockerError("Original release was not verified after recovery")
+
     async def remove(self, deployment: ApprovedDeployment) -> None:
         name = CONTAINER_PREFIX + deployment.addon_id
         existing = await self._inspect(name)
@@ -234,9 +348,13 @@ class DockerAdapter:
             raise DockerError("Refusing to remove an unowned container")
         await self._run("rm", "--force", name)
 
-    async def readiness(self, deployment: ApprovedDeployment) -> str:
+    async def readiness(
+        self, deployment: ApprovedDeployment, container_name: str | None = None
+    ) -> str:
         """Inspect trusted Docker state; optional image-defined HEALTHCHECK."""
-        actual = await self._inspect(CONTAINER_PREFIX + deployment.addon_id)
+        actual = await self._inspect(
+            container_name or CONTAINER_PREFIX + deployment.addon_id
+        )
         if actual is None:
             return "not_deployed"
         if not self._owned(actual, deployment.addon_id):
