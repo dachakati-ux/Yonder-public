@@ -212,7 +212,7 @@ async def test_failed_readiness_removes_only_new_container(tmp_path):
     result = engine.jobs.get(job["id"])
     assert result["status"] == "failed"
     assert "new container removed" in result["message"]
-    assert adapter.actions == ["preflight", "preflight", "install", "remove"]
+    assert adapter.actions == ["preflight", "install", "remove"]
 
 
 @pytest.mark.asyncio
