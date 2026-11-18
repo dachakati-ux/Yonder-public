@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { GATEWAY_URL } from "@/lib/brand";
+import { AddonSetupWizard } from "@/features/addons/AddonSetupWizard";
 
 type Addon = {
   id: string;
@@ -119,6 +120,7 @@ export function AddonsWorkspace() {
   const [controller, setController] = useState<ControllerStatus | null>(null);
   const [deployments, setDeployments] = useState<ControllerJob[]>([]);
   const [desiredItems, setDesiredItems] = useState<DesiredAddon[]>([]);
+  const [setupAddon, setSetupAddon] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -400,6 +402,11 @@ export function AddonsWorkspace() {
               {controller?.available && item.status === "installed" &&
                 controller.deployments.some((entry) => entry.addon_id === item.id) ? (
                 <>
+                  <button className="btn btn-ghost" type="button"
+                    disabled={busyId != null}
+                    onClick={() => setSetupAddon(item.id)}>
+                    Configure
+                  </button>
                   <button className="btn" type="button"
                     disabled={busyId != null}
                     onClick={() => void manageService(item, "install")}>
@@ -427,6 +434,10 @@ export function AddonsWorkspace() {
           </article>
         ))}
       </div>
+
+      {setupAddon ? (
+        <AddonSetupWizard addonId={setupAddon} onClose={() => setSetupAddon(null)} />
+      ) : null}
 
       <section className="models-panel" aria-label="Add-on controller">
         <h2>Deployment controller</h2>
