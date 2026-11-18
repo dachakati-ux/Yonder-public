@@ -21,7 +21,7 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        journal = MigrationJournal(args.journal)
+        journal = MigrationJournal(args.journal, recover_on_init=False)
         record = journal.get(args.id)
         if record is None:
             raise JournalError("Migration rehearsal ID not found")
