@@ -83,6 +83,10 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"plan": result}
 
+    @app.get("/v1/inventory", dependencies=[Depends(authenticate)])
+    async def inventory():
+        return {"items": await engine.inventory(), "automatic_repair": False}
+
     @app.get("/v1/jobs", dependencies=[Depends(authenticate)])
     async def jobs():
         return {"jobs": engine.jobs.list()}
