@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "security-insights",
+  "name": "Security Insights",
+  "version": "0.1.0",
+  "category": "security",
+  "summary": "Read-only security posture review and setup guidance for operators.",
+  "status": "available",
+  "install_mode": "bundled",
+  "permissions": [
+    "operations.view",
+    "operations.manage"
+  ],
+  "requires_restart": false,
+  "docs": "addons/security-insights/README.md",
+  "warning": "This checks selected configuration risks. It is not an authentication provider or a compliance certification."
+}
