@@ -191,9 +191,9 @@ class DownloadManager:
             job["status"] = "installed_unconfigured"
         except asyncio.CancelledError:
             job["status"] = "cancelled"
-        except (OSError, ValueError, httpx.HTTPError) as exc:
+        except Exception as exc:  # noqa: BLE001 — job failures must remain observable
             job["status"] = "failed"
-            job["error"] = str(exc)[:240]
+            job["error"] = f"{type(exc).__name__}: {str(exc)[:160]}"
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
