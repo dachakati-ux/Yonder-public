@@ -24,6 +24,7 @@ from yonder_telemetry import MetricsRegistry, configure_logging, log_event
 
 from app.api import (
     academy_tier2,
+    addons,
     admin,
     chat,
     coder,
@@ -48,6 +49,7 @@ from app.errors import ERROR_STATUS, error_payload
 from app.paths import resolve_repo_root
 from app.persistence import build_persistence
 from app.routing.gate import DeploymentAdmissionGate
+from app.services.addons import AddonRegistry
 from app.services.artifacts import LocalArtifactStore
 from app.services.chat import ChatService
 from app.services.coder_workspace import CoderWorkspaceService
@@ -171,6 +173,10 @@ def create_app() -> FastAPI:
     app.state.metrics = MetricsRegistry(service="yonder-gateway")
     app.state.workers = {}
     app.state.event_store = persistence.events
+    app.state.addons = AddonRegistry(
+        resolve_repo_root() / "addons", Path("/app/data/addons-state.json")
+        if Path("/app/data").exists() else Path("data/addons-state.json")
+    )
     app.state.request_ledger = persistence.request_ledger
     app.state.accepting_requests = True
     app.state.persistence = persistence
@@ -469,6 +475,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(ops.router)
     app.include_router(admin.router)
+    app.include_router(addons.router)
     app.include_router(workers.router)
     app.include_router(chat.router)
     app.include_router(v1.router)
