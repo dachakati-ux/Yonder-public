@@ -251,6 +251,32 @@ async def controller_credentials(addon_id: str, request: Request):
         )
 
 
+@router.get("/{addon_id}/controller/upgrade")
+async def controller_upgrade_preview(addon_id: str, request: Request):
+    denied = _authorize(request, "operations.manage")
+    if denied:
+        return denied
+    if not _deployable(request, addon_id):
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Add-on must be installed and compatible.",
+            get_request_id(request),
+        )
+    client = _controller(request)
+    if client is None:
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Controller is not configured.",
+            get_request_id(request),
+        )
+    try:
+        return await client.request("GET", f"/v1/upgrades/{addon_id}")
+    except ControllerUnavailable:
+        return error_response(
+            ErrorCode.INVALID_REQUEST,
+            "Upgrade assessment is unavailable; no changes were made.",
+            get_request_id(request),
+        )
+
+
 @router.get("/{addon_id}/controller/preflight")
 async def controller_preflight(addon_id: str, request: Request):
     denied = _authorize(request, "operations.manage")
