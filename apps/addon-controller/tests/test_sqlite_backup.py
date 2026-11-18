@@ -42,6 +42,10 @@ def test_native_snapshot_handles_wal_and_is_restorable(tmp_path):
         output, addon_id="sqlite-addon", version="1.0.0", image=IMAGE,
     )
     assert verified["file_count"] == 1
+    # Verification must be read-only, not create WAL/SHM files in a sealed bundle.
+    assert sorted(item.name for item in output.iterdir()) == [
+        "database.sqlite3", "manifest.json",
+    ]
     sandbox = tmp_path / "sandbox"
     sandbox.mkdir(mode=0o700)
     os.chmod(sandbox, 0o700)
