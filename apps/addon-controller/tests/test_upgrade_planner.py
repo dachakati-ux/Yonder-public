@@ -6,6 +6,7 @@ import json
 import pytest
 from controller.engine import Controller
 from controller.models import ApprovedDeployment
+from controller.store import JobConflict
 from controller.upgrade_planner import UpgradePolicy, assess_upgrade
 from pydantic import ValidationError
 
