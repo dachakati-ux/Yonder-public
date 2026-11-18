@@ -144,3 +144,19 @@ async def test_stage_rejects_volumes_and_networked_services():
 def test_stage_rejects_untrusted_job_identifier():
     with pytest.raises(DockerError, match="Invalid upgrade job"):
         RecordingUpgradeDocker()._upgrade_names(ADDON, "../outside")
+
+
+@pytest.mark.asyncio
+async def test_upgrade_recovery_requires_old_running_and_no_candidate_artifacts():
+    docker = RecordingUpgradeDocker()
+    assert await docker.upgrade_recovery_clean(approved(), OLD_IMAGE, JOB)
+    stage = await docker.stage_stateless(approved(), JOB)
+    assert not await docker.upgrade_recovery_clean(approved(), OLD_IMAGE, JOB)
+    await docker.discard_stateless_stage(approved(), JOB)
+    assert stage not in docker.containers
+    assert await docker.upgrade_recovery_clean(approved(), OLD_IMAGE, JOB)
+    docker.containers[CANONICAL]["State"]["Running"] = False
+    assert not await docker.upgrade_recovery_clean(approved(), OLD_IMAGE, JOB)
+    docker.containers[CANONICAL]["State"]["Running"] = True
+    docker.containers[CANONICAL]["Config"]["Image"] = NEW_IMAGE
+    assert not await docker.upgrade_recovery_clean(approved(), OLD_IMAGE, JOB)
