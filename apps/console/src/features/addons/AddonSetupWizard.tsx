@@ -128,7 +128,9 @@ export function AddonSetupWizard({
                           }));
                         }}
                       >
-                        {!field.required ? <option value="">Not set</option> : null}
+                        <option value="" disabled={field.required}>
+                          {field.required ? "Choose an option" : "Not set"}
+                        </option>
                         {(field.kind === "boolean" ? ["true", "false"] : field.choices)
                           .map((choice) => (
                             <option key={choice} value={choice}>{choice}</option>
