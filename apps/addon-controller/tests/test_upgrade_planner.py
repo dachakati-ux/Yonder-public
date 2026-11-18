@@ -113,3 +113,23 @@ def test_unknown_migration_policy_blocks_without_guessing():
         and "no reviewed" in row["explanation"]
         for row in result["checks"]
     )
+
+
+def test_running_release_cannot_be_reinstalled_as_disguised_upgrade(tmp_path):
+    approved = tmp_path / "approved.json"
+    approved.write_text(json.dumps({
+        "schema_version": 1,
+        "deployments": [{
+            "addon_id": "demo-addon",
+            "version": "2.0.0",
+            "image": NEXT_IMAGE,
+        }],
+    }))
+    controller = Controller(approved, tmp_path / "jobs.db", adapter=FakeDocker())
+    controller.jobs.set_desired("demo-addon", "1.0.0", IMAGE, "running")
+    plan = controller.plan("demo-addon", "install")
+    with pytest.raises(JobConflict, match="not an upgrade"):
+        controller.jobs.create(
+            "replacement-bypass-123", "demo-addon", "install", plan
+        )
+    assert controller.jobs.desired()[0]["version"] == "1.0.0"
