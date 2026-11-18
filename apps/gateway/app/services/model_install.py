@@ -111,6 +111,7 @@ class DownloadManager:
     async def _run(self, job: dict[str, object]) -> None:
         temporary: Path | None = None
         folder: Path | None = None
+        created_folder = False
         try:
             job["status"] = "validating"
             repo = str(job["repo"])
@@ -123,8 +124,9 @@ class DownloadManager:
 
             folder = self.root / repo.replace("/", "--") / revision / filename.removesuffix(".gguf")
             # No attacker-controlled subpath; no preexisting symlink directories.
-            if self.root.is_symlink() or any(
-                part.is_symlink() for part in (folder.parent, folder)
+            if any(
+                ancestor.is_symlink()
+                for ancestor in (self.root, self.root / repo.replace("/", "--"), folder.parent, folder)
             ):
                 raise ValueError("Install directory must not use symlinks.")
             if folder.exists():
@@ -134,6 +136,7 @@ class DownloadManager:
             if free < expected_size + max(1024**3, expected_size // 10):
                 raise ValueError("Insufficient disk space for model and safety margin.")
             folder.mkdir(mode=0o700, parents=True, exist_ok=False)
+            created_folder = True
             temporary = folder / (filename + ".partial")
             target = folder / filename
             url = (
@@ -195,5 +198,5 @@ class DownloadManager:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
             # Only remove a directory created by this job when it failed/cancelled.
-            if folder is not None and job["status"] in ("failed", "cancelled"):
+            if created_folder and folder is not None and job["status"] in ("failed", "cancelled"):
                 await asyncio.to_thread(shutil.rmtree, folder, ignore_errors=True)
