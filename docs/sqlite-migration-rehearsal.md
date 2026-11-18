@@ -77,9 +77,11 @@ The runner:
 2. Restores the backup bytes into the **empty sandbox only**.
 3. Opens the restored SQLite file, confirms the declared source
    `PRAGMA user_version`, and runs `PRAGMA integrity_check`.
-4. Executes the allowed schema changes within a single SQLite transaction.
+4. Checks foreign-key integrity and records row counts for all tables named
+   by the contract, then executes allowed schema changes within one SQLite transaction.
    A failed statement rolls the transaction back in the sandbox.
-5. Advances `PRAGMA user_version`, commits, checks integrity, and reports
+5. Rechecks database integrity, foreign keys, and preserved row counts.
+   Advances `PRAGMA user_version`, commits, and reports
    the resulting revision with explicit
    `production_migration_allowed=false`.
 
