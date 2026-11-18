@@ -378,3 +378,30 @@ async def test_setup_wizard_persists_and_changes_deployment_plan(tmp_path):
     assert persisted.jobs.get(job["id"])["status"] == "succeeded"
     with pytest.raises(ControllerError, match="Remove the existing"):
         await persisted.configure("demo-addon", {"COURSE": "math", "STUDENTS": "30"})
+
+
+def test_approved_credential_names_are_explicit_and_bound_to_plan():
+    base = ApprovedDeployment(
+        addon_id="demo-addon", image=IMAGE, version="0.1.0",
+        secret_volume=True, credential_names=["SERVICE_TOKEN"],
+    )
+    assert base.plan("install")["configuration"]["credential_names"] == [
+        "SERVICE_TOKEN"
+    ]
+    changed = base.model_copy(update={"credential_names": ["API_KEY"]})
+    assert base.plan("install")["plan_sha256"] != changed.plan("install")["plan_sha256"]
+    with pytest.raises(ValidationError):
+        ApprovedDeployment(
+            addon_id="demo-addon", image=IMAGE, version="0.1.0",
+            credential_names=["SERVICE_TOKEN"],
+        )
+    with pytest.raises(ValidationError):
+        ApprovedDeployment(
+            addon_id="demo-addon", image=IMAGE, version="0.1.0",
+            secret_volume=True, credential_names=["../../secret"],
+        )
+    with pytest.raises(ValidationError):
+        ApprovedDeployment(
+            addon_id="demo-addon", image=IMAGE, version="0.1.0",
+            secret_volume=True, credential_names=["SERVICE_TOKEN", "SERVICE_TOKEN"],
+        )
