@@ -4,9 +4,11 @@ from __future__ import annotations
 import json
 import os
 import sys
+from types import SimpleNamespace
 
 import pytest
 from controller.credential_vault import CredentialVault, create_master_key
+import credentials_cli
 from credentials_cli import main
 
 
@@ -38,7 +40,7 @@ def test_offline_cli_grants_only_declared_credentials(
     monkeypatch.setattr(
         "controller.credential_delivery._volume_details", lambda _: directory
     )
-    monkeypatch.setattr(os, "geteuid", lambda: 0)
+    monkeypatch.setattr(credentials_cli, "os", SimpleNamespace(geteuid=lambda: 0))
     monkeypatch.setattr(
         sys, "argv", [
             "credentials_cli.py", "--database", str(db),
