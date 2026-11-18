@@ -53,8 +53,10 @@ class SetupField(BaseModel):
             raise ValueError("Setup value must be a short string")
         if any(ord(char) < 32 or ord(char) == 127 for char in value):
             raise ValueError("Control characters are forbidden")
-        if self.required and not value:
-            raise ValueError("Required setup value missing")
+        if not value:
+            if self.required:
+                raise ValueError("Required setup value missing")
+            return value
         if self.kind == "choice" and value not in self.choices:
             raise ValueError("Value is not an approved choice")
         if self.kind == "boolean" and value not in ("true", "false"):
