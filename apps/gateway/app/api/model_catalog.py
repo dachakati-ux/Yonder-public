@@ -56,7 +56,11 @@ def _catalog_item(item: dict[str, Any]) -> dict[str, Any]:
         "gated": bool(item.get("gated")),
         "private": bool(item.get("private")),
         "license": next(
-            (tag.split(":", 1)[1] for tag in tags if isinstance(tag, str) and tag.startswith("license:")),
+            (
+                tag.split(":", 1)[1]
+                for tag in tags
+                if isinstance(tag, str) and tag.startswith("license:")
+            ),
             None,
         ),
         "has_gguf": any(
@@ -92,7 +96,10 @@ async def search_catalog(
         return {
             "models": [_catalog_item(m) for m in models if isinstance(m, dict)],
             "source": "huggingface",
-            "note": "Model metadata is remote. Installability and hardware fit are not yet verified.",
+            "note": (
+                "Model metadata is remote. Installability and hardware fit "
+                "are not yet verified."
+            ),
         }
     except (httpx.HTTPError, ValueError) as exc:
         return {
@@ -133,7 +140,10 @@ async def model_details(request: Request, owner: str, name: str):
             "model": _catalog_item(data),
             "gguf_files": files[:100],
             "file_count_truncated": len(files) > 100,
-            "note": "GGUF file sizes are weight-only; runtime overhead and KV cache require extra memory.",
+            "note": (
+                "GGUF file sizes are weight-only; runtime overhead and "
+                "KV cache require extra memory."
+            ),
         }
     except (httpx.HTTPError, ValueError) as exc:
         return {
