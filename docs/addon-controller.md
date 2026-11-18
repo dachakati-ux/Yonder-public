@@ -133,3 +133,95 @@ This is a first recovery barrier, **not** transactional rollback. If a
 migration changed persistent data, recover it from a tested backup before
 performing further operations. A collision with an unowned container must be
 resolved by an administrator outside the controller.
+
+
+## Verified publishers and signed releases
+
+**New release-trust gate:** the opt-in Compose controller now sets
+`YONDER_CONTROLLER_REQUIRE_SIGNATURES=true` by default. This means an
+operator-approved OCI image digest **is not enough** to install it: the
+controller must also verify an Ed25519 signature from an independently
+approved publisher public key.
+
+Each deployed add-on requires three administrator-provisioned, reviewable
+inputs:
+
+1. `config/addon-deployments.json`: exact add-on ID, version, OCI digest and
+   resource/readiness policy. Its contents determine the approval-plan hash.
+2. `config/addon-trust/publishers.json`: publisher IDs and trusted Ed25519
+   public keys. No private signing keys belong on the controller or in Yonder.
+3. `config/addon-releases/<addon-id>.json`: the detached signed descriptor
+   binding that add-on ID, version and OCI image digest to a trusted publisher.
+
+Example trusted key format (the public key string is a placeholder):
+
+```json
+{
+  "schema_version": 1,
+  "publishers": [
+    {
+      "key_id": "yonder-official",
+      "public_key_ed25519_base64": "REPLACE_WITH_REAL_32_BYTE_BASE64_PUBLIC_KEY"
+    }
+  ]
+}
+```
+
+The publisher signs a canonical descriptor consisting of the schema version,
+add-on ID, version, and the exact OCI digest. Use the offline signing utility
+from `apps/addon-controller` on a **trusted release-signing workstation**:
+
+```bash
+python sign_release.py \
+  --addon-id example-addon --version 0.1.0 \
+  --image 'registry.example.org/example@sha256:<full digest>' \
+  --key-id yonder-official \
+  --private-key /secure/offline-ed25519-key.pem \
+  --out /tmp/example-addon.json
+```
+
+Only the **public key** and signed descriptor are distributed to controller
+hosts. The private signing key is kept offline or in a dedicated release
+signing service. Key creation, fingerprint verification, rotation, revocation,
+and publisher trust bootstrapping remain explicit operator responsibilities.
+Never auto-trust a key merely because it came from GitHub.
+
+For local development/tests, signed-release enforcement can be disabled
+explicitly, but that mode must not be used for school or business deployment.
+Approval plans explicitly identify whether publisher verification was enforced.
+
+The signature validates **who approved the precise image digest**. The Docker
+adapter separately checks that the locally available image's `RepoDigests`
+contains that approved reference. The controller currently does **not**
+automatically fetch the OCI image from a registry. This is not yet a complete
+transparency-log-backed software supply-chain or remote update process.
+
+## Readiness and limited rollback
+
+Administrators can set these additional fields in their approved deployment
+record:
+
+```json
+{
+  "readiness": "docker_healthy",
+  "readiness_timeout_seconds": 60,
+  "rollback_on_failed_readiness": true
+}
+```
+
+`docker_healthy` uses the image-defined Docker HEALTHCHECK, not a
+user-provided shell command or URL. The controller requires Docker to report
+`healthy` before marking installation successful; a missing HEALTHCHECK is a
+failure. The simpler `running` mode confirms only that the process is still
+running. Both modes have a bounded readiness timeout.
+
+If a newly installed container fails readiness and rollback is enabled, the
+controller attempts to remove **only the container it just deployed**, after
+checking its Yonder ownership labels. If removal fails, the job remains
+`interrupted` and further operations are blocked until an administrator
+reviews the observed state.
+
+This is **not** database rollback or image-upgrade rollback. Those require
+snapshots, migration guards, backup verification and a stronger deployment
+adapter. No student workloads or multi-tenant infrastructure should be run
+under the current prototype.
