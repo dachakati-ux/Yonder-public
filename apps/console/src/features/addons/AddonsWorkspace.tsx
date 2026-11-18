@@ -50,13 +50,40 @@ type AddonServiceHealth = {
   service?: { version: string; health: string; capabilities: string[] };
 };
 
+type ControllerStatus = {
+  configured: boolean;
+  available?: boolean;
+  deployments: Array<{ addon_id: string; version: string; adapter: string }>;
+};
+type DeploymentPlan = {
+  schema_version: number;
+  addon_id: string;
+  version: string;
+  action: "install" | "remove";
+  adapter: string;
+  image: string;
+  limits: { memory_mb: number; cpus: number; pids: number; network: string };
+  plan_sha256: string;
+  requires_approval: boolean;
+  note: string;
+};
+type ControllerJob = {
+  id: string;
+  addon_id: string;
+  action: string;
+  status: string;
+  message: string;
+};
 type SecurityReport = {
   checks: Array<{ id: string; status: string; message: string }>;
   note: string;
 };
 
-async function api<T>(path: string, method = "GET"): Promise<T> {
-  const response = await fetch(GATEWAY_URL + path, { method, cache: "no-store" });
+async function api<T>(path: string, method = "GET", payload?: object): Promise<T> {
+  const response = await fetch(GATEWAY_URL + path, {
+    method, cache: "no-store",
+    ...(payload ? { headers: { "content-type": "application/json" }, body: JSON.stringify(payload) } : {}),
+  });
   const body = await response.json();
   if (!response.ok) {
     throw new Error(body?.error?.message ?? "Request failed (" + response.status + ")");
@@ -71,6 +98,8 @@ export function AddonsWorkspace() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [serviceHealth, setServiceHealth] = useState<Record<string, AddonServiceHealth>>({});
+  const [controller, setController] = useState<ControllerStatus | null>(null);
+  const [deployments, setDeployments] = useState<ControllerJob[]>([]);
 
   const refresh = useCallback(async () => {
     try {
@@ -85,6 +114,70 @@ export function AddonsWorkspace() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  useEffect(() => {
+    let active = true;
+    async function pollController() {
+      try {
+        const status = await api<ControllerStatus>("/api/admin/addons/controller/status");
+        if (!active) return;
+        setController(status);
+        if (status.configured && status.available) {
+          const result = await api<{ jobs: ControllerJob[] }>(
+            "/api/admin/addons/controller/jobs"
+          );
+          if (active) setDeployments(result.jobs);
+        }
+      } catch {
+        if (active) setController({ configured: false, deployments: [] });
+      }
+    }
+    void pollController();
+    const timer = window.setInterval(() => void pollController(), 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  async function manageService(item: Addon, action: "install" | "remove") {
+    setBusyId(item.id);
+    try {
+      const planResult = await api<{ plan: DeploymentPlan }>(
+        "/api/admin/addons/" + encodeURIComponent(item.id) +
+        "/controller/plan?action=" + action
+      );
+      const plan = planResult.plan;
+      const details = [
+        "APPROVE " + action.toUpperCase() + ": " + item.name,
+        "Image: " + plan.image,
+        "Version: " + plan.version,
+        "Memory: " + plan.limits.memory_mb + " MiB",
+        "CPU limit: " + plan.limits.cpus,
+        "Network: " + plan.limits.network,
+        "Plan checksum: " + plan.plan_sha256,
+        "",
+        "This changes Docker containers on the controller host.",
+        "Proceed with this exact approved plan?"
+      ].join("\n");
+      if (!window.confirm(details)) return;
+      const key = crypto.randomUUID().replaceAll("-", "");
+      const result = await api<{ job: ControllerJob }>(
+        "/api/admin/addons/" + encodeURIComponent(item.id) + "/controller/jobs",
+        "POST",
+        {
+          addon_id: item.id,
+          action,
+          plan_sha256: plan.plan_sha256,
+          idempotency_key: key,
+        }
+      );
+      setDeployments((current) => [result.job, ...current]);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Controller rejected deployment");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
 
   useEffect(() => {
     if (!catalog?.addons.some((x) => x.id === "security-insights" && x.status === "installed")) {
@@ -234,6 +327,21 @@ export function AddonsWorkspace() {
               ) : (
                 <button className="btn" type="button" disabled>Not yet available</button>
               )}
+              {controller?.available && item.status === "installed" &&
+                controller.deployments.some((entry) => entry.addon_id === item.id) ? (
+                <>
+                  <button className="btn" type="button"
+                    disabled={busyId != null}
+                    onClick={() => void manageService(item, "install")}>
+                    Deploy service
+                  </button>
+                  <button className="btn btn-ghost" type="button"
+                    disabled={busyId != null}
+                    onClick={() => void manageService(item, "remove")}>
+                    Remove service
+                  </button>
+                </>
+              ) : null}
               {item.service_id && item.status === "installed" ? (
                 <button className="btn btn-ghost" type="button"
                   disabled={busyId != null}
@@ -249,6 +357,29 @@ export function AddonsWorkspace() {
           </article>
         ))}
       </div>
+
+      <section className="models-panel" aria-label="Add-on controller">
+        <h2>Deployment controller</h2>
+        <p className="entity-meta">
+          {controller?.available ? "Controller connected. Reviewed deployment plans can be approved above."
+            : controller?.configured ? "Controller configured but unavailable."
+            : "Controller is optional and currently not connected."}
+        </p>
+        <p className="entity-meta">
+          Only approved image digests can be deployed. Docker is never controlled
+          directly by the browser or Yonder Gateway.
+        </p>
+        {deployments.length ? (
+          <div className="addons-checks">
+            {deployments.slice(0, 12).map((job) => (
+              <div key={job.id} className="addons-check">
+                <strong>{job.status}</strong>
+                <span>{job.addon_id}: {job.action} · {job.message || job.id}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       {security ? (
         <section className="models-panel" aria-label="Security Insights report">
