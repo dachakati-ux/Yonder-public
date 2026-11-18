@@ -225,3 +225,51 @@ This is **not** database rollback or image-upgrade rollback. Those require
 snapshots, migration guards, backup verification and a stronger deployment
 adapter. No student workloads or multi-tenant infrastructure should be run
 under the current prototype.
+
+
+## Opt-in immutable registry acquisition (experimental)
+
+A signed, approved release may now use `"image_acquisition": "signed_pull"`
+instead of the default `"preloaded"`. The controller:
+
+1. Requires `YONDER_CONTROLLER_REQUIRE_SIGNATURES=true` and verifies the
+   Ed25519 descriptor against operator-provisioned public keys.
+2. Checks that the full OCI digest is listed in the approved deployment plan.
+3. Restricts downloads to exact registry hostnames in
+   `YONDER_CONTROLLER_ALLOWED_REGISTRIES` (default: `ghcr.io`).
+4. Pulls **only** the exact image `repository@sha256:<digest>`; never a
+   mutable tag or a browser-supplied URL.
+5. Rechecks Docker's locally reported repository digest before deployment.
+6. Performs the approved readiness check and limited new-container rollback.
+
+Example reviewed deployment entry:
+
+```json
+{
+  "addon_id": "example-addon",
+  "version": "0.1.0",
+  "image": "ghcr.io/example/reviewed-addon@sha256:<64 hex characters>",
+  "image_acquisition": "signed_pull",
+  "network": "none",
+  "readiness": "docker_healthy",
+  "readiness_timeout_seconds": 60,
+  "rollback_on_failed_readiness": true
+}
+```
+
+The host administrator must still approve the publisher key, immutable OCI
+digest, release descriptor, and requested resource limits. Merely appearing in
+GitHub's Add-ons catalog **never** grants installation rights.
+
+This requires the controller host's Docker daemon to reach the approved
+registry. Networked application containers remain disabled by default:
+`network: none` applies to the resulting add-on container, not image pulls
+by the Docker daemon. Private registry authentication and credential
+distribution are **not** implemented. Error messages are intentionally
+sanitized rather than exposing registry responses.
+
+**Limitations:** This is a pinned OCI artifact fetcher, not a general-purpose
+GitHub archive installer or complete software supply chain. Release-signing
+key provisioning is manual, registry/network egress control must be enforced
+outside the process, and deployments still require independent security
+review and real-host testing.
