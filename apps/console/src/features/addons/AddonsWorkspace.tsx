@@ -234,6 +234,44 @@ export function AddonsWorkspace() {
     }
   }
 
+  async function acknowledgeRecovery(job: ControllerJob) {
+    setBusyId(job.id);
+    try {
+      const observed = await api<{ observed_state: string }>(
+        "/api/admin/addons/" + encodeURIComponent(job.addon_id) +
+        "/controller/observed"
+      );
+      const state = observed.observed_state;
+      if (!["running", "stopped", "not_deployed"].includes(state)) {
+        throw new Error("Unsafe or unknown Docker state: " + state);
+      }
+      const confirmed = window.confirm([
+        "An earlier " + job.action + " was interrupted.",
+        "Add-on: " + job.addon_id,
+        "Docker currently reports: " + state,
+        "",
+        "Review the container and any stored data before acknowledging.",
+        "This only unblocks a new deployment plan; it DOES NOT undo changes.",
+        "Acknowledge this observed state?"
+      ].join("\n"));
+      if (!confirmed) return;
+      const response = await api<{ job: ControllerJob }>(
+        "/api/admin/addons/controller/jobs/" + encodeURIComponent(job.id) +
+        "/acknowledge",
+        "POST",
+        { observed_state: state }
+      );
+      setDeployments((current) =>
+        current.map((existing) => existing.id === job.id ? response.job : existing)
+      );
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Recovery review failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function refreshRemote() {
     setBusyId("refresh");
     try {
@@ -374,7 +412,16 @@ export function AddonsWorkspace() {
             {deployments.slice(0, 12).map((job) => (
               <div key={job.id} className="addons-check">
                 <strong>{job.status}</strong>
-                <span>{job.addon_id}: {job.action} · {job.message || job.id}</span>
+                <span>
+                  {job.addon_id}: {job.action} · {job.message || job.id}
+                  {job.status === "interrupted" ? (
+                    <button className="btn btn-ghost" type="button"
+                      disabled={busyId != null}
+                      onClick={() => void acknowledgeRecovery(job)}>
+                      Review interrupted job
+                    </button>
+                  ) : null}
+                </span>
               </div>
             ))}
           </div>
