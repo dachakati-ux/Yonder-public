@@ -13,5 +13,10 @@
   ],
   "requires_restart": true,
   "docs": "addons/workspaces/README.md",
-  "warning": "This is not a secure student VM implementation. No compute is provisioned."
+  "warning": "This is not a secure student VM implementation. No compute is provisioned.",
+  "api_version": 1,
+  "min_core_version": "0.1.0",
+  "max_core_version_exclusive": "1.0.0",
+  "dependencies": [],
+  "config_schema_version": 1
 }
