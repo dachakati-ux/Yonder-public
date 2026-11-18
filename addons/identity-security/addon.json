@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "identity-security",
+  "name": "Identity & SSO",
+  "version": "0.1.0",
+  "category": "security",
+  "summary": "Guided Authentik, Keycloak, Entra and OIDC integration (planned).",
+  "status": "planned",
+  "install_mode": "not_available",
+  "permissions": [
+    "operations.manage"
+  ],
+  "requires_restart": true,
+  "docs": "addons/identity-security/README.md",
+  "warning": "Authentication connectors are not implemented. Yonder Core already requires verified trusted ingress for production."
+}
