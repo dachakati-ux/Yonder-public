@@ -82,3 +82,6 @@ vendor/conversion-tools/wheels/**
 !vendor/conversion-tools/wheels/MANIFEST.sha256
 !vendor/conversion-tools/README.md
 nvidia-*.rpm
+
+# Local update backups contain private configuration and data
+backups/
