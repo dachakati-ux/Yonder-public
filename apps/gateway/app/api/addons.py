@@ -265,3 +265,55 @@ async def controller_create_job(
         )
     _audit(request, addon_id, f"controller.{body.action}.requested")
     return result
+
+
+class RecoveryConfirmation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    observed_state: Literal["running", "stopped", "not_deployed"]
+
+
+@router.get("/{addon_id}/controller/observed")
+async def controller_observed(addon_id: str, request: Request):
+    denied = _authorize(request, "operations.manage")
+    if denied:
+        return denied
+    client = _controller(request)
+    if client is None:
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Controller is not configured.",
+            get_request_id(request),
+        )
+    try:
+        return await client.request("GET", f"/v1/observed/{addon_id}")
+    except ControllerUnavailable:
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Could not verify controller container state.",
+            get_request_id(request),
+        )
+
+
+@router.post("/controller/jobs/{job_id}/acknowledge")
+async def controller_acknowledge(
+    job_id: str, body: RecoveryConfirmation, request: Request
+):
+    denied = _authorize(request, "operations.manage")
+    if denied:
+        return denied
+    client = _controller(request)
+    if client is None:
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Controller is not configured.",
+            get_request_id(request),
+        )
+    try:
+        result = await client.request(
+            "POST", f"/v1/jobs/{job_id}/acknowledge", body.model_dump()
+        )
+    except ControllerUnavailable:
+        return error_response(
+            ErrorCode.INVALID_REQUEST,
+            "Recovery review rejected. Recheck Docker state before approving.",
+            get_request_id(request),
+        )
+    _audit(request, str(result["job"]["addon_id"]), "controller.recovery_acknowledged")
+    return result
