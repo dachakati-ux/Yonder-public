@@ -1,10 +1,10 @@
 """Read-only preflight reports cannot provision anything or bypass setup."""
+
 from __future__ import annotations
 
 import json
 
 import pytest
-
 from controller.docker_adapter import DockerError
 from controller.engine import Controller
 
