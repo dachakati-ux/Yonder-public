@@ -186,6 +186,23 @@ async def controller_status(request: Request):
     return {"configured": True, "available": True, **details}
 
 
+@router.get("/controller/inventory")
+async def controller_inventory(request: Request):
+    denied = _authorize(request, "operations.view")
+    if denied:
+        return denied
+    client = _controller(request)
+    if client is None:
+        return {"configured": False, "items": []}
+    try:
+        return await client.request("GET", "/v1/inventory")
+    except ControllerUnavailable:
+        return error_response(
+            ErrorCode.INVALID_REQUEST, "Add-on controller inventory is unavailable.",
+            get_request_id(request),
+        )
+
+
 @router.get("/controller/jobs")
 async def controller_jobs(request: Request):
     denied = _authorize(request, "operations.view")
