@@ -1,4 +1,5 @@
 """Offline operator command must enforce credential-name grants."""
+
 from __future__ import annotations
 
 import json
@@ -7,8 +8,8 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-from controller.credential_vault import CredentialVault, create_master_key
 import credentials_cli
+from controller.credential_vault import CredentialVault, create_master_key
 from credentials_cli import main
 
 
