@@ -178,6 +178,15 @@ def rehearse_sqlite_migration(
         baseline = db.execute("PRAGMA integrity_check").fetchone()
         if baseline is None or baseline[0] != "ok":
             raise MigrationError("Restored database failed integrity check")
+        if db.execute("PRAGMA foreign_key_check").fetchone() is not None:
+            raise MigrationError("Restored database has broken foreign keys")
+        touched = {step.table for step in contract.steps}
+        before_counts = {
+            table: db.execute(
+                "SELECT COUNT(*) FROM " + _quoted(table)
+            ).fetchone()[0]
+            for table in touched
+        }
         # BEGIN explicitly: all permitted SQLite DDL is transactional.
         try:
             db.execute("BEGIN IMMEDIATE")
@@ -187,6 +196,14 @@ def rehearse_sqlite_migration(
             after = db.execute("PRAGMA integrity_check").fetchone()
             if after is None or after[0] != "ok":
                 raise MigrationError("Migrated database failed integrity check")
+            if db.execute("PRAGMA foreign_key_check").fetchone() is not None:
+                raise MigrationError("Migrated database has broken foreign keys")
+            for table, expected_count in before_counts.items():
+                actual = db.execute(
+                    "SELECT COUNT(*) FROM " + _quoted(table)
+                ).fetchone()[0]
+                if actual != expected_count:
+                    raise MigrationError("Migration changed preserved row counts")
             db.commit()
         except (sqlite3.Error, MigrationError) as exc:
             db.rollback()
@@ -201,6 +218,9 @@ def rehearse_sqlite_migration(
         "source_db_revision": contract.source_db_revision,
         "target_db_revision": contract.target_db_revision,
         "steps_rehearsed": len(contract.steps),
+        "tables_checked": len(before_counts),
+        "row_counts_preserved": True,
+        "foreign_keys_valid": True,
         "backup_integrity": verified["status"],
         "sandbox_integrity": "passed",
         "production_migration_allowed": False,
