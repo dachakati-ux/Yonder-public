@@ -23,7 +23,7 @@ class JournalError(ValueError):
 
 
 class MigrationJournal:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, *, recover_on_init: bool = True):
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         if self.path.is_symlink():
@@ -54,12 +54,13 @@ class MigrationJournal:
                     updated_at TEXT NOT NULL
                 )"""
             )
-            db.execute(
-                "UPDATE migration_rehearsals SET state='interrupted', "
-                "note='Process restarted during rehearsal; manual inspection required', "
-                "updated_at=? WHERE state='running'",
-                (_now(),),
-            )
+            if recover_on_init:
+                db.execute(
+                    "UPDATE migration_rehearsals SET state='interrupted', "
+                    "note='Process restarted during rehearsal; manual inspection required', "
+                    "updated_at=? WHERE state='running'",
+                    (_now(),),
+                )
 
     def _connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path, timeout=20)
