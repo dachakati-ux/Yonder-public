@@ -64,6 +64,9 @@ type DeploymentPlan = {
   image: string;
   limits: { memory_mb: number; cpus: number; pids: number; network: string };
   plan_sha256: string;
+  publisher_verification: string;
+  publisher_key_id?: string;
+  readiness: { mode: string; timeout_seconds: number; rollback_on_failure: boolean };
   requires_approval: boolean;
   note: string;
 };
@@ -152,6 +155,9 @@ export function AddonsWorkspace() {
         "Memory: " + plan.limits.memory_mb + " MiB",
         "CPU limit: " + plan.limits.cpus,
         "Network: " + plan.limits.network,
+        "Publisher: " + plan.publisher_verification + (plan.publisher_key_id ? " (" + plan.publisher_key_id + ")" : ""),
+        "Readiness: " + plan.readiness.mode + " (" + plan.readiness.timeout_seconds + "s)",
+        "Rollback if unhealthy: " + (plan.readiness.rollback_on_failure ? "Yes" : "No"),
         "Plan checksum: " + plan.plan_sha256,
         "",
         "This changes Docker containers on the controller host.",
