@@ -279,3 +279,37 @@ def test_config_and_mounts_included_in_plan_approval_digest():
         version.plan("install")["plan_sha256"] != original
         for version in (a, b, c, d)
     )
+
+
+@pytest.mark.asyncio
+async def test_desired_state_persists_and_detects_drift(tmp_path):
+    adapter = FakeDocker()
+    db = tmp_path / "inventory.db"
+    allowlist = config(tmp_path)
+    engine = Controller(allowlist, db, adapter=adapter)
+    plan = engine.plan("demo-addon", "install")
+    install, _ = await engine.submit(
+        "demo-addon", "install", plan["plan_sha256"], "desired-install-1234"
+    )
+    await engine._tasks[install["id"]]
+    rows = await engine.inventory()
+    assert rows[0]["desired_state"] == "running"
+    assert rows[0]["observed_state"] == "running"
+    assert rows[0]["drift"] is False
+
+    adapter.running.clear()
+    restarted = Controller(allowlist, db, adapter=adapter)
+    rows = await restarted.inventory()
+    assert rows[0]["drift"] is True
+    assert rows[0]["observed_state"] == "not_deployed"
+    # Read-only drift detection must never repair the host.
+    assert adapter.actions == ["preflight", "install"]
+
+    removal = restarted.plan("demo-addon", "remove")
+    job, _ = await restarted.submit(
+        "demo-addon", "remove", removal["plan_sha256"], "desired-remove-1234"
+    )
+    await restarted._tasks[job["id"]]
+    rows = await restarted.inventory()
+    assert rows[0]["desired_state"] == "absent"
+    assert rows[0]["drift"] is False
