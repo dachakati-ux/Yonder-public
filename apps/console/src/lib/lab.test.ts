@@ -33,7 +33,7 @@ describe("Lab client", () => {
 
     expect(result.answer).toBe("ok");
     expect(fetchMock).toHaveBeenCalledOnce();
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toContain("/v1/lab/run");
     expect(JSON.parse(String(init.body))).toEqual({
       ability: "tools",

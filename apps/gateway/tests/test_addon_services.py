@@ -1,4 +1,5 @@
 """Add-on service handshakes are authenticated and reject untrusted endpoints."""
+
 from __future__ import annotations
 
 import json
@@ -6,14 +7,13 @@ import os
 
 import httpx
 import pytest
-from pydantic import ValidationError
-
 from app.services.addon_service import (
     ServiceEndpoint,
     ServiceProbeError,
     probe_service,
 )
 from app.services.addon_service_registry import AddonServiceRegistry
+from pydantic import ValidationError
 
 
 def endpoint(**overrides):

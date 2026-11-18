@@ -850,11 +850,20 @@ class GauntletRunner:
             return
 
         if profile == "chat":
-            self.probe_chat(phase, model, worker_id, mode, gpu_indexes, context_length, deployment_id, alias)
+            self.probe_chat(
+                phase, model, worker_id, mode, gpu_indexes,
+                context_length, deployment_id, alias,
+            )
         elif profile == "embedding":
-            self.probe_embedding(phase, model, worker_id, mode, gpu_indexes, context_length, deployment_id, alias)
+            self.probe_embedding(
+                phase, model, worker_id, mode, gpu_indexes,
+                context_length, deployment_id, alias,
+            )
         elif profile == "rerank":
-            self.probe_rerank(phase, model, worker_id, mode, gpu_indexes, context_length, deployment_id, alias)
+            self.probe_rerank(
+                phase, model, worker_id, mode, gpu_indexes,
+                context_length, deployment_id, alias,
+            )
 
     def _smoke_probe(
         self,
@@ -1631,7 +1640,10 @@ class GauntletRunner:
     def phase_stress(self) -> None:
         self.log("=== phase: fleet stress ===")
         if self.dry_run:
-            self.log("stress scenarios: parallel_host_load, chat_storm_8/16, mixed_profile, two_gpu_pack")
+            self.log(
+                "stress scenarios: parallel_host_load, chat_storm_8/16, "
+                "mixed_profile, two_gpu_pack"
+            )
             return
 
         # Stress scenarios use the locked fleet defaults even if --models

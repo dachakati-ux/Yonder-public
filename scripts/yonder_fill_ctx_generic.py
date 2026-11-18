@@ -112,7 +112,8 @@ def summarize(data: dict) -> str:
     if err or data.get("_http_error"):
         return (
             f"ERR|{data.get('_latency_ms')}|{data.get('_http') or data.get('_http_error')}|"
-            f"{(err or {}).get('code')}|{str((err or {}).get('message', data.get('raw', '')))[:200]}"
+            f"{(err or {}).get('code')}|"
+            f"{str((err or {}).get('message', data.get('raw', '')))[:200]}"
         )
     choice = (data.get("choices") or [{}])[0]
     msg = ((choice.get("message") or {}).get("content") or "").replace("\n", " ")

@@ -19,13 +19,17 @@ import re
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 NOT_REPORTED = "not_reported"
 
 
-def api(gateway: str, method: str, path: str, body: dict | None = None, timeout: float = 600) -> Any:
+def api(
+    gateway: str, method: str, path: str,
+    body: dict | None = None, timeout: float = 600,
+) -> Any:
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(
         gateway.rstrip("/") + path,

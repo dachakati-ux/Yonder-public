@@ -32,7 +32,10 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def api(gateway: str, method: str, path: str, body: dict | None = None, timeout: float = 900) -> Any:
+def api(
+    gateway: str, method: str, path: str,
+    body: dict | None = None, timeout: float = 900,
+) -> Any:
     data = None if body is None else json.dumps(body).encode()
     url = gateway.rstrip("/") + path
     last_err: Exception | None = None
@@ -267,7 +270,9 @@ def stream_chat(
         err = exc.read().decode("utf-8", errors="replace")[:500]
         # Retry once without stream_options if upstream rejects it.
         if http == 400 and "stream_options" in (err or ""):
-            return stream_chat_no_usage(gateway, alias, messages, max_tokens=max_tokens, timeout=timeout)
+            return stream_chat_no_usage(
+                gateway, alias, messages, max_tokens=max_tokens, timeout=timeout
+            )
     except Exception as exc:  # noqa: BLE001
         http = 0
         err = str(exc)[:500]

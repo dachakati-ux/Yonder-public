@@ -376,7 +376,7 @@ describe("evaluatePlacement", () => {
     expect(plan.freeBytes).toBe(15 * 1024 ** 3);
   });
 
-  it("blocks and names the occupant when the GPU is held", () => {
+  it("warns and names the existing GPU lane when shared capacity is available", () => {
     const plan = evaluatePlacement({
       model: model(),
       node: node(),
@@ -384,9 +384,11 @@ describe("evaluatePlacement", () => {
       gpuIndexes: [0],
       deployments: [deployment({ id: "chat-lane", gpu_assignments: [0] })],
     });
-    expect(plan.blocked).toBe(true);
+    expect(plan.blocked).toBe(false);
+    expect(plan.requiresConfirmation).toBe(true);
+    expect(check(plan, "gpu_occupancy").level).toBe("warn");
     expect(plan.occupantDeploymentIds).toEqual(["chat-lane"]);
-    expect(check(plan, "gpu_occupancy").detail).toContain("chat-lane");
+    expect(check(plan, "gpu_occupancy").detail).toContain("GPU 0: 1/3");
   });
 
   it("blocks placement onto a worker in maintenance", () => {
