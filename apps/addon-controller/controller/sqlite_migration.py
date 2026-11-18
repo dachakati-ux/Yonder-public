@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Literal
 
@@ -171,7 +172,7 @@ def rehearse_sqlite_migration(
     if verified.get("consistency_method") != "sqlite_online_backup":
         raise MigrationError("Only SQLite-native backup bundles support rehearsal")
 
-    with sqlite3.connect(db_path, timeout=10) as db:
+    with closing(sqlite3.connect(db_path, timeout=10)) as db:
         db.execute("PRAGMA foreign_keys=ON")
         old_revision = db.execute("PRAGMA user_version").fetchone()[0]
         if old_revision != contract.source_db_revision:
