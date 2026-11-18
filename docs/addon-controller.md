@@ -273,3 +273,88 @@ GitHub archive installer or complete software supply chain. Release-signing
 key provisioning is manual, registry/network egress control must be enforced
 outside the process, and deployments still require independent security
 review and real-host testing.
+
+
+## Declarative configuration, secrets and approved internal networking
+
+A deployment plan can now declare **non-secret** application settings,
+pre-provisioned Docker named volumes, and a dedicated internal network. Each
+choice is incorporated into its SHA-256 approval hash.
+
+Example:
+
+```json
+{
+  "addon_id": "example-addon",
+  "version": "0.1.0",
+  "image": "ghcr.io/example/reviewed@sha256:<64-hex-digest>",
+  "network": "yonder-addon-net-example-addon",
+  "public_settings": {"CLASSROOM_MODE": "enabled", "MAX_USERS": "30"},
+  "secret_volume": true,
+  "data_volume": true,
+  "readiness": "docker_healthy"
+}
+```
+
+### Protection model
+
+- Public settings must use approved uppercase environment variable names.
+  Names resembling `TOKEN`, `SECRET`, `PASSWORD`, `PRIVATE`,
+  `CREDENTIAL` or `API_KEY` are rejected. Values cannot contain control
+  characters and are capped at 256 characters; they may be shown in the
+  approval preview, logs or Docker inspect. **Never put credentials here.**
+- `secret_volume: true` mounts the administrator-prepared Docker named volume
+  `yonder-addon-secrets-<addon-id>` **read-only** under
+  `/run/yonder-secrets`. The controller does not generate, read, send, or
+  expose secret contents. The application must support reading credential
+  files from that path.
+- `data_volume: true` mounts the distinct existing volume
+  `yonder-addon-data-<addon-id>` read/write at
+  `/var/lib/yonder-addon`. Disabling/removing the service does **not** delete
+  the data volume; database upgrades still require backups.
+- Only a Docker network named `yonder-addon-net-<addon-id>` is allowed.
+  It must already exist, use Docker `bridge` and have `Internal=true`,
+  together with labels `io.yonder.approved=true` and
+  `io.yonder.addon=<addon-id>`. The controller does not create networks.
+  This allows tightly scoped inter-container communication but no direct
+  outbound internet from the add-on's network. No host ports are published.
+- Both named volumes must already exist and have labels
+  `io.yonder.approved=true`, `io.yonder.addon=<addon-id>`, and
+  `io.yonder.purpose=secrets` or `data` respectively. Unlabeled or missing
+  volumes are rejected **before** Docker run, preventing silent empty volume
+  creation. No host bind mount paths or arbitrary Docker arguments are
+  permitted.
+
+Example manual preparation on an isolated **trusted** controller host:
+
+```bash
+docker network create --internal --driver bridge \
+  --label io.yonder.approved=true \
+  --label io.yonder.addon=example-addon \
+  yonder-addon-net-example-addon
+
+docker volume create \
+  --label io.yonder.approved=true \
+  --label io.yonder.addon=example-addon \
+  --label io.yonder.purpose=data \
+  yonder-addon-data-example-addon
+
+docker volume create \
+  --label io.yonder.approved=true \
+  --label io.yonder.addon=example-addon \
+  --label io.yonder.purpose=secrets \
+  yonder-addon-secrets-example-addon
+```
+
+**Populate secrets separately using institution-approved privileged tooling.**
+Do not paste credentials into Yonder's UI or a GitHub issue. Labeling a
+Docker volume as a secrets volume does not encrypt it, restrict access by the
+host administrator, or turn it into Docker Swarm Secrets. This is an
+incremental no-secret-in-API design rather than a full Vault/secret-manager
+integration. Institutions need encrypted storage, scoped identities, rotation,
+audit and incident response before production use.
+
+An internal network also does not by itself guarantee container isolation
+against a malicious administrator, compromised Docker daemon or kernel
+vulnerability. Network/DNS and host access controls remain the operator's
+responsibility.
