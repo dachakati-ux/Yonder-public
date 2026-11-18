@@ -26,6 +26,9 @@ class ApprovedDeployment(BaseModel):
     cpus: float = Field(default=1.0, ge=0.25, le=4)
     pids_limit: int = Field(default=128, ge=32, le=512)
     network: Literal["none"] = "none"
+    readiness: Literal["running", "docker_healthy"] = "running"
+    readiness_timeout_seconds: int = Field(default=30, ge=5, le=300)
+    rollback_on_failed_readiness: bool = True
 
     @model_validator(mode="after")
     def digest_only(self) -> ApprovedDeployment:
@@ -46,6 +49,11 @@ class ApprovedDeployment(BaseModel):
                 "cpus": self.cpus,
                 "pids": self.pids_limit,
                 "network": self.network,
+            },
+            "readiness": {
+                "mode": self.readiness,
+                "timeout_seconds": self.readiness_timeout_seconds,
+                "rollback_on_failure": self.rollback_on_failed_readiness,
             },
             "requires_approval": True,
             "note": (
