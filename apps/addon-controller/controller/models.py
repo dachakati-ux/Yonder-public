@@ -26,6 +26,7 @@ class ApprovedDeployment(BaseModel):
     cpus: float = Field(default=1.0, ge=0.25, le=4)
     pids_limit: int = Field(default=128, ge=32, le=512)
     network: Literal["none"] = "none"
+    image_acquisition: Literal["preloaded", "signed_pull"] = "preloaded"
     readiness: Literal["running", "docker_healthy"] = "running"
     readiness_timeout_seconds: int = Field(default=30, ge=5, le=300)
     rollback_on_failed_readiness: bool = True
@@ -44,6 +45,7 @@ class ApprovedDeployment(BaseModel):
             "action": action,
             "adapter": "docker",
             "image": self.image,
+            "image_acquisition": self.image_acquisition,
             "limits": {
                 "memory_mb": self.memory_mb,
                 "cpus": self.cpus,
