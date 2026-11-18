@@ -13,5 +13,10 @@
   ],
   "requires_restart": false,
   "docs": "addons/model-library/README.md",
-  "warning": "Not installable until the Model Library implementation is reviewed and merged."
+  "warning": "Not installable until the Model Library implementation is reviewed and merged.",
+  "api_version": 1,
+  "min_core_version": "0.1.0",
+  "max_core_version_exclusive": "1.0.0",
+  "dependencies": [],
+  "config_schema_version": 1
 }
