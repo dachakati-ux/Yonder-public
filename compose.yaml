@@ -21,6 +21,7 @@ services:
       YONDER_ALLOW_NON_LOCALHOST_BIND_IN_DEVELOPMENT: "true"
       YONDER_CONSOLE_ORIGIN: ${YONDER_CONSOLE_ORIGIN:-http://127.0.0.1:${YONDER_CONSOLE_PORT:-3000}}
       YONDER_STATE_FILE: /app/data/gateway-state.json
+      YONDER_MODEL_ROOTS: /app/data/models
       YONDER_DATABASE_URL: ${YONDER_DATABASE_URL:-sqlite:////app/data/yonder.db}
       YONDER_MCP__ENABLED: ${YONDER_MCP__ENABLED:-true}
       YONDER_MCP__SERVER_ENABLED: ${YONDER_MCP__SERVER_ENABLED:-true}
@@ -52,6 +53,10 @@ services:
       YONDER_GATEWAY_URL: http://gateway:8080
       YONDER_WORKER_ID: local-dev-worker
       YONDER_WORKER_DISPLAY_NAME: "Compose local worker"
+      # Downloads made by Gateway are read-only in the local worker.
+      YONDER_LLAMA_CPP_RUNTIME__ALLOWED_MODEL_ROOTS: /app/data/models
+    volumes:
+      - yonder_data:/app/data:ro
     ports:
       - "127.0.0.1:${YONDER_WORKER__PORT:-8090}:8090"
     depends_on:
