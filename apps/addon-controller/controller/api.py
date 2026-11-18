@@ -66,6 +66,20 @@ def create_app(
     async def health():
         return {"status": "ok", "service": "yonder-addon-controller"}
 
+    @app.get("/v1/setup/{addon_id}", dependencies=[Depends(authenticate)])
+    async def get_setup(addon_id: str):
+        try:
+            return engine.setup(addon_id)
+        except ControllerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.put("/v1/setup/{addon_id}", dependencies=[Depends(authenticate)])
+    async def save_setup(addon_id: str, body: SetupValues):
+        try:
+            return await engine.configure(addon_id, body.values)
+        except ControllerError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.get("/v1/approved", dependencies=[Depends(authenticate)])
     async def approved():
         return {
