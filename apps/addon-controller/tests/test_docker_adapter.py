@@ -1,10 +1,10 @@
 """Restricted Docker adapter command policy tests. No daemon is contacted."""
+
 from __future__ import annotations
 
 import json
 
 import pytest
-
 from controller.docker_adapter import DockerAdapter, DockerError
 from controller.models import ApprovedDeployment
 
