@@ -443,9 +443,7 @@ class Controller:
         return assess_upgrade(
             desired, observed, selected,
             UpgradePolicy(
-                data_migration=(
-                    "requires_migration" if selected.data_volume else "none"
-                )
+                data_migration=selected.upgrade_data_migration,
             ),
         )
 
