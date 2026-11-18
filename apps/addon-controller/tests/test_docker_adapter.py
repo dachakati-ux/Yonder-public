@@ -24,6 +24,10 @@ class Recorder(DockerAdapter):
         self.commands.append(args)
         if args[:2] == ("image", "inspect"):
             return json.dumps([{"RepoDigests": [IMAGE, GHCR_IMAGE]}])
+        if args[:2] in (("network", "ls"), ("volume", "ls")):
+            return ""
+        if args[:2] in (("network", "create"), ("volume", "create")):
+            return args[-1]
         if args[:2] == ("network", "inspect"):
             return json.dumps([{
                 "Labels": {
