@@ -14,11 +14,10 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
+import httpx
 from pydantic import ValidationError
 
 from app.services.addon_contract import AddonManifest
-
-import httpx
 
 ADDON_ID = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
