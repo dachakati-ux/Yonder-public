@@ -1187,3 +1187,48 @@ export async function completeChat(input: {
     durationMs: performance.now() - started,
   };
 }
+
+export interface AuthProviderTemplate {
+  label: string;
+  scopes: string[];
+  groups_claim: string;
+  notes: string;
+}
+
+export interface AuthProvidersResponse {
+  security_mode: string;
+  active_template: string;
+  templates: Record<string, AuthProviderTemplate>;
+}
+
+export interface RoleMappingPreviewResponse {
+  groups: string[];
+  roles: string[];
+  capabilities: string[];
+  note: string;
+}
+
+export async function getAuthProviders(): Promise<AuthProvidersResponse> {
+  const response = await fetch(`${GATEWAY_URL}/v1/auth/providers`);
+  return parseJson<AuthProvidersResponse>(response);
+}
+
+export async function previewRoleMapping(
+  groups: string[],
+): Promise<RoleMappingPreviewResponse> {
+  const response = await fetch(`${GATEWAY_URL}/v1/auth/preview-mapping`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ groups }),
+  });
+  return parseJson<RoleMappingPreviewResponse>(response);
+}
+
+export async function getConvyxStatus(): Promise<{
+  enabled: boolean;
+  availability: string;
+  detail?: string;
+}> {
+  const response = await fetch(`${GATEWAY_URL}/v1/convyx/status`);
+  return parseJson(response);
+}

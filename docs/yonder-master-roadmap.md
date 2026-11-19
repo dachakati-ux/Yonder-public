@@ -180,8 +180,11 @@ Sub-goals:
   CSRF header enforcement), `/v1/auth/{login,callback,logout,session,providers}`,
   default-deny group-to-role mapping, and Authentik/Keycloak/Entra/Google
   Workspace templates.
-- [ ] **M03.3 (wizard UI)** Build guided IdP setup wizard in Console and
-  end-to-end live IdP smoke tests.
+- [x] **M03.3 (wizard UI — Operations panel):** Added `IdentitySetupPanel` in
+  `apps/console/src/features/operations/IdentitySetupPanel.tsx` displaying IdP
+  templates (`generic`, `authentik`, `keycloak`, `entra`, `google_workspace`),
+  `.env` snippet generation, interactive `POST /v1/auth/preview-mapping`, and
+  optional Convyx status. Live external IdP smoke tests remain pending.
 - [x] **M03.4 (scoped RBAC & mapping preview):** Added
   `authorize_resource_access()` in `apps/gateway/app/services/rbac.py`
   (default-deny tenant, classroom, and owner isolation) and
