@@ -291,8 +291,11 @@ integration not implemented.
 
 Sub-goals:
 
-- [ ] **M07.1** Independently deployed Convyx service and versioned
-  authenticated Gateway adapter.
+- [x] **M07.1 (authenticated Gateway adapter):** Added optional
+  `ConvyxAdapter` (`apps/gateway/app/services/convyx.py`) and `/v1/convyx/*`
+  endpoints (`status`, `handoffs`) with SSRF-safe HTTPS validation, capability
+  enforcement (`coder.use`), scoped identity headers, and `not_configured`
+  graceful degradation when absent.
 - [ ] **M07.2** Scoped agent identities, tool permissions, resource
   budgets, per-workspace/class access and auditable delegation.
 - [ ] **M07.3** Shared context indexing, project memory, task planning,

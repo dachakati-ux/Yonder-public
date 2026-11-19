@@ -93,3 +93,22 @@ jobs:
           cd apps/console
           npm ci
           npx tsc --noEmit -p tsconfig.addons.json
+
+  workspaces-service:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install Python
+        run: uv python install 3.12
+      - name: Sync dependency workspace
+        run: uv sync --all-packages --group dev
+      - name: Test standalone workspaces service
+        run: |
+          cd apps/workspaces
+          PYTHONPATH=. uv run pytest -q tests/
+      - name: Lint workspaces service
+        run: uv run ruff check apps/workspaces

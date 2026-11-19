@@ -29,6 +29,7 @@ from app.api import (
     auth,
     chat,
     coder,
+    convyx,
     generation,
     help,
     lab,
@@ -513,6 +514,7 @@ def create_app() -> FastAPI:
     app.include_router(generation.router)
     app.include_router(speech.router)
     app.include_router(coder.router)
+    app.include_router(convyx.router)
     app.include_router(mcp.router)
 
     @app.exception_handler(HTTPException)
