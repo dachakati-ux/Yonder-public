@@ -188,6 +188,125 @@ class ConvyxAdapter:
             },
         )
 
+    async def handoff_with_delegation(
+        self,
+        principal: RequestPrincipal,
+        *,
+        task_id: str,
+        summary: str,
+        target_agent: str,
+        context_scope: str = "project",
+        allowed_tools: list[str] | None = None,
+        max_tokens: int = 8000,
+        max_steps: int = 8,
+        model_alias: str | None = None,
+        project_id: str | None = None,
+        class_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not self.is_configured():
+            raise ConvyxError("Convyx adapter is not configured.")
+        if not ID_RE.fullmatch(task_id) or not ID_RE.fullmatch(target_agent):
+            raise ConvyxError("Invalid task_id or target_agent identifier.")
+        tools = allowed_tools or []
+        if any("*" in t or not ID_RE.fullmatch(t) for t in tools):
+            raise ConvyxError(
+                "Delegated tools must be explicit allowlisted identifiers (no wildcards)."
+            )
+        if not (100 <= max_tokens <= 200_000) or not (1 <= max_steps <= 25):
+            raise ConvyxError("Delegated token or step budget out of bounds.")
+        tenant_id = (principal.attributes.get("tenant_id") or "").strip() or "default"
+        return await self._request(
+            "POST",
+            "/convyx/v1/handoffs",
+            principal=principal,
+            json_body={
+                "task_id": task_id,
+                "summary": summary[:1000],
+                "target_agent": target_agent,
+                "context_scope": context_scope,
+                "delegation": {
+                    "subject": principal.subject,
+                    "tenant_id": tenant_id,
+                    "project_id": project_id,
+                    "class_id": class_id,
+                    "allowed_tools": tools,
+                    "max_tokens": max_tokens,
+                    "max_steps": max_steps,
+                    "allow_provisioning": False,
+                    "model_alias": model_alias,
+                },
+            },
+        )
+
+    async def resume_handoff(
+        self,
+        principal: RequestPrincipal,
+        handoff_id: str,
+    ) -> dict[str, Any]:
+        if not self.is_configured():
+            raise ConvyxError("Convyx adapter is not configured.")
+        if not ID_RE.fullmatch(handoff_id):
+            raise ConvyxError("Invalid handoff_id.")
+        return await self._request(
+            "POST",
+            f"/convyx/v1/handoffs/{handoff_id}/resume",
+            principal=principal,
+            json_body={"resumed_by": principal.subject},
+        )
+
+    async def index_memory(
+        self,
+        principal: RequestPrincipal,
+        *,
+        project_id: str,
+        key: str,
+        content: str,
+    ) -> dict[str, Any]:
+        if not self.is_configured():
+            raise ConvyxError("Convyx adapter is not configured.")
+        if not ID_RE.fullmatch(project_id) or not ID_RE.fullmatch(key):
+            raise ConvyxError("Invalid project_id or memory key.")
+        tenant_id = (principal.attributes.get("tenant_id") or "").strip() or "default"
+        return await self._request(
+            "POST",
+            "/convyx/v1/memory",
+            principal=principal,
+            json_body={
+                "tenant_id": tenant_id,
+                "project_id": project_id,
+                "key": key,
+                "content": content[:4000],
+            },
+        )
+
+    async def query_memory(
+        self,
+        principal: RequestPrincipal,
+        *,
+        project_id: str,
+        query: str,
+    ) -> dict[str, Any]:
+        if not self.is_configured():
+            raise ConvyxError("Convyx adapter is not configured.")
+        if not ID_RE.fullmatch(project_id):
+            raise ConvyxError("Invalid project_id.")
+        tenant_id = (principal.attributes.get("tenant_id") or "").strip() or "default"
+        return await self._request(
+            "POST",
+            "/convyx/v1/memory/query",
+            principal=principal,
+            json_body={
+                "tenant_id": tenant_id,
+                "project_id": project_id,
+                "query": query[:500],
+            },
+        )
+
+    async def observability(self, principal: RequestPrincipal) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"enabled": False, "availability": "not_configured", "runs": []}
+        return await self._request("GET", "/convyx/v1/observability", principal=principal)
+
     async def get_handoff(
         self,
         principal: RequestPrincipal,

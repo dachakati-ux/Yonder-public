@@ -72,6 +72,14 @@ def test_convyx_authenticated_handoff_and_capability_enforcement() -> None:
             return httpx.Response(200, json={"handoff_id": "ho-1", "status": "queued"})
         if request.url.path == "/convyx/v1/handoffs/ho-1":
             return httpx.Response(200, json={"handoff_id": "ho-1", "status": "completed"})
+        if request.url.path == "/convyx/v1/handoffs/ho-1/resume":
+            return httpx.Response(200, json={"handoff_id": "ho-1", "status": "resumed"})
+        if request.url.path == "/convyx/v1/memory":
+            return httpx.Response(200, json={"stored": True})
+        if request.url.path == "/convyx/v1/memory/query":
+            return httpx.Response(200, json={"matches": [{"key": "arch", "score": 0.95}]})
+        if request.url.path == "/convyx/v1/observability":
+            return httpx.Response(200, json={"runs": [{"handoff_id": "ho-1", "tokens": 420}]})
         return httpx.Response(404)
 
     adapter = ConvyxAdapter(
@@ -112,3 +120,41 @@ def test_convyx_authenticated_handoff_and_capability_enforcement() -> None:
     assert res.json()["handoff_id"] == "ho-1"
     assert client.get("/v1/convyx/handoffs/ho-1").json()["status"] == "completed"
     assert seen[1]["subject"] == "dev-1"
+
+    # Wildcard tool delegation must fail closed.
+    bad_tool = client.post(
+        "/v1/convyx/handoffs",
+        json={
+            "task_id": "task-2",
+            "summary": "Unsafe wildcard",
+            "target_agent": "coder",
+            "allowed_tools": ["*"],
+        },
+    )
+    assert bad_tool.status_code == 400
+
+    # Resumable handoff, tenant-isolated memory, observability & Academy lab.
+    assert client.post("/v1/convyx/handoffs/ho-1/resume").json()["status"] == "resumed"
+    assert (
+        client.post(
+            "/v1/convyx/memory",
+            json={"tenant_id": "other-school", "project_id": "proj-1", "key": "k1", "content": "x"},
+        ).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            "/v1/convyx/memory",
+            json={"project_id": "proj-1", "key": "arch", "content": "Gateway only"},
+        ).json()["stored"]
+        is True
+    )
+    assert (
+        client.post(
+            "/v1/convyx/memory/query",
+            json={"project_id": "proj-1", "query": "gateway"},
+        ).json()["matches"][0]["key"]
+        == "arch"
+    )
+    assert client.get("/v1/convyx/observability").json()["runs"][0]["tokens"] == 420
+    assert len(client.get("/v1/convyx/academy-lab").json()["scenarios"]) >= 2

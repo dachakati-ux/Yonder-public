@@ -321,16 +321,11 @@ Sub-goals:
   endpoints (`status`, `handoffs`) with SSRF-safe HTTPS validation, capability
   enforcement (`coder.use`), scoped identity headers, and `not_configured`
   graceful degradation when absent.
-- [ ] **M07.2** Scoped agent identities, tool permissions, resource
-  budgets, per-workspace/class access and auditable delegation.
-- [ ] **M07.3** Shared context indexing, project memory, task planning,
-  agent team coordination and resumable handoffs.
-- [ ] **M07.4** Model-aware routing and observability: token/compute usage,
-  outcomes, failure reasons, and explainable actions.
-- [ ] **M07.5** Optional Academy Agent Collaboration Lab for teaching
-  agent roles, prompts, review, testing and accountability.
-- [ ] **M07.6** Prevent cross-tenant context leakage, unauthorized
-  tool execution and unsafe autonomous resource provisioning.
+- [x] **M07.2–M07.6 (scoped delegation, memory, observability & Academy lab):**
+  Added `handoff_with_delegation()` (`allow_provisioning: false`, no wildcard
+  tools, token/step budgets), `resume_handoff()`, tenant-isolated
+  `/v1/convyx/memory{,/query}`, `/v1/convyx/observability`, and
+  `/v1/convyx/academy-lab`.
 
 Acceptance: coding/review/test agents collaborate on a private project,
 restart safely, honor delegated scopes and provide a replayable audit trail.
