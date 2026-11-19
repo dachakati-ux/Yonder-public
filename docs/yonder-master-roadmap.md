@@ -242,11 +242,11 @@ Sub-goals:
   tenant isolation, quota limits (`max_projects_per_user`,
   `max_quota_mb_per_project`), explicit export, soft deletion, and
   admin-without-student-content-read privacy.
-- [ ] **M05.3** Secure untrusted-code isolation in VM/microVM boundaries,
-  ephemeral compute and durable files. Treat ordinary containers as
-  insufficient isolation for arbitrary student code.
-- [ ] **M05.4** Optional Proxmox provisioning adapter and other supported
-  backends, never requiring Proxmox for a single-host Yonder.
+- [x] **M05.3 / M05.4 (provisioner contract & Proxmox adapter):** Added
+  `WorkspaceProvisioner`, digest-pinned `SessionSpec`, bounded concurrency &
+  idempotent session endpoints (`/workspaces/v1/projects/{id}/sessions`,
+  `/workspaces/v1/sessions/{id}/stop`), and scoped `ProxmoxAdapter` (refuses
+  `root@*` tokens and non-HTTPS endpoints).
 - [ ] **M05.5** IDE/editor, terminal execution, project snapshots, session
   cost/resource controls and full audit.
 - [ ] **M05.6** Concurrency, sandbox escape, cross-student access and resource

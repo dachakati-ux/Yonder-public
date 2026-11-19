@@ -33,10 +33,12 @@ class WorkspaceStore:
         *,
         max_projects_per_user: int = 10,
         max_quota_mb_per_project: int = 2048,
+        max_active_sessions_per_user: int = 2,
     ) -> None:
         self.db_path = db_path
         self.max_projects_per_user = max_projects_per_user
         self.max_quota_mb_per_project = max_quota_mb_per_project
+        self.max_active_sessions_per_user = max_active_sessions_per_user
         self._lock = threading.RLock()
         self.db_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         if not self.db_path.exists():
@@ -65,6 +67,25 @@ class WorkspaceStore:
                     action TEXT NOT NULL,
                     detail TEXT NOT NULL,
                     timestamp TEXT NOT NULL
+                )"""
+            )
+            db.execute(
+                """CREATE TABLE IF NOT EXISTS workspace_sessions (
+                    session_id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    owner_subject TEXT NOT NULL,
+                    tenant_id TEXT,
+                    idempotency_key TEXT NOT NULL,
+                    template_digest TEXT NOT NULL,
+                    cpu_cores INTEGER NOT NULL,
+                    memory_mb INTEGER NOT NULL,
+                    ttl_seconds INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    backend TEXT NOT NULL,
+                    backend_ref TEXT,
+                    created_at TEXT NOT NULL,
+                    stopped_at TEXT,
+                    UNIQUE(project_id, idempotency_key)
                 )"""
             )
 
@@ -219,3 +240,95 @@ class WorkspaceStore:
                     (min(max(limit, 1), 200),),
                 ).fetchall()
             return [dict(row) for row in rows]
+
+    def get_session(self, session_id: str) -> dict | None:
+        with self._lock, self._conn() as db:
+            row = db.execute(
+                "SELECT * FROM workspace_sessions WHERE session_id=?", (session_id,)
+            ).fetchone()
+            return dict(row) if row is not None else None
+
+    def list_sessions_for_project(self, project_id: str) -> list[dict]:
+        with self._lock, self._conn() as db:
+            rows = db.execute(
+                "SELECT * FROM workspace_sessions WHERE project_id=? ORDER BY created_at DESC",
+                (project_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def reserve_session(
+        self,
+        *,
+        project_id: str,
+        owner_subject: str,
+        tenant_id: str | None,
+        idempotency_key: str,
+        template_digest: str,
+        cpu_cores: int,
+        memory_mb: int,
+        ttl_seconds: int,
+        backend: str,
+    ) -> tuple[dict, bool]:
+        with self._lock, self._conn() as db:
+            existing = db.execute(
+                "SELECT * FROM workspace_sessions WHERE project_id=? AND idempotency_key=?",
+                (project_id, idempotency_key),
+            ).fetchone()
+            if existing is not None:
+                return dict(existing), False
+            active_cnt = db.execute(
+                "SELECT COUNT(*) AS cnt FROM workspace_sessions "
+                "WHERE owner_subject=? AND status IN ('provisioning', 'running')",
+                (owner_subject,),
+            ).fetchone()
+            if int(active_cnt["cnt"]) >= self.max_active_sessions_per_user:
+                raise QuotaExceededError("Per-user active session limit exceeded")
+            session_id = f"wss_{uuid.uuid4().hex[:16]}"
+            now = _now()
+            db.execute(
+                "INSERT INTO workspace_sessions "
+                "(session_id,project_id,owner_subject,tenant_id,idempotency_key,"
+                "template_digest,cpu_cores,memory_mb,ttl_seconds,status,backend,"
+                "backend_ref,created_at,stopped_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,'provisioning',?,NULL,?,NULL)",
+                (
+                    session_id,
+                    project_id,
+                    owner_subject,
+                    tenant_id,
+                    idempotency_key,
+                    template_digest,
+                    cpu_cores,
+                    memory_mb,
+                    ttl_seconds,
+                    backend,
+                    now,
+                ),
+            )
+            row = db.execute(
+                "SELECT * FROM workspace_sessions WHERE session_id=?", (session_id,)
+            ).fetchone()
+            return dict(row), True
+
+    def mark_session_running(self, session_id: str, backend_ref: str) -> dict:
+        with self._lock, self._conn() as db:
+            db.execute(
+                "UPDATE workspace_sessions SET status='running', backend_ref=? "
+                "WHERE session_id=?",
+                (backend_ref, session_id),
+            )
+            row = db.execute(
+                "SELECT * FROM workspace_sessions WHERE session_id=?", (session_id,)
+            ).fetchone()
+            return dict(row)
+
+    def mark_session_stopped(self, session_id: str, *, status: str = "stopped") -> dict:
+        with self._lock, self._conn() as db:
+            db.execute(
+                "UPDATE workspace_sessions SET status=?, stopped_at=? WHERE session_id=?",
+                (status, _now(), session_id),
+            )
+            row = db.execute(
+                "SELECT * FROM workspace_sessions WHERE session_id=?", (session_id,)
+            ).fetchone()
+            return dict(row)

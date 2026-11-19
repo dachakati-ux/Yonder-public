@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import httpx
+import pytest
 from fastapi.testclient import TestClient
 from workspaces.api import create_app
+from workspaces.provisioner import ProvisionerError, ProxmoxAdapter
 
 TOKEN = "workspaces-service-token-" + "x" * 16
 
@@ -162,3 +165,100 @@ def test_workspace_quotas_enforced(tmp_path) -> None:
         json={"name": "Project 2", "quota_mb": 256},
     )
     assert second.status_code == 409
+
+
+def test_proxmox_adapter_rejects_root_or_http_and_provisions_sessions(tmp_path) -> None:
+    with pytest.raises(ProvisionerError, match="root@"):
+        ProxmoxAdapter(
+            api_url="https://pve.school.internal:8006",
+            api_token_id="root@pam!admin",
+            api_token_secret="secret",
+            node="pve01",
+            pool="yonder-students",
+        )
+    with pytest.raises(ProvisionerError, match="HTTPS"):
+        ProxmoxAdapter(
+            api_url="http://pve.school.internal:8006",
+            api_token_id="yonder-ws@pve!scoped",
+            api_token_secret="secret",
+            node="pve01",
+            pool="yonder-students",
+        )
+
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "PVEAPIToken=yonder-ws@pve!scoped=tok-123"
+        calls.append(request.url.path)
+        return httpx.Response(200, json={"data": "UPID:pve01:123"})
+
+    adapter = ProxmoxAdapter(
+        api_url="https://pve.school.internal:8006",
+        api_token_id="yonder-ws@pve!scoped",
+        api_token_secret="tok-123",
+        node="pve01",
+        pool="yonder-students",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    app = create_app(
+        database_path=tmp_path / "ws.db",
+        service_token=TOKEN,
+        max_active_sessions_per_user=1,
+        provisioner=adapter,
+    )
+    client = TestClient(app)
+    caps = client.get("/workspaces/v1/capabilities", headers=_headers("student-a"))
+    assert caps.json()["execution_enabled"] is True
+    assert caps.json()["vm_isolation"] == "proxmox_vm"
+
+    proj = client.post(
+        "/workspaces/v1/projects",
+        headers=_headers("student-a"),
+        json={"name": "Python Lab", "quota_mb": 256},
+    ).json()["project"]
+    pid = proj["project_id"]
+
+    digest = "yonder-python@sha256:" + "a" * 64
+    # Unpinned template digest must fail.
+    bad = client.post(
+        f"/workspaces/v1/projects/{pid}/sessions",
+        headers=_headers("student-a"),
+        json={"idempotency_key": "sess-bad-digest", "template_digest": "python:latest"},
+    )
+    assert bad.status_code == 400
+
+    # Valid idempotent session creation.
+    s1 = client.post(
+        f"/workspaces/v1/projects/{pid}/sessions",
+        headers=_headers("student-a"),
+        json={"idempotency_key": "sess-create-001", "template_digest": digest},
+    )
+    assert s1.status_code == 201
+    sid = s1.json()["session"]["session_id"]
+    assert s1.json()["session"]["status"] == "running"
+
+    replay = client.post(
+        f"/workspaces/v1/projects/{pid}/sessions",
+        headers=_headers("student-a"),
+        json={"idempotency_key": "sess-create-001", "template_digest": digest},
+    )
+    assert replay.status_code == 201
+    assert replay.json()["idempotent_replay"] is True
+
+    # Second concurrent session exceeds max_active_sessions_per_user=1.
+    too_many = client.post(
+        f"/workspaces/v1/projects/{pid}/sessions",
+        headers=_headers("student-a"),
+        json={"idempotency_key": "sess-create-002", "template_digest": digest},
+    )
+    assert too_many.status_code == 409
+
+    # Student B cannot stop Student A's session.
+    denied = client.post(
+        f"/workspaces/v1/sessions/{sid}/stop", headers=_headers("student-b")
+    )
+    assert denied.status_code == 403
+    stopped = client.post(f"/workspaces/v1/sessions/{sid}/stop", headers=_headers("student-a"))
+    assert stopped.status_code == 200
+    assert stopped.json()["session"]["status"] == "stopped"
+    assert len(calls) == 2
