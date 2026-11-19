@@ -234,10 +234,14 @@ recover without corrupting assets.
 
 Sub-goals:
 
-- [ ] **M05.1** Dedicated workspace API/service and persistent project
-  metadata; Core only knows versioned provider contracts.
-- [ ] **M05.2** Per-user and per-class ownership, scoped file access,
-  quotas, expiration, retention, export and deletion.
+- [x] **M05.1 (metadata service):** Added optional standalone
+  `apps/workspaces` service (`/workspaces/v1/{capabilities,projects,admin}`)
+  requiring verified service token + user identity headers, with durable
+  SQLite metadata & audit trail (`execution_enabled: false`).
+- [x] **M05.2 (scope & quotas):** Enforced per-user/per-class ownership,
+  tenant isolation, quota limits (`max_projects_per_user`,
+  `max_quota_mb_per_project`), explicit export, soft deletion, and
+  admin-without-student-content-read privacy.
 - [ ] **M05.3** Secure untrusted-code isolation in VM/microVM boundaries,
   ephemeral compute and durable files. Treat ordinary containers as
   insufficient isolation for arbitrary student code.
