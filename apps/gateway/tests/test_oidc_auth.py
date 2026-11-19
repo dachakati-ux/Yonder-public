@@ -237,3 +237,78 @@ def test_oidc_rejects_bad_nonce_audience_and_unmapped_groups_default_deny() -> N
     assert res.status_code == 200
     assert res.json()["roles"] == []
     assert res.json()["capabilities"] == []
+
+
+def test_oidc_logout_revokes_jti_and_mfa_gate_enforced() -> None:
+    from app.services.oidc import SessionRevocationStore
+
+    private_key, jwk = _rsa_jwk_pair()
+    rev_store = SessionRevocationStore()
+
+    # 1. Logout must revoke the JTI so replaying the old cookie fails closed.
+    app, captured = _make_oidc_app(private_key, jwk)
+    app.state.revoked_sessions = rev_store
+    client = TestClient(app)
+    client.get("/v1/auth/login?mode=json")
+    cb = client.get(f"/v1/auth/callback?code=c1&state={captured['state']}")
+    csrf = cb.json()["csrf_token"]
+    old_cookie = client.cookies.get("yonder_session")
+    assert old_cookie
+    assert client.post("/v1/auth/logout", headers={"X-Yonder-CSRF-Token": csrf}).status_code == 200
+
+    # Replay the old cookie on a fresh client -> 401 Session has been revoked.
+    replay_client = TestClient(app)
+    replay_client.cookies.set("yonder_session", old_cookie)
+    replay_res = replay_client.get("/v1/auth/session")
+    assert replay_res.status_code == 401
+
+    # 2. Admin MFA enforcement (require_mfa_for_admin=True).
+    mfa_app, cap_no_mfa = _make_oidc_app(
+        private_key,
+        jwk,
+        role_mappings={"yonder-admins": ("it_admin",)},
+        token_overrides={"groups": ["yonder-admins"], "amr": ["pwd"]},
+    )
+    mfa_app.state.settings.security.oidc.require_mfa_for_admin = True
+    mfa_app.state.revoked_sessions = rev_store
+    c_no_mfa = TestClient(mfa_app)
+    c_no_mfa.get("/v1/auth/login?mode=json")
+    cb_no = c_no_mfa.get(f"/v1/auth/callback?code=c2&state={cap_no_mfa['state']}")
+    csrf_no = cb_no.json()["csrf_token"]
+    assert (
+        c_no_mfa.post(
+            "/v1/auth/preview-mapping",
+            headers={"X-Yonder-CSRF-Token": csrf_no},
+            json={"groups": ["yonder-admins"]},
+        ).status_code
+        == 403
+    )
+
+    mfa_ok_app, cap_mfa = _make_oidc_app(
+        private_key,
+        jwk,
+        role_mappings={"yonder-admins": ("it_admin",)},
+        token_overrides={"groups": ["yonder-admins"], "amr": ["pwd", "mfa"]},
+    )
+    mfa_ok_app.state.settings.security.oidc.require_mfa_for_admin = True
+    mfa_ok_app.state.revoked_sessions = rev_store
+    c_mfa = TestClient(mfa_ok_app)
+    c_mfa.get("/v1/auth/login?mode=json")
+    cb_ok = c_mfa.get(f"/v1/auth/callback?code=c3&state={cap_mfa['state']}")
+    csrf_ok = cb_ok.json()["csrf_token"]
+    ok_res = c_mfa.post(
+        "/v1/auth/preview-mapping",
+        headers={"X-Yonder-CSRF-Token": csrf_ok},
+        json={"groups": ["yonder-admins"]},
+    )
+    assert ok_res.status_code == 200
+    assert ok_res.json()["roles"] == ["it_admin"]
+
+    # Admin with MFA can explicitly revoke another session JTI.
+    rev_res = c_mfa.post(
+        "/v1/auth/revoke-session",
+        headers={"X-Yonder-CSRF-Token": csrf_ok},
+        json={"jti": "target-jti-123"},
+    )
+    assert rev_res.status_code == 200
+    assert rev_store.is_revoked("target-jti-123") is True

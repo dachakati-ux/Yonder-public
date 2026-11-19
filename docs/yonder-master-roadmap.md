@@ -189,8 +189,10 @@ Sub-goals:
   `authorize_resource_access()` in `apps/gateway/app/services/rbac.py`
   (default-deny tenant, classroom, and owner isolation) and
   `POST /v1/auth/preview-mapping` for non-privileged role-mapping previews.
-- [ ] **M03.5** MFA/conditional access delegated to IdP, service delegation,
-  session expiration, audit, safe error handling and recovery flows.
+- [x] **M03.5 (MFA assurance & session revocation):** Added `jti` + `amr`/`acr`
+  tracking in OIDC sessions, `SessionRevocationStore` (revokes on `/logout`
+  and `POST /v1/auth/revoke-session`), and `require_mfa_for_admin` assurance
+  enforcement. Service delegation & persistent revocation store remain pending.
 - [ ] **M03.6** Security and privacy threat model, documented retention,
   deletion/export, parental/age constraints as applicable, and school-specific
   external review. Do not claim FERPA/COPPA certification without review.

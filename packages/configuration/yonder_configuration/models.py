@@ -66,6 +66,13 @@ class OidcConfig(BaseModel):
     )
     allow_insecure_http_in_dev: bool = False
     discovery_timeout_seconds: float = Field(default=10.0, gt=0.0, le=60.0)
+    require_mfa_for_admin: bool = False
+    allowed_mfa_acr_values: tuple[str, ...] = (
+        "urn:mace:incommon:iap:silver",
+        "urn:mace:incommon:iap:gold",
+        "aal2",
+        "aal3",
+    )
 
 
 class DevelopmentPrincipalConfig(BaseModel):

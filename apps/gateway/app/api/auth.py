@@ -14,6 +14,7 @@ from app.services.oidc import (
     OidcBridge,
     OidcError,
     map_groups_to_roles_and_capabilities,
+    verify_session_payload,
 )
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
@@ -114,6 +115,16 @@ async def oidc_callback(
 @router.post("/logout")
 async def oidc_logout(request: Request) -> JSONResponse:
     oidc_cfg = request.app.state.settings.security.oidc
+    rev_store = getattr(request.app.state, "revoked_sessions", None)
+    cookie_token = request.cookies.get(oidc_cfg.session_cookie_name)
+    if cookie_token and rev_store is not None and oidc_cfg.session_secret:
+        try:
+            payload = verify_session_payload(cookie_token, oidc_cfg.session_secret)
+            jti = str(payload.get("jti") or "")
+            if jti:
+                rev_store.revoke(jti, payload.get("exp"))
+        except OidcError:
+            pass
     response = JSONResponse({"authenticated": False})
     response.delete_cookie(key=oidc_cfg.session_cookie_name, path="/")
     response.delete_cookie(key=OidcBridge.TX_COOKIE_NAME, path="/v1/auth")
@@ -131,6 +142,8 @@ async def oidc_session_info(request: Request) -> dict[str, Any]:
         "groups": list(principal.groups),
         "capabilities": list(principal.capabilities),
         "authentication_context_id": principal.authentication_context_id,
+        "mfa_verified": principal.attributes.get("mfa_verified") == "true",
+        "jti": principal.attributes.get("jti"),
         "csrf_token": principal.attributes.get("csrf_token"),
     }
 
@@ -140,15 +153,28 @@ class RoleMappingPreviewRequest(BaseModel):
     groups: list[str] = Field(default_factory=list, max_length=64)
 
 
+def _require_admin_with_assurance(request: Request) -> None:
+    principal = get_principal(request)
+    if not principal.has_capability("operations.manage"):
+        raise HTTPException(status_code=403, detail="operations.manage capability required.")
+    oidc_cfg = request.app.state.settings.security.oidc
+    if (
+        oidc_cfg.require_mfa_for_admin
+        and principal.attributes.get("mfa_verified") != "true"
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="MFA assurance required for administrative security actions.",
+        )
+
+
 @router.post("/preview-mapping")
 async def preview_role_mapping(
     request: Request,
     body: RoleMappingPreviewRequest,
 ) -> dict[str, Any]:
     """Read-only preview of group->role->capability mapping; never grants privileges."""
-    principal = get_principal(request)
-    if not principal.has_capability("operations.manage"):
-        raise HTTPException(status_code=403, detail="operations.manage capability required.")
+    _require_admin_with_assurance(request)
     oidc_cfg = request.app.state.settings.security.oidc
     cleaned = tuple(g.strip() for g in body.groups if g.strip())
     roles, capabilities = map_groups_to_roles_and_capabilities(cleaned, oidc_cfg)
@@ -158,3 +184,22 @@ async def preview_role_mapping(
         "capabilities": list(capabilities),
         "note": "Preview only; no session or privileges were modified.",
     }
+
+
+class RevokeSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    jti: str = Field(min_length=4, max_length=128)
+
+
+@router.post("/revoke-session")
+async def revoke_session(
+    request: Request,
+    body: RevokeSessionRequest,
+) -> dict[str, Any]:
+    """Explicitly revoke an active OIDC session JTI."""
+    _require_admin_with_assurance(request)
+    rev_store = getattr(request.app.state, "revoked_sessions", None)
+    if rev_store is None:
+        raise HTTPException(status_code=503, detail="Session revocation store unavailable.")
+    rev_store.revoke(body.jti.strip())
+    return {"revoked": True, "jti": body.jti.strip()}

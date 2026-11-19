@@ -389,14 +389,24 @@ class OidcBridge:
             if isinstance(raw_groups, list)
             else ()
         )
+        raw_amr = claims.get("amr")
+        amr = (
+            [str(a).strip().lower() for a in raw_amr if str(a).strip()]
+            if isinstance(raw_amr, list)
+            else []
+        )
+        acr = str(claims.get("acr") or "").strip()
         roles, capabilities = map_groups_to_roles_and_capabilities(groups, self._config)
         now = int(time.time())
         csrf_token = secrets.token_urlsafe(24)
         session_payload = {
+            "jti": secrets.token_urlsafe(16),
             "sub": subject,
             "roles": list(roles),
             "groups": list(groups),
             "capabilities": list(capabilities),
+            "amr": amr,
+            "acr": acr,
             "csrf": csrf_token,
             "iat": now,
             "exp": now + self._config.session_ttl_seconds,
@@ -404,3 +414,37 @@ class OidcBridge:
         }
         session_cookie = sign_session_payload(session_payload, secret)
         return session_cookie, session_payload
+
+
+MFA_AMR_VALUES = frozenset({"mfa", "hwk", "otp", "totp", "webauthn", "fido"})
+
+
+class SessionRevocationStore:
+    """In-memory bounded registry of revoked OIDC session JTIs."""
+
+    def __init__(self) -> None:
+        self._revoked: dict[str, float] = {}
+
+    def _prune(self) -> None:
+        now = time.time()
+        expired = [jti for jti, exp in self._revoked.items() if exp <= now]
+        for jti in expired:
+            del self._revoked[jti]
+
+    def revoke(self, jti: str, exp: float | None = None) -> None:
+        if not jti:
+            return
+        self._prune()
+        self._revoked[jti] = float(exp) if exp is not None else (time.time() + 86400.0)
+
+    def is_revoked(self, jti: str) -> bool:
+        if not jti:
+            return False
+        self._prune()
+        return jti in self._revoked
+
+
+def has_mfa_assurance(amr: tuple[str, ...] | list[str], acr: str, config: OidcConfig) -> bool:
+    if any(item.lower() in MFA_AMR_VALUES for item in amr):
+        return True
+    return bool(acr and acr in config.allowed_mfa_acr_values)

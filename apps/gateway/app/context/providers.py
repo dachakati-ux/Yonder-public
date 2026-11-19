@@ -14,7 +14,12 @@ from yonder_configuration.worker_auth import worker_token_matches
 from yonder_contracts.errors import ErrorBody, ErrorCode, ErrorResponse
 from yonder_contracts.principal import RequestPrincipal
 
-from app.services.oidc import OidcError, verify_session_payload
+from app.services.oidc import (
+    OidcError,
+    SessionRevocationStore,
+    has_mfa_assurance,
+    verify_session_payload,
+)
 
 
 def _split_csv(raw: str | None) -> tuple[str, ...]:
@@ -212,8 +217,14 @@ class OidcSessionRequestContextProvider:
 
     MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
-    def __init__(self, security: SecurityConfig) -> None:
+    def __init__(
+        self,
+        security: SecurityConfig,
+        *,
+        revocation_store: SessionRevocationStore | None = None,
+    ) -> None:
         self._security = security
+        self._revocation_store = revocation_store
 
     async def resolve(self, request: Request) -> RequestPrincipal:
         request_id = request.headers.get("x-request-id", "unknown")
@@ -253,6 +264,22 @@ class OidcSessionRequestContextProvider:
                 ).model_dump(),
             ) from exc
 
+        jti = str(payload.get("jti", "")).strip()
+        rev_store = self._revocation_store or getattr(
+            request.app.state, "revoked_sessions", None
+        )
+        if jti and rev_store is not None and rev_store.is_revoked(jti):
+            raise HTTPException(
+                status_code=401,
+                detail=ErrorResponse(
+                    error=ErrorBody(
+                        code=ErrorCode.SECURITY_CONTEXT_UNAVAILABLE,
+                        message="Session has been revoked.",
+                        request_id=request_id,
+                    )
+                ).model_dump(),
+            )
+
         if request.method.upper() in self.MUTATING_METHODS:
             expected_csrf = str(payload.get("csrf", ""))
             supplied_csrf = request.headers.get("x-yonder-csrf-token") or ""
@@ -281,23 +308,39 @@ class OidcSessionRequestContextProvider:
                 ).model_dump(),
             )
 
+        amr = [str(a) for a in payload.get("amr", ()) if str(a)]
+        acr = str(payload.get("acr") or "").strip()
+        mfa_ok = has_mfa_assurance(amr, acr, self._security.oidc)
+
         return RequestPrincipal(
             subject=subject,
             principal_type="user",
             roles=tuple(str(r) for r in payload.get("roles", ()) if str(r)),
             groups=tuple(str(g) for g in payload.get("groups", ()) if str(g)),
             capabilities=tuple(str(c) for c in payload.get("capabilities", ()) if str(c)),
-            attributes=MappingProxyType({"csrf_token": str(payload.get("csrf", ""))}),
+            attributes=MappingProxyType(
+                {
+                    "csrf_token": str(payload.get("csrf", "")),
+                    "jti": jti,
+                    "amr": ",".join(amr),
+                    "acr": acr,
+                    "mfa_verified": "true" if mfa_ok else "false",
+                }
+            ),
             upstream_request_id=request.headers.get("x-request-id"),
             authentication_context_id=f"oidc:{self._security.oidc.provider_template}",
         )
 
 
-def build_request_context_provider(security: SecurityConfig) -> Any:
+def build_request_context_provider(
+    security: SecurityConfig,
+    *,
+    revocation_store: SessionRevocationStore | None = None,
+) -> Any:
     if security.mode == SecurityMode.DEVELOPMENT:
         return DevelopmentRequestContextProvider(security.development_principal)
     if security.mode == SecurityMode.TRUSTED_INGRESS:
         return TrustedIngressRequestContextProvider(security)
     if security.mode == SecurityMode.OIDC:
-        return OidcSessionRequestContextProvider(security)
+        return OidcSessionRequestContextProvider(security, revocation_store=revocation_store)
     raise ValueError(f"Unsupported security mode: {security.mode}")

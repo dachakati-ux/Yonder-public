@@ -64,7 +64,7 @@ from app.services.generation_jobs import GenerationJobService
 from app.services.lifecycle import LifecycleService
 from app.services.mcp_client import McpClientManager
 from app.services.model_install import DownloadManager
-from app.services.oidc import OidcBridge
+from app.services.oidc import OidcBridge, SessionRevocationStore
 from app.services.rag import LexicalRetriever, RagStore, seed_lab_corpus
 from app.services.speech import SpeechService
 from app.services.structured import build_default_schema_registry
@@ -178,6 +178,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = settings
+    app.state.revoked_sessions = SessionRevocationStore()
     app.state.oidc_bridge = (
         OidcBridge(settings.security.oidc)
         if settings.security.mode == SecurityMode.OIDC
