@@ -49,6 +49,26 @@ async def list_addons(request: Request):
     return registry.snapshot()
 
 
+@router.get("/ui-mounts")
+async def list_addon_ui_mounts(request: Request):
+    """Return declared UI mounts for enabled add-ons matching caller capabilities."""
+    principal = get_principal(request)
+    snapshot = request.app.state.addons.snapshot()
+    mounts = []
+    for addon in snapshot.get("addons") or []:
+        if addon.get("status") != "installed":
+            continue
+        for ext in addon.get("ui_extensions") or []:
+            reqs = ext.get("required_capabilities") or []
+            if all(principal.has_capability(cap) for cap in reqs):
+                mounts.append({
+                    "addon_id": addon["id"],
+                    "addon_name": addon["name"],
+                    **ext,
+                })
+    return {"mounts": mounts}
+
+
 @router.post("/refresh")
 async def refresh_catalog(request: Request):
     denied = _authorize(request, "operations.manage")

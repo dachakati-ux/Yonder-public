@@ -114,3 +114,30 @@ def test_gateway_proxies_scoped_setup_and_preflight(tmp_path, monkeypatch):
         assert service.requests[1] == (
             "PUT", "/v1/setup/security-insights", {"values": {}}
         )
+
+
+def test_addon_ui_mounts_filters_installed_and_capabilities(tmp_path):
+    from app.main import create_app
+    from app.services.addons import AddonRegistry
+
+    app = create_app()
+    addons_dir = tmp_path / "addons"
+    (addons_dir / "security-insights").mkdir(parents=True)
+    (addons_dir / "security-insights" / "README.md").write_text("# Security Insights\n")
+    (addons_dir / "security-insights" / "addon.json").write_text(
+        '{"schema_version":1,"api_version":1,"id":"security-insights",'
+        '"name":"Security Insights","version":"0.1.0","min_core_version":"0.1.0",'
+        '"status":"available","install_mode":"bundled","permissions":["operations.view"],'
+        '"docs":"addons/security-insights/README.md",'
+        '"ui_extensions":[{"nav_label":"Audit View","mount_path":"/operations",'
+        '"kind":"console_route","required_capabilities":["operations.view"]}]}'
+    )
+    (addons_dir / "catalog.json").write_text('{"schema_version":1,"addons":["security-insights"]}')
+    app.state.addons = AddonRegistry(addons_dir, tmp_path / "addons.json")
+    with TestClient(app) as client:
+        # Before install -> no mounts advertised.
+        assert client.get("/api/admin/addons/ui-mounts").json()["mounts"] == []
+        app.state.addons.install("security-insights")
+        mounts = client.get("/api/admin/addons/ui-mounts").json()["mounts"]
+        assert len(mounts) == 1
+        assert mounts[0]["mount_path"] == "/operations"

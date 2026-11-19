@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from yonder_contracts.versioning import SERVICE_VERSION
@@ -25,6 +25,37 @@ def _version(value: str) -> tuple[int, int, int]:
     if not SEMVER.fullmatch(value):
         raise ValueError("Version must be a semantic MAJOR.MINOR.PATCH.")
     return tuple(int(part) for part in value.split("."))  # type: ignore[return-value]
+
+
+class AddonUiExtension(BaseModel):
+    """Declarative UI mount metadata; never loads remote scripts or arbitrary URLs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    nav_label: str = Field(min_length=2, max_length=40)
+    mount_path: str = Field(min_length=2, max_length=120)
+    kind: Literal["console_route", "schema_panel", "service_status"] = "schema_panel"
+    required_capabilities: list[str] = Field(default_factory=list, max_length=10)
+
+    @field_validator("mount_path")
+    @classmethod
+    def valid_mount_path(cls, value: str) -> str:
+        if (
+            not value.startswith("/")
+            or value.startswith("//")
+            or "://" in value
+            or ".." in value.split("/")
+            or any(ch.isspace() for ch in value)
+        ):
+            raise ValueError("UI mount_path must be a safe relative route starting with '/'.")
+        return value
+
+    @field_validator("required_capabilities")
+    @classmethod
+    def valid_caps(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)) or not set(value).issubset(KNOWN_CAPABILITIES):
+            raise ValueError("Unknown or duplicate UI capability requirement.")
+        return value
 
 
 class AddonManifest(BaseModel):
@@ -50,6 +81,7 @@ class AddonManifest(BaseModel):
     warning: str = Field(default="", max_length=1000)
     service_id: str | None = None
     config_schema_version: int = Field(default=1, ge=1)
+    ui_extensions: list[AddonUiExtension] = Field(default_factory=list, max_length=8)
 
     @field_validator("service_id")
     @classmethod

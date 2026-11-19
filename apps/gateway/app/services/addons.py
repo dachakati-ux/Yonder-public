@@ -147,6 +147,9 @@ class AddonRegistry:
                     "missing_dependencies": missing_dependencies,
                     "config_schema_version": manifest.config_schema_version,
                     "service_id": manifest.service_id,
+                    "ui_extensions": [
+                        ext.model_dump(mode="json") for ext in manifest.ui_extensions
+                    ],
                     "requires_attention": bool(
                         enabled and (installed_version != item["version"]
                                      or compatibility != "compatible")

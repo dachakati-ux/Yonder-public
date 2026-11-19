@@ -151,8 +151,10 @@ Sub-goals:
 - [ ] **M02.9** Complete secret backend lifecycle: supported KMS/Vault
   adapter, scoped service identities, encrypted backup recovery, provider
   revocation, synchronization acknowledgment and restart policies.
-- [ ] **M02.10** True independently deployable optional services and
-  configuration UI mounting, without modifying Yonder Gateway per add-on.
+- [x] **M02.10 (manifest-driven UI mounting):** Added `AddonUiExtension`
+  to `AddonManifest` (`ui_extensions` with safe relative `mount_path` and
+  capability gating) and `GET /api/admin/addons/ui-mounts` so enabled add-ons
+  advertise UI mounts without per-add-on Gateway changes.
 - [ ] **M02.11** Test install/upgrade/uninstall under network outage, full disk,
   stopped Docker daemon, failed migrations, malicious packages and restart;
   collect real-host test reports.

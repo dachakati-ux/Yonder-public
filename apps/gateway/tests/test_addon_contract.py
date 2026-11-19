@@ -67,3 +67,27 @@ def test_planned_addon_cannot_enable_execution_mode():
 def test_core_compatibility_range_must_be_coherent():
     with pytest.raises(ValidationError):
         manifest(min_core_version="1.0.0", max_core_version_exclusive="1.0.0")
+
+
+def test_addon_ui_extension_rejects_external_urls_and_bad_caps():
+    from app.services.addon_contract import AddonUiExtension
+    from pydantic import ValidationError
+
+    ext = AddonUiExtension(
+        nav_label="Convyx Panel",
+        mount_path="/addons/convyx",
+        kind="service_status",
+        required_capabilities=["coder.use"],
+    )
+    assert ext.mount_path == "/addons/convyx"
+
+    for bad_path in ("https://evil.example/js", "//evil.example/x", "/addons/../secret"):
+        with pytest.raises(ValidationError):
+            AddonUiExtension(nav_label="Bad", mount_path=bad_path)
+
+    with pytest.raises(ValidationError):
+        AddonUiExtension(
+            nav_label="Bad Cap",
+            mount_path="/addons/ok",
+            required_capabilities=["root.all"],
+        )
