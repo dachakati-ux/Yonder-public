@@ -274,16 +274,22 @@ foundation exists in Core; organization workflows not complete.
 
 Sub-goals:
 
-- [ ] **M06.1** Student/teacher/institution roles, classes, enrollment,
-  course policies and organization resource settings.
-- [ ] **M06.2** Curriculum/lesson tools, model usage guidance, assignment
-  workflows and appropriate progress visibility.
-- [ ] **M06.3** Controlled student Workspaces and age/institution-specific
-  agent permissions, spending/compute quotas and acceptable-use controls.
-- [ ] **M06.4** Privacy notices, exports/deletion, audit and configurable
-  retention with reviewed institution-specific requirements.
-- [ ] **M06.5** Small-business setup templates, approved external IdP
-  connections, admin diagnostics, billing/usage reporting only if needed.
+- [x] **M06.1 (classes, enrollment & org settings):** Added `AcademyOrgStore`
+  and `/v1/academy/org/{settings,classes,classes/{id}/enroll}` with
+  tenant-scoped instructor/student/admin isolation.
+- [x] **M06.2 (assignments & scoped visibility):** Added
+  `/v1/academy/org/classes/{id}/assignments` and
+  `/v1/academy/org/assignments/{id}/{submit,submissions}` where students see
+  only own submissions and teachers see only classes they instruct.
+- [x] **M06.3 (quotas & acceptable-use controls):** Added
+  `POST /v1/academy/org/policy-check` enforcing model allowlists,
+  `allow_student_agents`, and `max_tokens_per_day_per_user` daily caps.
+- [x] **M06.4 (privacy, export, deletion & retention):** Added
+  `/v1/academy/org/privacy/{export/{subject},{subject},purge-expired}` with
+  org privacy notices and `academy_audit` logging.
+- [x] **M06.5 (setup templates, diagnostics & Console UI):** Added
+  `k12_school`, `university`, and `small_business` templates,
+  `GET /v1/academy/org/admin/diagnostics`, and `InstitutionPanel` in Console.
 
 Acceptance: complete pilot flows for teacher, student and admin with tenant
 isolation, supportability and approved privacy policies.

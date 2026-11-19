@@ -23,6 +23,7 @@ from yonder_contracts.tools import ToolDefinition
 from yonder_telemetry import MetricsRegistry, configure_logging, log_event
 
 from app.api import (
+    academy_org,
     academy_tier2,
     addons,
     admin,
@@ -509,6 +510,7 @@ def create_app() -> FastAPI:
     app.include_router(chat.router)
     app.include_router(v1.router)
     app.include_router(lab.router)
+    app.include_router(academy_org.router)
     app.include_router(academy_tier2.router)
     app.include_router(help.router)
     app.include_router(platform.router)

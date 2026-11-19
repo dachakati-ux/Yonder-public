@@ -10,6 +10,7 @@ import {
   type InstructorSummary,
 } from "@/lib/gateway";
 import { AcademySubnav } from "./AcademySubnav";
+import { InstitutionPanel } from "./InstitutionPanel";
 
 const PRESET_CORPORA = [
   "site-ops-fixture",
@@ -307,6 +308,7 @@ export function InstructorConsole() {
           </section>
         </>
       ) : null}
+      <InstitutionPanel />
     </div>
   );
 }
