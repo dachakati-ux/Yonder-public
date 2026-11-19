@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -30,6 +31,18 @@ class CreateSessionRequest(BaseModel):
     memory_mb: int = Field(default=1024, ge=256, le=8192)
     ttl_seconds: int = Field(default=1800, ge=60, le=14400)
     network_profile: Literal["none", "isolated_vlan"] = "none"
+
+
+class CreateSnapshotRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    label: str = Field(min_length=2, max_length=64)
+    digest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class ExecSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    command: list[str] = Field(min_length=1, max_length=32)
+    timeout_seconds: int = Field(default=10, ge=1, le=30)
 
 
 def create_app(
@@ -344,5 +357,111 @@ def create_app(
             detail=session_id,
         )
         return {"session": stopped}
+
+    @app.get("/workspaces/v1/projects/{project_id}/snapshots")
+    async def list_snapshots(
+        project_id: str,
+        principal: WorkspacePrincipal = auth_dep,
+    ) -> dict[str, Any]:
+        project = store.get_project(project_id)
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+        if not can_access_project(
+            principal,
+            owner_subject=project["owner_subject"],
+            tenant_id=project["tenant_id"],
+            class_id=project["class_id"],
+            action="read",
+        ):
+            raise HTTPException(status_code=403, detail="Access denied")
+        return {"snapshots": store.list_snapshots(project_id)}
+
+    @app.post("/workspaces/v1/projects/{project_id}/snapshots", status_code=201)
+    async def create_snapshot(
+        project_id: str,
+        body: CreateSnapshotRequest,
+        principal: WorkspacePrincipal = auth_dep,
+    ) -> dict[str, Any]:
+        project = store.get_project(project_id)
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+        if not can_access_project(
+            principal,
+            owner_subject=project["owner_subject"],
+            tenant_id=project["tenant_id"],
+            class_id=project["class_id"],
+            action="write",
+        ):
+            raise HTTPException(status_code=403, detail="Access denied")
+        try:
+            snap = store.create_snapshot(
+                project_id=project_id,
+                owner_subject=principal.subject,
+                tenant_id=principal.tenant_id,
+                label=body.label,
+                digest_sha256=body.digest_sha256,
+            )
+        except QuotaExceededError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except WorkspaceStoreError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"snapshot": snap}
+
+    @app.post("/workspaces/v1/sessions/{session_id}/exec")
+    async def exec_in_session(
+        session_id: str,
+        body: ExecSessionRequest,
+        principal: WorkspacePrincipal = auth_dep,
+    ) -> dict[str, Any]:
+        if provisioner is None:
+            raise HTTPException(
+                status_code=501,
+                detail="VM/microVM execution backend is not configured",
+            )
+        session = store.get_session(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        project = store.get_project(session["project_id"])
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+        if not can_access_project(
+            principal,
+            owner_subject=project["owner_subject"],
+            tenant_id=project["tenant_id"],
+            class_id=project["class_id"],
+            action="write",
+        ):
+            store.record_audit(
+                project_id=session["project_id"],
+                actor_subject=principal.subject,
+                tenant_id=principal.tenant_id,
+                action="access_denied",
+                detail="exec_session",
+            )
+            raise HTTPException(status_code=403, detail="Access denied")
+        if session["status"] != "running" or not session.get("backend_ref"):
+            raise HTTPException(status_code=409, detail="Session is not running")
+        created_at = datetime.fromisoformat(session["created_at"])
+        if (datetime.now(UTC) - created_at).total_seconds() > int(session["ttl_seconds"]):
+            await provisioner.terminate_session(session_id, str(session["backend_ref"]))
+            store.mark_session_stopped(session_id, status="expired")
+            raise HTTPException(status_code=409, detail="Session TTL expired")
+        try:
+            result = await provisioner.execute_in_session(
+                session_id,
+                str(session["backend_ref"]),
+                body.command,
+                timeout_seconds=body.timeout_seconds,
+            )
+        except ProvisionerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        store.record_audit(
+            project_id=session["project_id"],
+            actor_subject=principal.subject,
+            tenant_id=principal.tenant_id,
+            action="session_exec",
+            detail=body.command[0],
+        )
+        return result
 
     return app

@@ -47,6 +47,15 @@ class WorkspaceProvisioner(Protocol):
 
     async def terminate_session(self, session_id: str, backend_ref: str) -> None: ...
 
+    async def execute_in_session(
+        self,
+        session_id: str,
+        backend_ref: str,
+        command: list[str],
+        *,
+        timeout_seconds: int = 10,
+    ) -> dict[str, object]: ...
+
 
 class ProxmoxAdapter:
     """Scoped Proxmox VE adapter using least-privilege API tokens & isolated pools."""
@@ -127,3 +136,26 @@ class ProxmoxAdapter:
         if not vmid.isdigit():
             raise ProvisionerError("Invalid Proxmox VMID")
         await self._post(f"/api2/json/nodes/{self.node}/qemu/{vmid}/status/stop", {})
+
+    async def execute_in_session(
+        self,
+        session_id: str,
+        backend_ref: str,
+        command: list[str],
+        *,
+        timeout_seconds: int = 10,
+    ) -> dict[str, object]:
+        if not backend_ref.startswith(f"pve://{self.node}/"):
+            raise ProvisionerError("Invalid Proxmox backend reference")
+        if not command or len(command) > 32:
+            raise ProvisionerError("Command argv must contain 1..32 arguments")
+        if not (1 <= timeout_seconds <= 30):
+            raise ProvisionerError("timeout_seconds must be between 1 and 30")
+        vmid = backend_ref.rsplit("/", 1)[-1]
+        if not vmid.isdigit():
+            raise ProvisionerError("Invalid Proxmox VMID")
+        payload = await self._post(
+            f"/api2/json/nodes/{self.node}/qemu/{vmid}/agent/exec",
+            {"command": command[0], "input-data": " ".join(command[1:])},
+        )
+        return {"session_id": session_id, "vmid": vmid, "result": payload.get("data")}

@@ -88,6 +88,17 @@ class WorkspaceStore:
                     UNIQUE(project_id, idempotency_key)
                 )"""
             )
+            db.execute(
+                """CREATE TABLE IF NOT EXISTS workspace_snapshots (
+                    snapshot_id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    owner_subject TEXT NOT NULL,
+                    tenant_id TEXT,
+                    label TEXT NOT NULL,
+                    digest_sha256 TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )"""
+            )
 
     def _conn(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.db_path, timeout=20)
@@ -332,3 +343,52 @@ class WorkspaceStore:
                 "SELECT * FROM workspace_sessions WHERE session_id=?", (session_id,)
             ).fetchone()
             return dict(row)
+
+    def create_snapshot(
+        self,
+        *,
+        project_id: str,
+        owner_subject: str,
+        tenant_id: str | None,
+        label: str,
+        digest_sha256: str,
+        max_snapshots: int = 20,
+    ) -> dict:
+        if not NAME_RE.fullmatch(label.strip()):
+            raise WorkspaceStoreError("Invalid snapshot label")
+        with self._lock, self._conn() as db:
+            cnt = db.execute(
+                "SELECT COUNT(*) AS c FROM workspace_snapshots WHERE project_id=?",
+                (project_id,),
+            ).fetchone()["c"]
+            if int(cnt) >= max_snapshots:
+                raise QuotaExceededError("Per-project snapshot quota exceeded")
+            snapshot_id = f"snap_{uuid.uuid4().hex[:14]}"
+            now = _now()
+            db.execute(
+                "INSERT INTO workspace_snapshots "
+                "(snapshot_id,project_id,owner_subject,tenant_id,label,digest_sha256,created_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (
+                    snapshot_id, project_id, owner_subject, tenant_id,
+                    label.strip(), digest_sha256, now,
+                ),
+            )
+            db.execute(
+                "INSERT INTO workspace_audit "
+                "(project_id,actor_subject,tenant_id,action,detail,timestamp) "
+                "VALUES (?,?,?,?,?,?)",
+                (project_id, owner_subject, tenant_id, "snapshot_created", label.strip(), now),
+            )
+            row = db.execute(
+                "SELECT * FROM workspace_snapshots WHERE snapshot_id=?", (snapshot_id,)
+            ).fetchone()
+            return dict(row)
+
+    def list_snapshots(self, project_id: str) -> list[dict]:
+        with self._lock, self._conn() as db:
+            rows = db.execute(
+                "SELECT * FROM workspace_snapshots WHERE project_id=? ORDER BY created_at DESC",
+                (project_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]

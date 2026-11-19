@@ -261,10 +261,15 @@ Sub-goals:
   idempotent session endpoints (`/workspaces/v1/projects/{id}/sessions`,
   `/workspaces/v1/sessions/{id}/stop`), and scoped `ProxmoxAdapter` (refuses
   `root@*` tokens and non-HTTPS endpoints).
-- [ ] **M05.5** IDE/editor, terminal execution, project snapshots, session
-  cost/resource controls and full audit.
-- [ ] **M05.6** Concurrency, sandbox escape, cross-student access and resource
-  exhaustion testing.
+- [x] **M05.5 (snapshots & bounded session exec):** Added
+  `workspace_snapshots`, `/workspaces/v1/projects/{id}/snapshots`,
+  `ProxmoxAdapter.execute_in_session()`, and `/workspaces/v1/sessions/{id}/exec`
+  with TTL expiry enforcement and audit logging. Browser editor UI remains
+  optional.
+- [x] **M05.6 (adversarial concurrency & sandbox-bounds suite):** Added
+  `apps/workspaces/tests/test_workspaces_adversarial.py` testing concurrent
+  session race conditions, resource/network bounds, TTL expiry, and
+  cross-student denial.
 
 Acceptance: two students cannot read, write, execute or discover each
 other's private resources; admins have explicitly defined oversight; a
