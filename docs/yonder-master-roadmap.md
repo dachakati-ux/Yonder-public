@@ -169,8 +169,10 @@ continues working when the controller is absent or down.
 
 Sub-goals:
 
-- [ ] **M03.1** Preserve mandatory Core auth/authz boundary and strip untrusted
-  ingress headers; test direct-Gateway identity-header spoofing.
+- [x] **M03.1 (partial — ingress authenticity):** Added
+  `trusted_ingress_shared_secret` and `trusted_proxy_cidrs` verification to
+  `SecurityConfig` and `TrustedIngressRequestContextProvider` so direct
+  spoofed `X-Yonder-Trusted-*` headers fail closed with 401.
 - [ ] **M03.2** Build generic OIDC Authorization Code + PKCE bridge with
   validated issuer/audience/nonce/JWKS, secure sessions and CSRF protection.
 - [ ] **M03.3** Authentik guided template, followed by Keycloak, Entra,

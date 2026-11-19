@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import secrets
 from types import MappingProxyType
 from typing import Any
 
@@ -94,6 +96,46 @@ class TrustedIngressRequestContextProvider:
 
     def __init__(self, security: SecurityConfig) -> None:
         self._security = security
+        self._proxy_networks = tuple(
+            ipaddress.ip_network(cidr, strict=False)
+            for cidr in security.trusted_proxy_cidrs
+        )
+
+    def _verify_ingress_authenticity(self, request: Request, request_id: str) -> None:
+        if self._proxy_networks:
+            client_host = request.client.host if request.client else None
+            allowed = False
+            if client_host:
+                try:
+                    addr = ipaddress.ip_address(client_host)
+                    allowed = any(addr in net for net in self._proxy_networks)
+                except ValueError:
+                    allowed = False
+            if not allowed:
+                raise HTTPException(
+                    status_code=401,
+                    detail=ErrorResponse(
+                        error=ErrorBody(
+                            code=ErrorCode.SECURITY_CONTEXT_UNAVAILABLE,
+                            message="Untrusted ingress peer rejected.",
+                            request_id=request_id,
+                        )
+                    ).model_dump(),
+                )
+        expected_secret = self._security.trusted_ingress_shared_secret
+        if expected_secret:
+            supplied = request.headers.get(self._security.trusted_ingress_secret_header) or ""
+            if not secrets.compare_digest(supplied, expected_secret):
+                raise HTTPException(
+                    status_code=401,
+                    detail=ErrorResponse(
+                        error=ErrorBody(
+                            code=ErrorCode.SECURITY_CONTEXT_UNAVAILABLE,
+                            message="Untrusted ingress headers rejected.",
+                            request_id=request_id,
+                        )
+                    ).model_dump(),
+                )
 
     async def resolve(self, request: Request) -> RequestPrincipal:
         subject = request.headers.get(self._security.trusted_subject_header)
@@ -131,6 +173,8 @@ class TrustedIngressRequestContextProvider:
                     )
                 ).model_dump(),
             )
+
+        self._verify_ingress_authenticity(request, request_id)
 
         capabilities = _split_csv(
             request.headers.get(self._security.trusted_capabilities_header)

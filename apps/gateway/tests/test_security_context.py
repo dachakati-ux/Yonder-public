@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from app.context import RequestContextMiddleware
+from app.context import RequestContextMiddleware, get_principal
 from app.context.providers import (
     DevelopmentRequestContextProvider,
     TrustedIngressRequestContextProvider,
@@ -117,3 +117,88 @@ def test_health_skips_principal_requirement() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert "X-Yonder-Request-Id" in response.headers
+
+
+def test_trusted_ingress_rejects_spoofed_headers_without_ingress_secret() -> None:
+    app = FastAPI()
+    provider = TrustedIngressRequestContextProvider(
+        SecurityConfig(
+            mode=SecurityMode.TRUSTED_INGRESS,
+            trusted_ingress_shared_secret="ingress-secret-value",
+        )
+    )
+    app.add_middleware(RequestContextMiddleware, provider=provider, service_name="test")
+
+    @app.get("/secure")
+    async def secure(request: Request) -> dict[str, str]:
+        return {"subject": get_principal(request).subject}
+
+    client = TestClient(app)
+    spoofed = client.get(
+        "/secure",
+        headers={
+            "X-Yonder-Trusted-Subject": "admin",
+            "X-Yonder-Trusted-Capabilities": "operations.manage",
+        },
+    )
+    assert spoofed.status_code == 401
+    assert spoofed.json()["error"]["code"] == "SECURITY_CONTEXT_UNAVAILABLE"
+
+    wrong_secret = client.get(
+        "/secure",
+        headers={
+            "X-Yonder-Trusted-Subject": "admin",
+            "X-Yonder-Ingress-Secret": "wrong",
+        },
+    )
+    assert wrong_secret.status_code == 401
+
+    verified = client.get(
+        "/secure",
+        headers={
+            "X-Yonder-Trusted-Subject": "alice",
+            "X-Yonder-Ingress-Secret": "ingress-secret-value",
+        },
+    )
+    assert verified.status_code == 200
+    assert verified.json()["subject"] == "alice"
+
+
+def test_trusted_ingress_enforces_proxy_cidr_allowlist() -> None:
+    app = FastAPI()
+    provider = TrustedIngressRequestContextProvider(
+        SecurityConfig(
+            mode=SecurityMode.TRUSTED_INGRESS,
+            trusted_proxy_cidrs=("10.0.0.0/8",),
+        )
+    )
+    app.add_middleware(RequestContextMiddleware, provider=provider, service_name="test")
+
+    @app.get("/secure")
+    async def secure() -> dict[str, str]:
+        return {"ok": "true"}
+
+    # TestClient uses 'testclient' (non-10.0.0.0/8), so direct spoofed headers fail closed.
+    client = TestClient(app)
+    res = client.get("/secure", headers={"X-Yonder-Trusted-Subject": "admin"})
+    assert res.status_code == 401
+
+    allowed_app = FastAPI()
+    allowed_provider = TrustedIngressRequestContextProvider(
+        SecurityConfig(
+            mode=SecurityMode.TRUSTED_INGRESS,
+            trusted_proxy_cidrs=("127.0.0.0/8",),
+        )
+    )
+    allowed_app.add_middleware(
+        RequestContextMiddleware, provider=allowed_provider, service_name="test"
+    )
+
+    @allowed_app.get("/secure")
+    async def allowed_secure() -> dict[str, str]:
+        return {"ok": "true"}
+
+    # TestClient with explicit loopback client host passes CIDR check.
+    loopback_client = TestClient(allowed_app, client=("127.0.0.1", 50000))
+    ok = loopback_client.get("/secure", headers={"X-Yonder-Trusted-Subject": "alice"})
+    assert ok.status_code == 200

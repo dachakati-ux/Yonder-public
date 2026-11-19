@@ -65,6 +65,19 @@ class SecurityConfig(BaseModel):
     # Required (non-empty) when environment=production.
     worker_shared_secret: str | None = Field(default=None, repr=False)
     worker_token_header: str = "X-Yonder-Worker-Token"
+    # Optional ingress authenticity controls for trusted-header mode (M03.1).
+    trusted_ingress_shared_secret: str | None = Field(default=None, repr=False)
+    trusted_ingress_secret_header: str = "X-Yonder-Ingress-Secret"
+    trusted_proxy_cidrs: tuple[str, ...] = ()
+
+    @field_validator("trusted_proxy_cidrs")
+    @classmethod
+    def validate_proxy_cidrs(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        import ipaddress
+
+        for item in value:
+            ipaddress.ip_network(item, strict=False)
+        return value
 
 
 class ServiceBindConfig(BaseModel):
