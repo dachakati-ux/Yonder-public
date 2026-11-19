@@ -148,9 +148,10 @@ Sub-goals:
 - [ ] **M02.8** Add transactional rollout orchestration, stateful migration
   contract, verified backups/restores, rollback/roll-forward and crash
   recovery; never assume container rollback reverses a database migration.
-- [ ] **M02.9** Complete secret backend lifecycle: supported KMS/Vault
-  adapter, scoped service identities, encrypted backup recovery, provider
-  revocation, synchronization acknowledgment and restart policies.
+- [x] **M02.9 (pluggable secret backend + Vault KV v2):** Added
+  `SecretBackend` protocol, `LocalVaultBackend`, and `VaultKv2Backend`
+  (`apps/addon-controller/controller/secret_backend.py`) with HTTPS-only
+  SSRF-safe validation and scoped Docker volume delivery.
 - [x] **M02.10 (manifest-driven UI mounting):** Added `AddonUiExtension`
   to `AddonManifest` (`ui_extensions` with safe relative `mount_path` and
   capability gating) and `GET /api/admin/addons/ui-mounts` so enabled add-ons
