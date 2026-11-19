@@ -14,6 +14,15 @@ from yonder_contracts.errors import ErrorCode
 
 from app.context import get_principal, get_request_id
 from app.errors import error_response
+from app.services.model_discovery import ModelDiscoveryError
+from app.services.model_library_ops import (
+    BenchmarkStore,
+    ModelRegistrationStore,
+    build_compatibility_matrix,
+    evaluate_heterogeneous_placement,
+    is_model_library_enabled,
+    reschedule_failed_deployment,
+)
 
 router = APIRouter(prefix="/api/admin/catalog", tags=["model-catalog"])
 HF_API = "https://huggingface.co/api"
@@ -31,6 +40,37 @@ def _capability(request: Request, capability: str = "models.view"):
         f"Principal lacks {capability} capability.",
         get_request_id(request),
     )
+
+
+def _require_model_library(request: Request):
+    if is_model_library_enabled():
+        return None
+    return error_response(
+        ErrorCode.PERMISSION_CONTEXT_REQUIRED,
+        (
+            "Optional Model Library module is disabled; set "
+            "YONDER_MODEL_LIBRARY_ENABLED=true to enable catalog search and downloads."
+        ),
+        get_request_id(request),
+        status_code=403,
+        details={"reason": "MODEL_LIBRARY_DISABLED"},
+    )
+
+
+def _registration_store(request: Request) -> ModelRegistrationStore:
+    store = getattr(request.app.state, "model_registrations", None)
+    if store is None:
+        store = ModelRegistrationStore()
+        request.app.state.model_registrations = store
+    return store
+
+
+def _benchmark_store(request: Request) -> BenchmarkStore:
+    store = getattr(request.app.state, "model_benchmarks", None)
+    if store is None:
+        store = BenchmarkStore()
+        request.app.state.model_benchmarks = store
+    return store
 
 
 async def _get_json(path: str, params: dict[str, Any] | None = None) -> Any:
@@ -144,7 +184,7 @@ async def search_catalog(
     exclude_gated: bool = Query(default=True),
 ):
     """Search Hugging Face models with explicit external-service failures."""
-    denied = _capability(request)
+    denied = _capability(request) or _require_model_library(request)
     if denied:
         return denied
     params: dict[str, Any] = {
@@ -193,7 +233,7 @@ async def model_details(
     available_vram_mb: int | None = Query(default=None, ge=1),
     available_ram_mb: int | None = Query(default=None, ge=1),
 ):
-    denied = _capability(request)
+    denied = _capability(request) or _require_model_library(request)
     if denied:
         return denied
     identifier = f"{owner}/{name}"
@@ -250,7 +290,7 @@ class InstallGGUFBody(BaseModel):
 
 @router.get("/installs")
 async def list_installs(request: Request):
-    denied = _capability(request)
+    denied = _capability(request) or _require_model_library(request)
     if denied:
         return denied
     return {
@@ -261,7 +301,7 @@ async def list_installs(request: Request):
 
 @router.post("/installs", status_code=202)
 async def install_gguf(body: InstallGGUFBody, request: Request):
-    denied = _capability(request, "models.manage")
+    denied = _capability(request, "models.manage") or _require_model_library(request)
     if denied:
         return denied
     try:
@@ -273,7 +313,7 @@ async def install_gguf(body: InstallGGUFBody, request: Request):
 
 @router.post("/installs/{job_id}/cancel")
 async def cancel_install(job_id: str, request: Request):
-    denied = _capability(request, "models.manage")
+    denied = _capability(request, "models.manage") or _require_model_library(request)
     if denied:
         return denied
     cancelled = await request.app.state.model_installs.cancel(job_id)
@@ -282,7 +322,7 @@ async def cancel_install(job_id: str, request: Request):
 
 @router.post("/installs/{job_id}/retry", status_code=202)
 async def retry_install(job_id: str, request: Request):
-    denied = _capability(request, "models.manage")
+    denied = _capability(request, "models.manage") or _require_model_library(request)
     if denied:
         return denied
     try:
@@ -294,7 +334,7 @@ async def retry_install(job_id: str, request: Request):
 
 @router.delete("/installs/{job_id}")
 async def remove_install(job_id: str, request: Request):
-    denied = _capability(request, "models.manage")
+    denied = _capability(request, "models.manage") or _require_model_library(request)
     if denied:
         return denied
     try:
@@ -302,3 +342,170 @@ async def remove_install(job_id: str, request: Request):
     except ValueError as exc:
         return error_response(ErrorCode.INVALID_REQUEST, str(exc), get_request_id(request))
     return {"removed": removed}
+
+
+class RegisterBundleBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model_id: str = Field(min_length=1, max_length=128)
+    path: str = Field(min_length=1, max_length=512)
+    runtime_id: str = Field(min_length=1, max_length=64)
+    modality: str = Field(default="chat", max_length=32)
+    simulate_load_failure: bool = False
+
+
+class RollbackBundleBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(default="operator_rollback", max_length=200)
+
+
+class PlacementRecommendBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    required_vram_gb: float = Field(gt=0, le=2048)
+    preferred_worker_id: str | None = Field(default=None, max_length=128)
+    supported_runtimes: list[str] = Field(default_factory=list)
+
+
+class PlacementRescheduleBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    failed_worker_id: str = Field(min_length=1, max_length=128)
+    required_vram_gb: float = Field(gt=0, le=2048)
+    supported_runtimes: list[str] = Field(default_factory=list)
+
+
+class BenchmarkRunBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model_id: str = Field(min_length=1, max_length=128)
+    runtime_id: str = Field(min_length=1, max_length=64)
+    worker_id: str = Field(min_length=1, max_length=128)
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+    latency_ms: float = Field(gt=0)
+    seed: int = Field(default=42)
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+
+@router.get("/status")
+async def catalog_status(request: Request):
+    denied = _capability(request)
+    if denied:
+        return denied
+    return {
+        "model_library_enabled": is_model_library_enabled(),
+        "core_connections_enabled": True,
+        "preset_count": len(EXTERNAL_RUNTIME_PRESETS),
+    }
+
+
+@router.get("/bundles/registrations")
+async def list_bundle_registrations(request: Request):
+    denied = _capability(request)
+    if denied:
+        return denied
+    return {"registrations": _registration_store(request).list_registrations()}
+
+
+@router.post("/bundles/register")
+async def register_bundle(body: RegisterBundleBody, request: Request):
+    denied = _capability(request, "models.manage")
+    if denied:
+        return denied
+    try:
+        record = _registration_store(request).validate_and_register(
+            model_id=body.model_id,
+            raw_path=body.path,
+            model_roots=request.app.state.settings.model_roots,
+            runtime_id=body.runtime_id,
+            modality=body.modality,
+            simulate_load_failure=body.simulate_load_failure,
+        )
+    except ModelDiscoveryError as exc:
+        return error_response(
+            ErrorCode.INVALID_REQUEST,
+            exc.message,
+            get_request_id(request),
+            details={"reason": exc.code},
+        )
+    return {"registration": record.to_dict()}
+
+
+@router.post("/bundles/{model_id}/rollback")
+async def rollback_bundle(model_id: str, body: RollbackBundleBody, request: Request):
+    denied = _capability(request, "models.manage")
+    if denied:
+        return denied
+    try:
+        result = _registration_store(request).rollback(model_id, reason=body.reason)
+    except ModelDiscoveryError as exc:
+        return error_response(
+            ErrorCode.INVALID_REQUEST,
+            exc.message,
+            get_request_id(request),
+            details={"reason": exc.code},
+        )
+    return result
+
+
+@router.post("/placement/recommend")
+async def recommend_placement(body: PlacementRecommendBody, request: Request):
+    denied = _capability(request, "models.manage")
+    if denied:
+        return denied
+    workers = getattr(request.app.state, "workers", {})
+    return evaluate_heterogeneous_placement(
+        workers,
+        required_vram_gb=body.required_vram_gb,
+        preferred_worker_id=body.preferred_worker_id,
+        supported_runtimes=set(body.supported_runtimes) if body.supported_runtimes else None,
+    )
+
+
+@router.post("/placement/reschedule")
+async def reschedule_placement(body: PlacementRescheduleBody, request: Request):
+    denied = _capability(request, "models.manage")
+    if denied:
+        return denied
+    workers = getattr(request.app.state, "workers", {})
+    return reschedule_failed_deployment(
+        workers,
+        failed_worker_id=body.failed_worker_id,
+        required_vram_gb=body.required_vram_gb,
+        supported_runtimes=set(body.supported_runtimes) if body.supported_runtimes else None,
+    )
+
+
+@router.get("/compatibility-matrix")
+async def compatibility_matrix(request: Request):
+    denied = _capability(request)
+    if denied:
+        return denied
+    workers = getattr(request.app.state, "workers", {})
+    return {"matrix": build_compatibility_matrix(EXTERNAL_RUNTIME_PRESETS, workers)}
+
+
+@router.get("/benchmarks")
+async def list_benchmarks(request: Request, model_id: str | None = Query(default=None)):
+    denied = _capability(request)
+    if denied:
+        return denied
+    return {"runs": _benchmark_store(request).list_runs(model_id=model_id)}
+
+
+@router.post("/benchmarks")
+async def record_benchmark(body: BenchmarkRunBody, request: Request):
+    denied = _capability(request, "models.manage")
+    if denied:
+        return denied
+    try:
+        run = _benchmark_store(request).record_run(
+            model_id=body.model_id,
+            runtime_id=body.runtime_id,
+            worker_id=body.worker_id,
+            prompt_tokens=body.prompt_tokens,
+            completion_tokens=body.completion_tokens,
+            latency_ms=body.latency_ms,
+            seed=body.seed,
+            parameters=body.parameters,
+        )
+    except ValueError as exc:
+        return error_response(ErrorCode.INVALID_REQUEST, str(exc), get_request_id(request))
+    return {"run": run}

@@ -3,6 +3,28 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 fail() { echo "Yonder update: $*" >&2; exit 1; }
+
+if [[ "${1:-}" == "--rollback" ]]; then
+  backup_dir="${2:-}"
+  [[ -n "$backup_dir" && -d "$backup_dir" ]] || fail "Provide a valid backup directory"
+  [[ -f "$backup_dir/previous-revision" && -f "$backup_dir/gateway-data.tar.gz" ]] ||
+    fail "Backup directory missing previous-revision or gateway-data.tar.gz"
+  tar -tzf "$backup_dir/gateway-data.tar.gz" >/dev/null || fail "Backup archive corrupted"
+  prev_rev="$(cat "$backup_dir/previous-revision")"
+  git checkout --detach "$prev_rev"
+  if [[ -f "$backup_dir/.env" ]]; then
+    cp -p "$backup_dir/.env" .env
+    chmod 600 .env
+  fi
+  docker compose up --build -d
+  gateway="$(docker compose ps -q gateway)"
+  [[ -n "$gateway" ]] || fail "Gateway container did not start during rollback"
+  docker exec -i "$gateway" tar -xzf - -C /app < "$backup_dir/gateway-data.tar.gz"
+  docker compose restart gateway
+  echo "Rollback completed to revision $prev_rev from $backup_dir"
+  exit 0
+fi
+
 command -v git >/dev/null || fail "git missing"
 command -v docker >/dev/null || fail "Docker missing"
 docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 required"

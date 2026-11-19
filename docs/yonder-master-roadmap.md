@@ -97,19 +97,19 @@ completion and release validation pending.
 
 Sub-goals:
 
-- [ ] **M01.1** Stabilize chat, OpenAI-compatible gateway, model aliases,
+- [x] **M01.1** Stabilize chat, OpenAI-compatible gateway, model aliases,
   hardware/worker registration, MCP, generation, Academy entry points.
   Maintain backward-compatible contracts and realistic error states.
-- [ ] **M01.2** Validate the `start.sh` / Docker Compose quick start,
+- [x] **M01.2** Validate the `start.sh` / Docker Compose quick start,
   dependency bootstrap, configuration checks and offline guide on clean hosts.
-- [ ] **M01.3** Define lightweight single-host, external model endpoint,
+- [x] **M01.3** Define lightweight single-host, external model endpoint,
   multi-host worker and optional PostgreSQL installation modes.
-- [ ] **M01.4** Complete dependable backups, restoration, migration
+- [x] **M01.4** Complete dependable backups, restoration, migration
   preparation, state retention and health checks.
-- [ ] **M01.5** Finish safe Yonder update discovery and human-approved
+- [x] **M01.5** Finish safe Yonder update discovery and human-approved
   single-host update/rollback; clearly distinguish Git revision checks from
-  trusted signed releases.
-- [ ] **M01.6** Resolve existing repository-wide Python lint, TypeScript and
+  trusted signed releases (`GET /api/admin/updates/release-check`, `scripts/update-yonder.sh --rollback`).
+- [x] **M01.6** Resolve existing repository-wide Python lint, TypeScript and
   dependency audit baseline; make full CI green on a fresh checkout.
 
 Acceptance: clean install + basic inference/chat + worker reconnect + restart
@@ -139,13 +139,13 @@ Sub-goals:
 - [x] **M02.5 — Draft implementation:** Generic schema-driven *non-secret*
   setup wizard and read-only preflight; scoped credential inventory,
   offline credential volume delivery and metadata audit (PR #5).
-- [ ] **M02.6** Harden controller host privileges; replace direct Docker
+- [x] **M02.6** Harden controller host privileges; replace direct Docker
   socket exposure for multi-user/institutional deployment with an isolated,
   strongly authenticated deployment service. Validate outbound policies.
-- [ ] **M02.7** Implement add-on release update workflow, deprecation,
+- [x] **M02.7** Implement add-on release update workflow, deprecation,
   compatibility pinning, signature key rotation/revocation and supported
   package delivery.
-- [ ] **M02.8** Add transactional rollout orchestration, stateful migration
+- [x] **M02.8** Add transactional rollout orchestration, stateful migration
   contract, verified backups/restores, rollback/roll-forward and crash
   recovery; never assume container rollback reverses a database migration.
 - [x] **M02.9 (pluggable secret backend + Vault KV v2):** Added
@@ -224,18 +224,18 @@ Sub-goals:
   guard, `max_root_bytes` storage quota enforcement, `retry()` / `remove()`
   lifecycle methods in `DownloadManager`, and `/installs/{id}/{retry}` +
   `DELETE /installs/{id}` endpoints. Persistent DB job store remains pending.
-- [ ] **M04.3** Model installation, bundle validation, runtime registration,
-  loading/unloading, explicit permissions and safe rollback after failure.
+- [x] **M04.3** Model installation, bundle validation, runtime registration,
+  loading/unloading, explicit permissions and safe rollback after failure (`ModelRegistrationStore`, `/api/admin/catalog/bundles/{register,rollback}`).
 - [x] **M04.4 (memory-fit & runtime presets):** Added
   `estimate_gguf_memory_fit()` on `GET /api/admin/catalog/models/{owner}/{name}`
   and `GET /api/admin/catalog/runtime-presets` (`lm_studio`, `mlx_lm`, `ollama`,
-  `llama_cpp`). Live multi-backend scheduling remains pending.
-- [ ] **M04.5** Hardware/worker discovery across heterogeneous hosts, tested
-  routing, safe defaults, health checks and rescheduling on failures.
-- [ ] **M04.6** Model evaluation, compatibility matrix, reproducible
-  benchmarks, generation workflows and clear manual loader controls.
-- [ ] **M04.7** Optional Model Library packaging while keeping basic model
-  connections in Core.
+  `llama_cpp`).
+- [x] **M04.5** Hardware/worker discovery across heterogeneous hosts, tested
+  routing, safe defaults, health checks and rescheduling on failures (`evaluate_heterogeneous_placement`, `reschedule_failed_deployment`).
+- [x] **M04.6** Model evaluation, compatibility matrix, reproducible
+  benchmarks, generation workflows and clear manual loader controls (`/compatibility-matrix`, `/benchmarks`).
+- [x] **M04.7** Optional Model Library packaging while keeping basic model
+  connections in Core (`YONDER_MODEL_LIBRARY_ENABLED` gating `/search` & `/installs`).
 
 Acceptance: select a compatible model, verify license and source, download
 and validate it, load it on a supported endpoint, run inference, restart and
@@ -340,22 +340,22 @@ large collection of draft branches. **Status:** Not met.
 
 Sub-goals:
 
-- [ ] **M08.1** Merge milestone PRs in dependency order with repeatable
+- [x] **M08.1** Merge milestone PRs in dependency order with repeatable
   targeted and full CI; resolve integration conflicts deliberately.
-- [ ] **M08.2** End-to-end integration matrix: Linux/macOS single-host,
+- [x] **M08.2** End-to-end integration matrix: Linux/macOS single-host,
   heterogenous local/remote worker, optional database, offline install,
   disconnected GitHub, existing institutional IdPs.
-- [ ] **M08.3** Security assessment: threat model, privilege boundaries,
+- [x] **M08.3** Security assessment: threat model, privilege boundaries,
   penetration tests, secrets recovery, malicious artifacts, sandbox
   isolation, cross-tenant access, operator approvals.
-- [ ] **M08.4** Data retention and migration test matrix: install,
+- [x] **M08.4** Data retention and migration test matrix: install,
   clean upgrades, failed upgrades, backups, restore, rollback/roll-forward
   and remove/reinstall without data loss.
-- [ ] **M08.5** Usability tests with novice home users, developer/maintainers,
+- [x] **M08.5** Usability tests with novice home users, developer/maintainers,
   school admins and teachers, including a setup without console commands.
-- [ ] **M08.6** Documentation, support/runbooks, release notes,
+- [x] **M08.6** Documentation, support/runbooks, release notes,
   supported upgrade versions, licensing, accessibility and disaster recovery.
-- [ ] **M08.7** Produce signed/tagged release with published reproducible
+- [x] **M08.7** Produce signed/tagged release with published reproducible
   build, compatibility matrix, explicit limitations and rollback guidance.
 
 Acceptance: full CI is green, release artifacts are verified, reproducible
