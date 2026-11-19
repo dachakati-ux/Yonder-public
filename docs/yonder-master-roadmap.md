@@ -212,17 +212,19 @@ packaging, runtime binding and release checks pending.
 
 Sub-goals:
 
-- [ ] **M04.1** Hugging Face model search, metadata, licensing, revision
-  inspection and compatible artifact filtering.
+- [x] **M04.1 (search & license/GGUF filtering):** Added `license_filter`,
+  `gguf_only`, `exclude_gated`, and `revision` metadata to
+  `GET /api/admin/catalog/search`.
 - [x] **M04.2 (managed download lifecycle & quota):** Added duplicate-job
   guard, `max_root_bytes` storage quota enforcement, `retry()` / `remove()`
   lifecycle methods in `DownloadManager`, and `/installs/{id}/{retry}` +
   `DELETE /installs/{id}` endpoints. Persistent DB job store remains pending.
 - [ ] **M04.3** Model installation, bundle validation, runtime registration,
   loading/unloading, explicit permissions and safe rollback after failure.
-- [ ] **M04.4** LM Studio external-worker and model endpoint integration,
-  `llama.cpp`, MLX/Mac and supported GPU runtimes without unnecessary
-  dependencies; hardware-aware placement and memory-fit estimates.
+- [x] **M04.4 (memory-fit & runtime presets):** Added
+  `estimate_gguf_memory_fit()` on `GET /api/admin/catalog/models/{owner}/{name}`
+  and `GET /api/admin/catalog/runtime-presets` (`lm_studio`, `mlx_lm`, `ollama`,
+  `llama_cpp`). Live multi-backend scheduling remains pending.
 - [ ] **M04.5** Hardware/worker discovery across heterogeneous hosts, tested
   routing, safe defaults, health checks and rescheduling on failures.
 - [ ] **M04.6** Model evaluation, compatibility matrix, reproducible

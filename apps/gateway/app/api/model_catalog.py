@@ -51,6 +51,7 @@ def _catalog_item(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": identifier,
         "url": "https://huggingface.co/" + identifier,
+        "revision": item.get("sha"),
         "downloads": item.get("downloads") or 0,
         "likes": item.get("likes") or 0,
         "pipeline_tag": item.get("pipeline_tag"),
@@ -71,11 +72,76 @@ def _catalog_item(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def estimate_gguf_memory_fit(
+    size_bytes: int | None,
+    *,
+    available_vram_mb: int | None = None,
+    available_ram_mb: int | None = None,
+) -> dict[str, Any]:
+    """Conservative weight + KV-cache estimate; explicitly marked as estimate."""
+    if not isinstance(size_bytes, int) or size_bytes <= 0:
+        return {"fit": "unknown", "estimated_required_mb": None, "source": "unavailable"}
+    weight_mb = size_bytes / (1024 * 1024)
+    estimated_required_mb = int(round(weight_mb * 1.2 + 512))
+    if available_vram_mb is not None and estimated_required_mb <= available_vram_mb:
+        fit = "gpu_fit"
+    elif available_ram_mb is not None and estimated_required_mb <= available_ram_mb:
+        fit = "cpu_ram_fit"
+    elif available_vram_mb is not None or available_ram_mb is not None:
+        fit = "exceeds_memory"
+    else:
+        fit = "unknown"
+    return {
+        "fit": fit,
+        "estimated_required_mb": estimated_required_mb,
+        "source": "heuristic_1_2x_plus_512mb",
+    }
+
+
+EXTERNAL_RUNTIME_PRESETS: dict[str, dict[str, str]] = {
+    "lm_studio": {
+        "label": "LM Studio (macOS / Windows / Linux)",
+        "default_base_url": "http://127.0.0.1:1234/v1",
+        "docker_base_url": "http://host.docker.internal:1234/v1",
+        "protocol": "openai_compatible",
+    },
+    "mlx_lm": {
+        "label": "MLX LM Server (Apple Silicon)",
+        "default_base_url": "http://127.0.0.1:8080/v1",
+        "docker_base_url": "http://host.docker.internal:8080/v1",
+        "protocol": "openai_compatible",
+    },
+    "ollama": {
+        "label": "Ollama (OpenAI-compatible endpoint)",
+        "default_base_url": "http://127.0.0.1:11434/v1",
+        "docker_base_url": "http://host.docker.internal:11434/v1",
+        "protocol": "openai_compatible",
+    },
+    "llama_cpp": {
+        "label": "llama.cpp llama-server",
+        "default_base_url": "http://127.0.0.1:8081/v1",
+        "docker_base_url": "http://host.docker.internal:8081/v1",
+        "protocol": "openai_compatible",
+    },
+}
+
+
+@router.get("/runtime-presets")
+async def runtime_presets(request: Request):
+    denied = _capability(request)
+    if denied:
+        return denied
+    return {"presets": EXTERNAL_RUNTIME_PRESETS}
+
+
 @router.get("/search")
 async def search_catalog(
     request: Request,
     q: str = Query(default="", max_length=100),
     limit: int = Query(default=12, ge=1, le=MAX_RESULTS),
+    license_filter: str = Query(default="", max_length=64),
+    gguf_only: bool = Query(default=False),
+    exclude_gated: bool = Query(default=True),
 ):
     """Search Hugging Face models with explicit external-service failures."""
     denied = _capability(request)
@@ -94,8 +160,16 @@ async def search_catalog(
         models = await _get_json("/models", params)
         if not isinstance(models, list):
             raise ValueError("Unexpected catalog response")
+        items = [_catalog_item(m) for m in models if isinstance(m, dict)]
+        if exclude_gated:
+            items = [m for m in items if not m["gated"] and not m["private"]]
+        if gguf_only:
+            items = [m for m in items if m["has_gguf"]]
+        if license_filter.strip():
+            wanted = license_filter.strip().lower()
+            items = [m for m in items if (m["license"] or "").lower() == wanted]
         return {
-            "models": [_catalog_item(m) for m in models if isinstance(m, dict)],
+            "models": items,
             "source": "huggingface",
             "note": (
                 "Model metadata is remote. Installability and hardware fit "
@@ -112,7 +186,13 @@ async def search_catalog(
 
 
 @router.get("/models/{owner}/{name}")
-async def model_details(request: Request, owner: str, name: str):
+async def model_details(
+    request: Request,
+    owner: str,
+    name: str,
+    available_vram_mb: int | None = Query(default=None, ge=1),
+    available_ram_mb: int | None = Query(default=None, ge=1),
+):
     denied = _capability(request)
     if denied:
         return denied
@@ -133,9 +213,15 @@ async def model_details(request: Request, owner: str, name: str):
             if not isinstance(filename, str) or not filename.lower().endswith(GGUF_SUFFIX):
                 continue
             size = row.get("size")
+            valid_size = size if isinstance(size, int) and size >= 0 else None
             files.append({
                 "filename": filename,
-                "size_bytes": size if isinstance(size, int) and size >= 0 else None,
+                "size_bytes": valid_size,
+                "memory_fit": estimate_gguf_memory_fit(
+                    valid_size,
+                    available_vram_mb=available_vram_mb,
+                    available_ram_mb=available_ram_mb,
+                ),
             })
         return {
             "model": _catalog_item(data),
