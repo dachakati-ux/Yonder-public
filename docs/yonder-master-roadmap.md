@@ -182,8 +182,10 @@ Sub-goals:
   Workspace templates.
 - [ ] **M03.3 (wizard UI)** Build guided IdP setup wizard in Console and
   end-to-end live IdP smoke tests.
-- [ ] **M03.4** Tenant/institution/class scoped roles, teacher/student/admin,
-  provisioning/deprovisioning and default-deny resource-level permissions.
+- [x] **M03.4 (scoped RBAC & mapping preview):** Added
+  `authorize_resource_access()` in `apps/gateway/app/services/rbac.py`
+  (default-deny tenant, classroom, and owner isolation) and
+  `POST /v1/auth/preview-mapping` for non-privileged role-mapping previews.
 - [ ] **M03.5** MFA/conditional access delegated to IdP, service delegation,
   session expiration, audit, safe error handling and recovery flows.
 - [ ] **M03.6** Security and privacy threat model, documented retention,

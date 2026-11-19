@@ -6,9 +6,15 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.context import get_principal
-from app.services.oidc import PROVIDER_TEMPLATES, OidcBridge, OidcError
+from app.services.oidc import (
+    PROVIDER_TEMPLATES,
+    OidcBridge,
+    OidcError,
+    map_groups_to_roles_and_capabilities,
+)
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -126,4 +132,29 @@ async def oidc_session_info(request: Request) -> dict[str, Any]:
         "capabilities": list(principal.capabilities),
         "authentication_context_id": principal.authentication_context_id,
         "csrf_token": principal.attributes.get("csrf_token"),
+    }
+
+
+class RoleMappingPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    groups: list[str] = Field(default_factory=list, max_length=64)
+
+
+@router.post("/preview-mapping")
+async def preview_role_mapping(
+    request: Request,
+    body: RoleMappingPreviewRequest,
+) -> dict[str, Any]:
+    """Read-only preview of group->role->capability mapping; never grants privileges."""
+    principal = get_principal(request)
+    if not principal.has_capability("operations.manage"):
+        raise HTTPException(status_code=403, detail="operations.manage capability required.")
+    oidc_cfg = request.app.state.settings.security.oidc
+    cleaned = tuple(g.strip() for g in body.groups if g.strip())
+    roles, capabilities = map_groups_to_roles_and_capabilities(cleaned, oidc_cfg)
+    return {
+        "groups": list(cleaned),
+        "roles": list(roles),
+        "capabilities": list(capabilities),
+        "note": "Preview only; no session or privileges were modified.",
     }
