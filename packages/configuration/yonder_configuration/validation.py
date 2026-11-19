@@ -64,6 +64,22 @@ def validate_settings(settings: YonderSettings) -> YonderSettings:
                 "trusted_ingress mode requires trusted_subject_header"
             )
 
+    if settings.security.mode == SecurityMode.OIDC:
+        oidc = settings.security.oidc
+        if not oidc.issuer.strip() or not oidc.client_id.strip() or not oidc.redirect_uri.strip():
+            raise ConfigurationError(
+                "oidc mode requires security.oidc.issuer, client_id, and redirect_uri"
+            )
+        session_secret = (oidc.session_secret or "").strip()
+        if len(session_secret) < 32:
+            raise ConfigurationError(
+                "oidc mode requires security.oidc.session_secret of at least 32 characters"
+            )
+        if settings.is_production() and oidc.allow_insecure_http_in_dev:
+            raise ConfigurationError(
+                "security.oidc.allow_insecure_http_in_dev is forbidden in production."
+            )
+
     if settings.is_production() and settings.worker_registration.mode == "allow_all":
         raise ConfigurationError(
             "Production worker registration must fail closed; configure "

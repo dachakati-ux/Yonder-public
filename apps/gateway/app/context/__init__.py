@@ -29,12 +29,17 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request.state.upstream_request_id = upstream
         request.state.service_name = self.service_name
 
-        # Operational probes and CORS preflight do not require a principal.
+        # Operational probes, CORS preflight, and public OIDC handshake routes
+        # do not require a pre-existing principal.
         if request.method == "OPTIONS" or request.url.path in {
             "/health",
             "/ready",
             "/version",
             "/metrics",
+            "/v1/auth/login",
+            "/v1/auth/callback",
+            "/v1/auth/logout",
+            "/v1/auth/providers",
         }:
             request.state.principal = None
             response = await call_next(request)

@@ -19,6 +19,53 @@ class YonderEnvironment(StrEnum):
 class SecurityMode(StrEnum):
     DEVELOPMENT = "development"
     TRUSTED_INGRESS = "trusted_ingress"
+    OIDC = "oidc"
+
+
+class OidcConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provider_template: Literal[
+        "generic",
+        "authentik",
+        "keycloak",
+        "entra",
+        "google_workspace",
+    ] = "generic"
+    issuer: str = ""
+    client_id: str = ""
+    client_secret: str | None = Field(default=None, repr=False)
+    redirect_uri: str = ""
+    scopes: tuple[str, ...] = ("openid", "profile", "email", "groups")
+    subject_claim: str = "sub"
+    groups_claim: str = "groups"
+    session_secret: str | None = Field(default=None, repr=False)
+    session_cookie_name: str = "yonder_session"
+    session_ttl_seconds: int = Field(default=3600, ge=60, le=86400)
+    role_mappings: dict[str, tuple[str, ...]] = Field(default_factory=dict)
+    role_capabilities: dict[str, tuple[str, ...]] = Field(
+        default_factory=lambda: {
+            "student": ("chat.use", "models.view"),
+            "teacher": ("chat.use", "coder.use", "models.view", "lab.use"),
+            "it_admin": (
+                "chat.use",
+                "coder.use",
+                "models.view",
+                "models.manage",
+                "hardware.view",
+                "operations.view",
+                "operations.manage",
+            ),
+            "security_admin": (
+                "models.view",
+                "hardware.view",
+                "operations.view",
+                "operations.manage",
+            ),
+        }
+    )
+    allow_insecure_http_in_dev: bool = False
+    discovery_timeout_seconds: float = Field(default=10.0, gt=0.0, le=60.0)
 
 
 class DevelopmentPrincipalConfig(BaseModel):
@@ -69,6 +116,7 @@ class SecurityConfig(BaseModel):
     trusted_ingress_shared_secret: str | None = Field(default=None, repr=False)
     trusted_ingress_secret_header: str = "X-Yonder-Ingress-Secret"
     trusted_proxy_cidrs: tuple[str, ...] = ()
+    oidc: OidcConfig = Field(default_factory=lambda: OidcConfig())
 
     @field_validator("trusted_proxy_cidrs")
     @classmethod

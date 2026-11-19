@@ -14,6 +14,8 @@ from yonder_configuration.worker_auth import worker_token_matches
 from yonder_contracts.errors import ErrorBody, ErrorCode, ErrorResponse
 from yonder_contracts.principal import RequestPrincipal
 
+from app.services.oidc import OidcError, verify_session_payload
+
 
 def _split_csv(raw: str | None) -> tuple[str, ...]:
     if not raw:
@@ -205,9 +207,97 @@ class TrustedIngressRequestContextProvider:
         )
 
 
+class OidcSessionRequestContextProvider:
+    """Resolves RequestPrincipal from an HMAC-signed OIDC session cookie."""
+
+    MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+    def __init__(self, security: SecurityConfig) -> None:
+        self._security = security
+
+    async def resolve(self, request: Request) -> RequestPrincipal:
+        request_id = request.headers.get("x-request-id", "unknown")
+        cookie_token = request.cookies.get(self._security.oidc.session_cookie_name)
+        if not cookie_token:
+            worker_token = request.headers.get(self._security.worker_token_header)
+            if worker_token and worker_token_matches(self._security, worker_token):
+                return RequestPrincipal(
+                    subject="yonder-worker-agent",
+                    principal_type="service",
+                    capabilities=("workers.report",),
+                    authentication_context_id="worker-shared-secret",
+                )
+            raise HTTPException(
+                status_code=401,
+                detail=ErrorResponse(
+                    error=ErrorBody(
+                        code=ErrorCode.SECURITY_CONTEXT_UNAVAILABLE,
+                        message="Authentication required.",
+                        request_id=request_id,
+                    )
+                ).model_dump(),
+            )
+
+        secret = (self._security.oidc.session_secret or "").strip()
+        try:
+            payload = verify_session_payload(cookie_token, secret)
+        except OidcError as exc:
+            raise HTTPException(
+                status_code=401,
+                detail=ErrorResponse(
+                    error=ErrorBody(
+                        code=ErrorCode.SECURITY_CONTEXT_UNAVAILABLE,
+                        message=str(exc),
+                        request_id=request_id,
+                    )
+                ).model_dump(),
+            ) from exc
+
+        if request.method.upper() in self.MUTATING_METHODS:
+            expected_csrf = str(payload.get("csrf", ""))
+            supplied_csrf = request.headers.get("x-yonder-csrf-token") or ""
+            if not expected_csrf or not secrets.compare_digest(supplied_csrf, expected_csrf):
+                raise HTTPException(
+                    status_code=403,
+                    detail=ErrorResponse(
+                        error=ErrorBody(
+                            code=ErrorCode.PERMISSION_CONTEXT_REQUIRED,
+                            message="Missing or invalid CSRF token.",
+                            request_id=request_id,
+                        )
+                    ).model_dump(),
+                )
+
+        subject = str(payload.get("sub", "")).strip()
+        if not subject:
+            raise HTTPException(
+                status_code=401,
+                detail=ErrorResponse(
+                    error=ErrorBody(
+                        code=ErrorCode.SECURITY_CONTEXT_UNAVAILABLE,
+                        message="Session missing subject.",
+                        request_id=request_id,
+                    )
+                ).model_dump(),
+            )
+
+        return RequestPrincipal(
+            subject=subject,
+            principal_type="user",
+            roles=tuple(str(r) for r in payload.get("roles", ()) if str(r)),
+            groups=tuple(str(g) for g in payload.get("groups", ()) if str(g)),
+            capabilities=tuple(str(c) for c in payload.get("capabilities", ()) if str(c)),
+            attributes=MappingProxyType({"csrf_token": str(payload.get("csrf", ""))}),
+            upstream_request_id=request.headers.get("x-request-id"),
+            authentication_context_id=f"oidc:{self._security.oidc.provider_template}",
+        )
+
+
 def build_request_context_provider(security: SecurityConfig) -> Any:
     if security.mode == SecurityMode.DEVELOPMENT:
         return DevelopmentRequestContextProvider(security.development_principal)
     if security.mode == SecurityMode.TRUSTED_INGRESS:
         return TrustedIngressRequestContextProvider(security)
+    if security.mode == SecurityMode.OIDC:
+        return OidcSessionRequestContextProvider(security)
     raise ValueError(f"Unsupported security mode: {security.mode}")

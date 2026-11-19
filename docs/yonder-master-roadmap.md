@@ -173,10 +173,15 @@ Sub-goals:
   `trusted_ingress_shared_secret` and `trusted_proxy_cidrs` verification to
   `SecurityConfig` and `TrustedIngressRequestContextProvider` so direct
   spoofed `X-Yonder-Trusted-*` headers fail closed with 401.
-- [ ] **M03.2** Build generic OIDC Authorization Code + PKCE bridge with
-  validated issuer/audience/nonce/JWKS, secure sessions and CSRF protection.
-- [ ] **M03.3** Authentik guided template, followed by Keycloak, Entra,
-  Google Workspace and generic OIDC; LDAP/SAML via trusted IdP bridges.
+- [x] **M03.2 / M03.3 (core OIDC PKCE bridge & templates):** Added
+  `SecurityMode.OIDC`, `OidcBridge` (PKCE S256, `state` + `nonce`, SSRF-safe
+  discovery/JWKS, RS256/ES256/EdDSA ID token verification via PyJWT),
+  `OidcSessionRequestContextProvider` (HMAC-SHA256 `HttpOnly` session cookie +
+  CSRF header enforcement), `/v1/auth/{login,callback,logout,session,providers}`,
+  default-deny group-to-role mapping, and Authentik/Keycloak/Entra/Google
+  Workspace templates.
+- [ ] **M03.3 (wizard UI)** Build guided IdP setup wizard in Console and
+  end-to-end live IdP smoke tests.
 - [ ] **M03.4** Tenant/institution/class scoped roles, teacher/student/admin,
   provisioning/deprovisioning and default-deny resource-level permissions.
 - [ ] **M03.5** MFA/conditional access delegated to IdP, service delegation,

@@ -26,6 +26,7 @@ from app.api import (
     academy_tier2,
     addons,
     admin,
+    auth,
     chat,
     coder,
     generation,
@@ -62,6 +63,7 @@ from app.services.generation_jobs import GenerationJobService
 from app.services.lifecycle import LifecycleService
 from app.services.mcp_client import McpClientManager
 from app.services.model_install import DownloadManager
+from app.services.oidc import OidcBridge
 from app.services.rag import LexicalRetriever, RagStore, seed_lab_corpus
 from app.services.speech import SpeechService
 from app.services.structured import build_default_schema_registry
@@ -175,6 +177,11 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = settings
+    app.state.oidc_bridge = (
+        OidcBridge(settings.security.oidc)
+        if settings.security.mode == SecurityMode.OIDC
+        else None
+    )
     app.state.logger = logger
     app.state.metrics = MetricsRegistry(service="yonder-gateway")
     app.state.workers = {}
@@ -492,6 +499,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(ops.router)
     app.include_router(admin.router)
+    app.include_router(auth.router)
     app.include_router(addons.router)
     app.include_router(model_catalog.router)
     app.include_router(updates.router)
