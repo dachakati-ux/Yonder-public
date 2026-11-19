@@ -192,3 +192,27 @@ async def cancel_install(job_id: str, request: Request):
         return denied
     cancelled = await request.app.state.model_installs.cancel(job_id)
     return {"cancel_requested": cancelled}
+
+
+@router.post("/installs/{job_id}/retry", status_code=202)
+async def retry_install(job_id: str, request: Request):
+    denied = _capability(request, "models.manage")
+    if denied:
+        return denied
+    try:
+        job = await request.app.state.model_installs.retry(job_id)
+    except ValueError as exc:
+        return error_response(ErrorCode.INVALID_REQUEST, str(exc), get_request_id(request))
+    return {"job": job}
+
+
+@router.delete("/installs/{job_id}")
+async def remove_install(job_id: str, request: Request):
+    denied = _capability(request, "models.manage")
+    if denied:
+        return denied
+    try:
+        removed = await request.app.state.model_installs.remove(job_id)
+    except ValueError as exc:
+        return error_response(ErrorCode.INVALID_REQUEST, str(exc), get_request_id(request))
+    return {"removed": removed}

@@ -214,8 +214,10 @@ Sub-goals:
 
 - [ ] **M04.1** Hugging Face model search, metadata, licensing, revision
   inspection and compatible artifact filtering.
-- [ ] **M04.2** Verified managed downloads and cancellation/retry/cleanup,
-  persistent download jobs and disk quota/provenance policy.
+- [x] **M04.2 (managed download lifecycle & quota):** Added duplicate-job
+  guard, `max_root_bytes` storage quota enforcement, `retry()` / `remove()`
+  lifecycle methods in `DownloadManager`, and `/installs/{id}/{retry}` +
+  `DELETE /installs/{id}` endpoints. Persistent DB job store remains pending.
 - [ ] **M04.3** Model installation, bundle validation, runtime registration,
   loading/unloading, explicit permissions and safe rollback after failure.
 - [ ] **M04.4** LM Studio external-worker and model endpoint integration,

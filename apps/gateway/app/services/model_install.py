@@ -68,11 +68,24 @@ async def verified_metadata(repo: str, filename: str) -> dict[str, object]:
 class DownloadManager:
     """Process-local job state; completed files survive in the Docker volume."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, max_root_bytes: int | None = None):
         self.root = root
+        self.max_root_bytes = max_root_bytes
         self.jobs: dict[str, dict[str, object]] = {}
         self.tasks: dict[str, asyncio.Task[None]] = {}
         self._lock = asyncio.Lock()
+
+    def _used_bytes(self) -> int:
+        if not self.root.exists():
+            return 0
+        total = 0
+        for item in self.root.rglob("*"):
+            if item.is_file() and not item.is_symlink():
+                try:
+                    total += item.stat().st_size
+                except OSError:
+                    pass
+        return total
 
     def public_jobs(self) -> list[dict[str, object]]:
         return list(self.jobs.values())[-30:][::-1]
@@ -83,12 +96,14 @@ class DownloadManager:
             raise ValueError("Install root must be absolute.")
         # Reserve a slot before starting work, including metadata checks.
         async with self._lock:
-            active = sum(
-                1 for job in self.jobs.values()
+            active_jobs = [
+                job for job in self.jobs.values()
                 if job["status"] in ("queued", "validating", "downloading", "verifying")
-            )
-            if active >= 2:
+            ]
+            if len(active_jobs) >= 2:
                 raise ValueError("Two downloads are already active; try again later.")
+            if any(j["repo"] == repo and j["filename"] == filename for j in active_jobs):
+                raise ValueError("A download for this model file is already active.")
             job_id = uuid.uuid4().hex
             job: dict[str, object] = {
                 "id": job_id, "repo": repo, "filename": filename,
@@ -100,6 +115,34 @@ class DownloadManager:
             self.tasks[job_id] = task
             task.add_done_callback(lambda _, key=job_id: self.tasks.pop(key, None))
             return job
+
+    async def retry(self, job_id: str) -> dict[str, object]:
+        old = self.jobs.get(job_id)
+        if old is None:
+            raise ValueError("Download job not found.")
+        if old["status"] not in ("failed", "cancelled"):
+            raise ValueError("Only failed or cancelled jobs can be retried.")
+        return await self.start(str(old["repo"]), str(old["filename"]))
+
+    async def remove(self, job_id: str) -> bool:
+        job = self.jobs.get(job_id)
+        if job is None:
+            return False
+        if job["status"] in ("queued", "validating", "downloading", "verifying"):
+            raise ValueError("Cancel active download before removing.")
+        installed = job.get("installed_path")
+        if isinstance(installed, str) and installed:
+            target = Path(installed)
+            resolved_root = self.root.resolve()
+            if target.exists() and not target.is_symlink():
+                resolved_target = target.resolve()
+                if (
+                    resolved_target.is_relative_to(resolved_root)
+                    and resolved_target != resolved_root
+                ):
+                    await asyncio.to_thread(shutil.rmtree, target, ignore_errors=True)
+        self.jobs.pop(job_id, None)
+        return True
 
     async def cancel(self, job_id: str) -> bool:
         task = self.tasks.get(job_id)
@@ -137,6 +180,10 @@ class DownloadManager:
             if folder.exists():
                 raise ValueError("This model is already installed or a partial folder exists.")
             self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+            if self.max_root_bytes is not None:
+                used = await asyncio.to_thread(self._used_bytes)
+                if used + expected_size > self.max_root_bytes:
+                    raise ValueError("Model storage quota exceeded.")
             free = shutil.disk_usage(self.root).free
             if free < expected_size + max(1024**3, expected_size // 10):
                 raise ValueError("Insufficient disk space for model and safety margin.")
