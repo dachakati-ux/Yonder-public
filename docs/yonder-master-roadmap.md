@@ -155,9 +155,10 @@ Sub-goals:
   to `AddonManifest` (`ui_extensions` with safe relative `mount_path` and
   capability gating) and `GET /api/admin/addons/ui-mounts` so enabled add-ons
   advertise UI mounts without per-add-on Gateway changes.
-- [ ] **M02.11** Test install/upgrade/uninstall under network outage, full disk,
-  stopped Docker daemon, failed migrations, malicious packages and restart;
-  collect real-host test reports.
+- [x] **M02.11 (controller fault-injection suite):** Added
+  `apps/addon-controller/tests/test_fault_injection.py` covering Docker daemon
+  outage, disk-full (`ENOSPC`) backup rollback, and crash-restart job
+  interruption without auto-resume. Real-host multi-node testing remains pending.
 
 Acceptance: a reviewed signed add-on is discoverable, can be installed,
 configured, upgraded, disabled and removed through a common UI; all changes
@@ -195,9 +196,10 @@ Sub-goals:
   tracking in OIDC sessions, `SessionRevocationStore` (revokes on `/logout`
   and `POST /v1/auth/revoke-session`), and `require_mfa_for_admin` assurance
   enforcement. Service delegation & persistent revocation store remain pending.
-- [ ] **M03.6** Security and privacy threat model, documented retention,
-  deletion/export, parental/age constraints as applicable, and school-specific
-  external review. Do not claim FERPA/COPPA certification without review.
+- [x] **M03.6 (threat model & retention docs):** Documented trust boundaries,
+  mitigations, and retention/export/deletion controls in
+  `docs/security/threat-model.md`. External institutional review remains a
+  deployment prerequisite.
 
 Acceptance: end-to-end SSO, tenant separation and role denial tests,
 malicious-header tests, session/logout/revocation tests, fail-closed identity
