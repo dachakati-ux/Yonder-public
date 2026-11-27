@@ -11,3 +11,10 @@
 * Reject production configuration in the local launcher; clarify the trusted-ingress boundary.
 * Fail closed on unsupported live database/mode or additional services during convenience updates; disable unsafe live rollback.
 * Add launcher regression tests and a measurable release gate checklist. Live Docker, restore, hardware, and institutional testing remain outstanding.
+
+## 2026-11-26 — Release hardening follow-up
+
+* Corrected malformed update-script substitution; quiesce local stack before backup, consolidate SQLite WAL and check integrity, preserve partial archives separately.
+* Include uv workspace member manifests in container builds, require locked sync, and avoid re-resolving dependencies during migrations.
+* Exclude local credentials, runtime data and build outputs from Docker contexts.
+* Add clean-host Compose smoke CI with non-default ports and database persistence probe; add archive regression tests. Real runner results and independent restore remain required.

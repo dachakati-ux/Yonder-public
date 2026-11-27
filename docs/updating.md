@@ -19,13 +19,12 @@ From a clean checkout of main:
 
 The command requires Git, Docker and Compose v2, verifies the expected
 repository remote and fast-forward history, asks for confirmation, preserves
-`.env`, makes an online SQLite backup of the running gateway's data volume,
-verifies the archive, then pulls and rebuilds the stack. It does **not**
-automatically update any non-main checkout or production cluster. The updater also checks the running Gateway environment/database and rejects additional running Compose services; do not use it for external add-on data or coordinated deployments.
+`.env`, stops the local stack, archives the quiesced gateway data volume with consolidated SQLite backups and integrity checks, verifies the archive listing, then pulls and rebuilds the stack. If any operation fails, the stack may remain stopped; inspect the backup and logs before attempting recovery. It does **not**
+automatically update any non-main checkout or production cluster. The updater also checks the running Gateway environment/database and rejects additional Compose services; do not use it for external add-on data or coordinated deployments.
 
 Backups are kept under `backups/update-YYYYMMDD-HHMMSS` on the deployment
 host (mode 0700, `.env` mode 0600). Store an offline/encrypted copy as well.
-The update is not automatic and may briefly interrupt service.
+The update is not automatic and intentionally interrupts service for a consistent snapshot. Ensure sufficient space for a temporary copy and compressed archive of the entire gateway data volume. An archive integrity check is not a restore rehearsal.
 
 If the gateway is not already running, or its data cannot be backed up,
 the updater intentionally stops. The update check is read-only.

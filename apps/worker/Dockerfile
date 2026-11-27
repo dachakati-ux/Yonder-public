@@ -10,9 +10,11 @@ RUN pip install --no-cache-dir uv \
 COPY pyproject.toml uv.lock README.md ./
 COPY packages ./packages
 COPY apps/worker ./apps/worker
+# uv resolves every declared workspace member, even when syncing one package.
+COPY apps/gateway/pyproject.toml ./apps/gateway/pyproject.toml
 COPY config ./config
 
-RUN uv sync --package yonder-worker --no-dev
+RUN uv sync --locked --package yonder-worker --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH" \
     YONDER_CONFIG_FILE=/app/config/environments/development.yaml \

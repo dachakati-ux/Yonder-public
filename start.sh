@@ -242,7 +242,7 @@ if ! detect_compose; then
 fi
 ok "Docker Compose is available (${COMPOSE_CMD[*]})"
 
-# 5. Ensure .env exists and load port overrides
+# 5. Ensure .env exists; Compose handles dotenv parsing.
 if [[ ! -f .env ]]; then
   if [[ -f .env.example ]]; then
     (umask 077; cp .env.example .env)

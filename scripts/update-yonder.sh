@@ -25,8 +25,8 @@ esac
 if [[ -f .env ]] && grep -Eq '^YONDER_DATABASE_URL=.*postgresql' .env; then
   fail "External Postgres needs a coordinated backup; see docs/updating.md"
 fi
-# Inspect the live configuration: --postgres can enable PostgreSQL without
-# changing .env. Never copy a live external database as if it were SQLite.
+# Check effective settings, not just .env: the persistence overlay can
+# select PostgreSQL without changing .env. This helper is local SQLite only.
 docker compose exec -T gateway python -c '
 import os
 import sys
@@ -36,10 +36,15 @@ env = os.environ.get("YONDER_ENVIRONMENT", "")
 sys.exit(0 if mode == "development" and env == "development" and
          url in ("sqlite:///./data/yonder.db", "sqlite:////app/data/yonder.db") else 1)
 ' >/dev/null 2>&1 || fail "Only a running local development SQLite stack is supported; see docs/updating.md"
-# An independently deployed controller or workspace may have state outside
-# the gateway volume. Require an explicit coordinated update instead.
-extra_services="$(docker compose ps --services --status running)"
-if printf '%s\n' "$extra_services" | grep -Ev '^(gateway|worker|console|mcp)
+# Inspect all containers in this Compose project, including stopped add-ons.
+extra_services="$(docker compose ps --all --services)"
+while IFS= read -r service; do
+  case "$service" in
+    gateway|worker|console|mcp|"") ;;
+    *) fail "Additional service $service exists; use coordinated backup and update" ;;
+  esac
+done <<< "$extra_services"
+previous="$(git rev-parse HEAD)"
 git fetch origin main
 latest="$(git rev-parse origin/main)"
 [[ "$previous" != "$latest" ]] || { echo "Already current"; exit 0; }
@@ -51,36 +56,25 @@ read -r -p "Create backup and upgrade this instance? [y/N] " answer
 backup_dir="backups/update-$(date -u +%Y%m%d-%H%M%S)"
 (umask 077; mkdir -p backups; mkdir "$backup_dir")
 chmod 700 "$backup_dir"
+umask 077
 echo "$previous" > "$backup_dir/previous-revision"
 if [[ -f .env ]]; then
   cp -p .env "$backup_dir/.env"
   chmod 600 "$backup_dir/.env"
 fi
-gateway="$(docker compose ps -q gateway)"
-[[ -n "$gateway" ]] || fail "Gateway not running; back up manually first"
+# Stop the stack so the snapshot includes a consistent database and other
+# state, not a mix of live files from different points in time.
+echo "Stopping the local stack for a consistent backup"
+docker compose stop
 echo "Backing up data at $backup_dir"
-docker exec "$gateway" python -c '
-import pathlib, sqlite3, tempfile, shutil, tarfile, sys
-root=pathlib.Path("/app/data")
-with tempfile.TemporaryDirectory() as temp:
-    target=pathlib.Path(temp)/"data"
-    target.mkdir()
-    if root.is_dir():
-        for file in root.rglob("*"):
-            if not file.is_file() or file.is_symlink(): continue
-            out=target/file.relative_to(root)
-            out.parent.mkdir(parents=True, exist_ok=True)
-            if file.suffix.lower() in (".db", ".sqlite", ".sqlite3"):
-                src=sqlite3.connect(f"file:{file}?mode=ro", uri=True)
-                dst=sqlite3.connect(out)
-                try: src.backup(dst)
-                finally: src.close(); dst.close()
-            else: shutil.copy2(file,out)
-    with tarfile.open(fileobj=sys.stdout.buffer, mode="w|gz") as tar:
-        tar.add(target,arcname="data")
-' > "$backup_dir/gateway-data.tar.gz"
-[[ -s "$backup_dir/gateway-data.tar.gz" ]] || fail "Backup empty"
-tar -tzf "$backup_dir/gateway-data.tar.gz" >/dev/null || fail "Backup invalid"
+# Use the existing image and bypass its migration/startup entrypoint.
+# Read the helper from this checkout, not from an untrusted container.
+docker compose run --rm --no-deps --pull never -T --entrypoint python gateway - \
+  < scripts/archive-local-data.py > "$backup_dir/gateway-data.tar.gz.partial"
+[[ -s "$backup_dir/gateway-data.tar.gz.partial" ]] || fail "Backup empty"
+tar -tzf "$backup_dir/gateway-data.tar.gz.partial" >/dev/null || fail "Backup invalid"
+mv "$backup_dir/gateway-data.tar.gz.partial" "$backup_dir/gateway-data.tar.gz"
+echo "Backup created: $backup_dir (independent restore test still required)"
 git merge --ff-only origin/main
 export YONDER_BUILD_SHA="$(git rev-parse HEAD)"
 docker compose config -q || fail "Compose configuration invalid"
@@ -89,63 +83,3 @@ if docker compose up --build -d --wait --wait-timeout 180; then
 else
   fail "Stack did not become healthy. See docs/updating.md; backup: $backup_dir"
 fi
- | grep -q .; then
-  fail "Additional services are running; use coordinated backup and update"
-fi
-previous="$(git rev-parse HEAD)"
-git fetch origin main
-latest="$(git rev-parse origin/main)"
-[[ "$previous" != "$latest" ]] || { echo "Already current"; exit 0; }
-git merge-base --is-ancestor "$previous" "$latest" ||
-  fail "Not a fast-forward; review changes manually"
-git --no-pager log --oneline "$previous..$latest" | head -n 20
-read -r -p "Create backup and upgrade this instance? [y/N] " answer
-[[ "$answer" == "y" || "$answer" == "Y" ]] || exit 0
-backup_dir="backups/update-$(date -u +%Y%m%d-%H%M%S)"
-mkdir -p "$backup_dir"
-chmod 700 "$backup_dir"
-echo "$previous" > "$backup_dir/previous-revision"
-if [[ -f .env ]]; then
-  cp -p .env "$backup_dir/.env"
-  chmod 600 "$backup_dir/.env"
-fi
-gateway="$(docker compose ps -q gateway)"
-[[ -n "$gateway" ]] || fail "Gateway not running; back up manually first"
-echo "Backing up data at $backup_dir"
-docker exec "$gateway" python -c '
-import pathlib, sqlite3, tempfile, shutil, tarfile, sys
-root=pathlib.Path("/app/data")
-with tempfile.TemporaryDirectory() as temp:
-    target=pathlib.Path(temp)/"data"
-    target.mkdir()
-    if root.is_dir():
-        for file in root.rglob("*"):
-            if not file.is_file() or file.is_symlink(): continue
-            out=target/file.relative_to(root)
-            out.parent.mkdir(parents=True, exist_ok=True)
-            if file.suffix.lower() in (".db", ".sqlite", ".sqlite3"):
-                src=sqlite3.connect(f"file:{file}?mode=ro", uri=True)
-                dst=sqlite3.connect(out)
-                try: src.backup(dst)
-                finally: src.close(); dst.close()
-            else: shutil.copy2(file,out)
-    with tarfile.open(fileobj=sys.stdout.buffer, mode="w|gz") as tar:
-        tar.add(target,arcname="data")
-' > "$backup_dir/gateway-data.tar.gz"
-[[ -s "$backup_dir/gateway-data.tar.gz" ]] || fail "Backup empty"
-tar -tzf "$backup_dir/gateway-data.tar.gz" >/dev/null || fail "Backup invalid"
-git merge --ff-only origin/main
-export YONDER_BUILD_SHA="$(git rev-parse HEAD)"
-docker compose config -q || fail "Compose configuration invalid"
-docker compose up --build -d
-for _ in $(seq 1 30); do
-  if docker compose exec -T gateway python -c '
-import urllib.request
-urllib.request.urlopen("http://127.0.0.1:8080/health",timeout=3).read()
-' >/dev/null 2>&1; then
-    echo "Update succeeded; backup: $backup_dir"
-    exit 0
-  fi
-  sleep 2
-done
-fail "Gateway did not become healthy. See docs/updating.md; backup: $backup_dir"

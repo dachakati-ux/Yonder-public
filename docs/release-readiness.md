@@ -30,3 +30,7 @@ This is a gate checklist supplementing the [master roadmap](yonder-master-roadma
 For each gate record: date, commit SHA, test command or procedure, platform and runtime, observed result, artifact/log reference, reviewer, residual risk. Never store credentials, student data or private host details in public evidence. Leave unchecked if untested.
 
 Track implementation in [M01](https://github.com/dachakati-ux/Yonder-public/issues/6) and [M08](https://github.com/dachakati-ux/Yonder-public/issues/13).
+
+## Automated clean-host checks
+
+The Clean-host Compose smoke workflow builds the local stack on a disposable Linux runner, checks non-default published ports, recreates the Gateway and checks SQLite persistence. It does not validate real model inference, macOS/Windows hardware, external identity, or production isolation. The archive tests verify SQLite contents, missing/corrupt database handling and symlink rejection; a full restore rehearsal remains a separate gate.
