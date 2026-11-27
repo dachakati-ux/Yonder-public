@@ -36,6 +36,7 @@ from app.api import (
     lab,
     mcp,
     model_catalog,
+    onboarding,
     ops,
     platform,
     speech,
@@ -505,6 +506,7 @@ def create_app() -> FastAPI:
         expose_headers=["X-Yonder-Request-Id", "X-Request-Id"],
     )
     app.include_router(ops.router)
+    app.include_router(onboarding.router)
     app.include_router(admin.router)
     app.include_router(auth.router)
     app.include_router(addons.router)

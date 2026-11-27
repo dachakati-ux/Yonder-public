@@ -42,3 +42,7 @@ The Compose smoke workflow now also rehearses an actual local-volume archive and
 ## Distribution candidate
 
 The versioned image workflow tests an image-only Compose overlay and has an explicit, separately permissioned publication job gated by a matching tag and successful main workflows. No release is published merely by building a candidate. Artifact digest verification, signatures, native ARM coverage, actual registry pulls and independent release approval remain outstanding. See [release images](release-images.md) and [feature status](feature-status.md).
+
+## Browser onboarding
+
+The setup route has a real local-stack Chromium smoke, scoped automated WCAG checks, keyboard skip-navigation and responsive screenshots; fixture-only responses test failure/success controls without claiming actual inference. Manual assistive technology, independent beginner trials and real model/runtime checks remain mandatory.

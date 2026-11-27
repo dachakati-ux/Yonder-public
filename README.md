@@ -45,6 +45,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
+Once the Console opens, choose **Get started** for guided connection, hardware screening, and an explicit inference test.
+
 New to Docker or setting up from scratch? Follow the **[Step-by-Step Deploy & Quick-Start Guide](docs/quickstart.md)**. A successful installation is not a real inference test: the development stack may start with mock routes. Follow the first real model steps before evaluating model quality.
 
 ### Useful Launcher Flags
