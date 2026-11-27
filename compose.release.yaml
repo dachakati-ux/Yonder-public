@@ -1,0 +1,16 @@
+# Overlay for reviewed, versioned local-development images. Requires current Compose v2.
+# Always use together with compose.yaml. The prebuilt Console targets host port 8080.
+# Pin the three image references to published manifest digests for reproducibility.
+services:
+  gateway:
+    build: !reset null
+    image: "${YONDER_GATEWAY_IMAGE:-ghcr.io/dachakati-ux/yonder-gateway:${YONDER_IMAGE_TAG:?Specify the reviewed version tag}}"
+  worker:
+    build: !reset null
+    image: "${YONDER_WORKER_IMAGE:-ghcr.io/dachakati-ux/yonder-worker:${YONDER_IMAGE_TAG:?Specify the reviewed version tag}}"
+  console:
+    build: !reset null
+    image: "${YONDER_CONSOLE_IMAGE:-ghcr.io/dachakati-ux/yonder-console:${YONDER_IMAGE_TAG:?Specify the reviewed version tag}}"
+  mcp:
+    build: !reset null
+    image: "${YONDER_GATEWAY_IMAGE:-ghcr.io/dachakati-ux/yonder-gateway:${YONDER_IMAGE_TAG:?Specify the reviewed version tag}}"

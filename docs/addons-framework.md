@@ -1,9 +1,6 @@
 # Yonder add-on SDK (contract v1)
 
-**Status:** Bundled activation, catalog discovery, compatible-version checks and permission-gated
-management are implemented in draft PR #4. External service deployment, signed
-remote package installation, dynamic UI mounting and lifecycle migrations
-are **not** yet implemented. This document defines a contract to build against.
+**Status:** Bundled activation, catalog discovery, compatible-version checks and permission-gated management are present in the source tree. The standalone experimental controller contains additional release trust, credential and migration primitives. Arbitrary remote package execution and a production-ready dynamic marketplace are not supported. This document defines the v1 manifest contract; see [feature status](feature-status.md) and [controller limitations](addon-controller.md).
 
 ## File layout
 

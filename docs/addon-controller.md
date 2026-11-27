@@ -1,6 +1,6 @@
 # Yonder Add-on Controller — first deployable service
 
-**Status: experimental opt-in controller, draft PR #5.** This is a
+**Status: experimental opt-in controller; source and unit tests exist, but no production release has been verified.** This is a
 **separate service** that performs explicitly approved, restricted Docker
 operations. Core and its bundled add-ons continue working without it.
 
