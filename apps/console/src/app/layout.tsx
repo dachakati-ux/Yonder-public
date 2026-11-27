@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/components/AppShell";
 import "highlight.js/styles/atom-one-dark.css";
 import "./globals.css";
+import "./setup.css";
 
 export const metadata = {
   title: "Yonder",

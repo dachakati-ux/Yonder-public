@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { GATEWAY_URL } from "@/lib/brand";
 import { fetchHardware } from "@/lib/ops";
-import { listGpus } from "@/lib/hardware";
+import { matchingWeightBudgets, weightBudgets } from "@/lib/modelFit";
 import type { HardwareNode } from "@/lib/hardware";
 
 interface CatalogModel {
@@ -253,17 +253,12 @@ export function ModelLibrary() {
                     {file.size_bytes != null && workers != null ? (
                       <small className="entity-meta">
                         {(() => {
-                          const matching = workers.flatMap((node) =>
-                            listGpus(node)
-                              .filter((gpu) =>
-                                gpu.availableBytes != null &&
-                                gpu.availableBytes >= file.size_bytes! * 1.25
-                              )
-                              .map((gpu) => `${node.display_name}: ${gpu.name}`)
-                          );
+                          const matching = matchingWeightBudgets(workers, file.size_bytes);
                           return matching.length > 0
-                            ? `Potential single-GPU fit (25% headroom): ${matching.slice(0, 2).join(", ")}`
-                            : "No reported single GPU has 25% weight headroom; CPU or multi-GPU may be possible";
+                            ? `Potential weight fit (25% overhead): ${matching.slice(0, 2).map((gpu) => gpu.worker + ": " + gpu.gpu).join(", ")}`
+                            : weightBudgets(workers).length > 0
+                              ? "No eligible reported GPU has sufficient weight headroom"
+                              : "No eligible GPU memory reported; compatibility unknown";
                         })()}
                       </small>
                     ) : null}

@@ -29,6 +29,14 @@
 * Add image-only candidate build/smoke and separately permissioned, explicit-tag publication workflow. No package publication or release creation was performed.
 * Reconcile stale design/draft language with the source tree and document unavailable add-ons and real runtime requirements. Keep all catalog activation states unchanged. Candidate CI, native ARM, signed releases and public registry pull tests remain pending.
 
+## Guided first-run setup (M01/M04/M08)
+
+* Add principal-scoped setup diagnostics distinguishing mock, unavailable and reported-ready model routes; add regression tests. Live model and lab verification remain required.
+
+* Implement standalone Get started UI with principal-scoped model diagnostics, single-device observed memory screening, explicit inference test, skip navigation and responsive styles. Add TypeScript regression tests. Lab deployment and independent browser review remain outstanding.
+
+* Share the conservative single-device memory screening helper with Model Library. Add real Chromium local setup smoke, keyboard and scoped axe checks, mobile/desktop captures, and explicit fixture-only inference success/error UI checks. No real-inference claim.
+
 ## Production trust hardening (M03/M08)
 
 * Fail closed in production trusted-header mode unless distinct managed ingress and worker secrets are configured; reject ambiguous header names, duplicate ingress authenticator headers and untrusted worker registration. Add configuration and middleware negative tests. Document migration and the required proxy stripping/network controls; no upstream IAM assumptions or production certification.
