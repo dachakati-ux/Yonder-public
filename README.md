@@ -14,7 +14,9 @@ It provides:
 
 ---
 
-## Quick Start (One Command)
+## Quick Start (Local Development)
+
+**Release status:** Yonder is under active development. The local stack is for a trusted single-user machine, not an internet-facing or school deployment. No stable release is published yet. Review the [release readiness checklist](docs/release-readiness.md) before wider use.
 
 The easiest way to run Yonder locally is with the included launcher script. It checks for Docker, Docker Compose, and `curl`, offers to install any missing dependencies, creates `.env` from `.env.example`, and starts the full stack (**Gateway + Worker + Console + MCP Server**):
 
@@ -39,13 +41,13 @@ cp .env.example .env
 docker compose up --build
 ```
 
-New to Docker or setting up from scratch? Follow the **[Step-by-Step Deploy & Quick-Start Guide](docs/quickstart.md)**.
+New to Docker or setting up from scratch? Follow the **[Step-by-Step Deploy & Quick-Start Guide](docs/quickstart.md)**. A successful installation is not a real inference test: the development stack may start with mock routes. Follow the first real model steps before evaluating model quality.
 
 ### Useful Launcher Flags
 
 ```bash
 ./start.sh --yes        # Auto-confirm dependency installation prompts
-./start.sh --postgres   # Enable PostgreSQL persistence (in addition to SQLite)
+./start.sh --postgres   # Use PostgreSQL instead of SQLite (local development)
 ./start.sh --logs       # Follow live container logs
 ./start.sh --stop       # Stop all running Yonder containers
 ```
@@ -68,14 +70,14 @@ All host ports are controlled from `.env` (copied automatically from `.env.examp
 
 | Variable | Default | When to change |
 | :--- | :--- | :--- |
-| `YONDER_ENVIRONMENT` | `development` | Set to `production` behind upstream auth/ingress. |
-| `YONDER_SECURITY__MODE` | `development` | Set to `trusted_ingress` in production. |
+| `YONDER_ENVIRONMENT` | `development` | Local quick start only; production requires a separately reviewed deployment. |
+| `YONDER_SECURITY__MODE` | `development` | Production requires trusted ingress and a reviewed identity boundary. |
 | `YONDER_SECURITY__WORKER_SHARED_SECRET` | *(unset)* | **Required in production.** Generate with `openssl rand -hex 32`. |
 | `YONDER_CONSOLE_ORIGIN` | `http://127.0.0.1:3000` | Set to your public/LAN Console URL if not localhost. |
 | `NEXT_PUBLIC_YONDER_GATEWAY_URL` | `http://127.0.0.1:8080` | Set to the Gateway URL reachable by your browser (rebuild console if changed). |
 | `YONDER_MCP__ENABLED` | `true` | Enables Gateway MCP client (`/v1/mcp/*`). |
 | `YONDER_MCP__SERVER_ENABLED` | `true` | Enables IDE MCP server status and `yonder-mcp` container on `:8095`. |
-| `YONDER_LLAMA_CPP__BASE_URL` | *(unset)* | Point to a local `llama-server` / Ollama / LM Studio (e.g. `http://host.docker.internal:1234`). |
+| `YONDER_LLAMA_CPP__BASE_URL` | *(unset)* | Point to a reachable OpenAI-compatible server; set enabled, served model and attach aliases as explained in the [first real model guide](docs/quickstart.md#c-first-real-model-response-lm-studio-or-another-openai-compatible-server). |
 | `YONDER_DATABASE_URL` | `sqlite:///./data/yonder.db` | Uncomment the Postgres URL if using `./start.sh --postgres`. |
 
 See [docs/quickstart.md](docs/quickstart.md) for the complete `.env` and MCP setup walkthrough.
@@ -155,6 +157,7 @@ mean released or production-ready.
 
 ## Documentation Index
 
+* [Release readiness and validation](docs/release-readiness.md)
 * [Step-by-Step Deploy & Quick-Start Guide](docs/quickstart.md)
 * [MCP (Model Context Protocol) Guide](docs/mcp.md)
 * [Multi-Host Deployment](docs/multi-host-deployment.md)

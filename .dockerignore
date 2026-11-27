@@ -1,0 +1,27 @@
+# Keep local data, credentials, and build artifacts out of the Docker daemon.
+.git
+**/.git
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/secrets
+**/node_modules
+**/.next
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/data
+**/backups
+**/logs
+**/*.db
+**/*.sqlite*
+**/tmp
+**/.cache
+**/.tools
+vendor
+config/addon-deployments.json
+config/addon-controller-secrets.json
+config/addon-releases
+config/addon-trust

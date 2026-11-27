@@ -50,3 +50,7 @@ uv run python scripts/sqlite_backup.py restore backups/yonder.db data/restored.d
 Existing destinations are refused unless `--force` is explicitly supplied. Run
 `make verify-migrations` to exercise an upgrade from the initial schema to the current
 Alembic head in an isolated temporary database.
+
+## Complete local-volume archives
+
+The single-host updater stops all local Compose services before archiving the Gateway data volume. For an isolated restore rehearsal, use the staging command documented in [Updating Yonder](updating.md). Never point a staging command at an existing deployment's data directory. The archive may include private user content and models; keep it encrypted, restrict access, and account for temporary disk space.

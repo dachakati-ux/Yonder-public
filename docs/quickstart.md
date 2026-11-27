@@ -6,7 +6,7 @@ This guide walks you through deploying **Yonder** from scratch—whether you are
 
 ## Part 1: Prerequisites
 
-You only need **Git** and **Docker** (with **Docker Compose**). Python, Node.js, FastAPI, Next.js, and all dependencies run inside containers automatically.
+The local quick start requires **Git** and a current **Docker Compose v2** (with `up --wait`, `config --environment`, and modern `env_file` support). Python, Node.js, FastAPI, Next.js, and all dependencies run inside containers automatically.
 
 ### Automated Install & Launch (Recommended)
 
@@ -23,9 +23,9 @@ What `./start.sh` does for you:
 2. Offers to install missing tools (using Homebrew on macOS or `apt`/`dnf` on Linux).
 3. Starts Docker Desktop automatically if you are on macOS and Docker isn't running yet.
 4. Copies `.env.example` to `.env` if you don't have one yet.
-5. Checks that ports `3000`, `8080`, `8090`, and `8095` are free.
+5. Uses Compose to bind the configured localhost ports; a binding conflict fails startup.
 6. Builds and starts **Gateway**, **Worker**, **Console**, and **MCP Server**.
-7. Waits until services pass health checks and prints the URLs to open.
+7. Waits for all configured service health checks and prints the actual published URLs. Service health does not guarantee a loaded inference model.
 
 ### Manual Prerequisite Setup (If You Prefer)
 
@@ -86,43 +86,48 @@ The default `.env.example` works out of the box for local use:
 * `YONDER_MCP__ENABLED=true`
 * `YONDER_MCP__SERVER_ENABLED=true`
 
-### C. Connecting a Local LLM Runtime (Optional)
+### C. First real model response (LM Studio or another OpenAI-compatible server)
 
-If you run `llama-server`, Ollama, or LM Studio on your host machine (e.g. on port `1234`), uncomment and set in `.env`:
+The initial development chat route can use a **mock** model; service health and a mock answer do not establish real model readiness. To use a real model:
 
-```dotenv
-YONDER_LLAMA_CPP__BASE_URL=http://host.docker.internal:1234
-```
-*(On Linux without Docker Desktop, use your host LAN IP or `172.17.0.1` instead of `host.docker.internal`.)*
+1. Start an OpenAI-compatible inference server on a trusted machine. In LM Studio, download a model suitable for your available RAM/VRAM, load it, and start its local server.
+2. Query the inference server from that machine (adjust the port):
 
-### D. Deploying to a Remote Server / LAN Host
-
-If users will open the Console from another machine (say `http://192.0.2.10:3000`), update `.env` **before** building so the Console browser bundle calls the reachable Gateway URL:
-
-```dotenv
-YONDER_CONSOLE_ORIGIN=http://192.0.2.10:3000
-NEXT_PUBLIC_YONDER_GATEWAY_URL=http://192.0.2.10:8080
-```
-
-Then rebuild and restart:
-```bash
-docker compose up --build -d
-```
-
-### E. Production Checklist
-
-When deploying to production behind your upstream auth/ingress:
-
-1. Set `YONDER_ENVIRONMENT=production`
-2. Set `YONDER_SECURITY__MODE=trusted_ingress`
-3. Generate and set a shared secret for Gateway ↔ Worker calls:
    ```bash
-   openssl rand -hex 32
+   curl --fail http://127.0.0.1:1234/v1/models
    ```
+
+   Copy the exact model ID returned in `data[].id`. If this fails, resolve the model server issue first.
+3. Choose the address that the Gateway container can reach. On Docker Desktop this is normally `host.docker.internal`; on Linux use a reachable host or private LAN IP. The model server must listen on an interface reachable by the container; restrict it with a firewall and never expose it publicly.
+4. Add these settings to the local `.env`, substituting the actual endpoint and model identifier:
+
    ```dotenv
-   YONDER_SECURITY__WORKER_SHARED_SECRET=<paste-generated-secret>
+   YONDER_LLAMA_CPP__ENABLED=true
+   YONDER_LLAMA_CPP__BASE_URL=http://host.docker.internal:1234
+   YONDER_LLAMA_CPP__SERVED_MODEL=replace-with-exact-model-id
+   YONDER_LLAMA_CPP__ATTACH_ALIASES=my-local-model
    ```
-4. Enable PostgreSQL persistence (`./start.sh --postgres` or set `YONDER_DATABASE_URL`).
+
+   Use a **server root URL**, not a URL ending in `/v1`. Use a fresh alias for the external attachment; do not remove an existing data volume to change models.
+5. Run `./start.sh`, check Operations and Models for the external attachment, and select `my-local-model` in Chat. Test through the Gateway (not the inference server):
+
+   ```bash
+   curl --fail http://127.0.0.1:8080/v1/chat/completions \
+     -H 'Content-Type: application/json' \
+     -d '{"model":"my-local-model","messages":[{"role":"user","content":"Explain a CPU in one sentence."}],"max_tokens":128}'
+   ```
+
+   A real successful completion is your first inference acceptance test. If the alias is unavailable, check the exact ID, reachability from the container, model status and Operations logs. Existing persistent route state may require operator reconciliation; do not assume a changed environment variable replaces an existing deployment.
+
+The default worker image is an agent/control-plane component, not a bundled GPU inference runtime. Speech is disabled in the local Compose stack until a real runtime is configured. Model downloads and GPU passthrough need runtime-specific setup; see [model library](huggingface-model-library.md), [worker registration](worker-registration.md) and [GPU scheduling](gpu-model-scheduler.md).
+
+### D. Access from another machine
+
+The default stack deliberately publishes only on loopback. Changing a browser URL does not change that security boundary. For a trusted single-user remote lab, use SSH local forwarding for both Console and Gateway; keep their browser URLs at localhost and use matching ports on the client. For multiple users, do not expose development mode. See [multi-host deployment](multi-host-deployment.md) and the [security boundary](security-boundary.md).
+
+### E. Production readiness
+
+The convenience launcher is **not a production installer**. A separate, reviewed deployment must enforce trusted ingress, worker service authentication, network isolation, data recovery, and tenant authorization. Setting environment variables or enabling PostgreSQL alone does not establish those controls. Follow [deployment](deployment.md), [security boundary](security-boundary.md), and [release readiness](release-readiness.md). Do not expose a mock principal or the development MCP endpoint to untrusted clients.
 
 ---
 
@@ -205,7 +210,7 @@ See [docs/mcp.md](mcp.md) for security rules, allowlists, and stdio transport op
 | View live logs | `./start.sh --logs` (or `docker compose logs -f`) |
 | Stop all containers | `./start.sh --stop` (or `docker compose down`) |
 | Enable PostgreSQL | `./start.sh --postgres` |
-| Wipe local data & rebuild | `docker compose down -v && ./start.sh` |
+| Permanently delete local data | Only after an independently verified backup: `docker compose down -v` deletes named volumes; this is not a routine troubleshooting step. |
 
 | Problem | Fix |
 | :--- | :--- |

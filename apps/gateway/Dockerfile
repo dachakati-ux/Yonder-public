@@ -10,13 +10,15 @@ RUN pip install --no-cache-dir uv \
 COPY pyproject.toml uv.lock README.md ./
 COPY packages ./packages
 COPY apps/gateway ./apps/gateway
+# uv resolves every declared workspace member, even when syncing one package.
+COPY apps/worker/pyproject.toml ./apps/worker/pyproject.toml
 COPY config ./config
 COPY addons ./addons
 COPY database ./database
 COPY scripts/docker-gateway-entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh \
-  && uv sync --package yonder-gateway --no-dev
+  && uv sync --locked --package yonder-gateway --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH" \
     YONDER_CONFIG_FILE=/app/config/environments/development.yaml \
