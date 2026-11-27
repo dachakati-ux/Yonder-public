@@ -1,0 +1,63 @@
+name: PostgreSQL recovery rehearsal
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'database/**'
+      - 'config/**'
+      - 'compose*.yaml'
+      - 'scripts/smoke-postgres-recovery.py'
+      - 'uv.lock'
+      - '.github/workflows/postgres-recovery.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-restore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      COMPOSE_PROJECT_NAME: yonder-pg-rehearsal
+    steps:
+      - uses: actions/checkout@v4
+      - name: Boot disposable PostgreSQL-backed gateway
+        run: |
+          cp .env.example .env
+          cat >> .env <<'EOF'
+          YONDER_GATEWAY__PORT=8180
+          YONDER_POSTGRES_PORT=55432
+          EOF
+          docker compose -f compose.yaml -f compose.persistence.yaml --profile persistence up -d --build --wait --wait-timeout 180 gateway postgres
+      - name: Seed synthetic API conversation
+        run: python3 scripts/smoke-postgres-recovery.py --phase seed --state /tmp/yonder-pg-fixture.json
+      - name: Dump and restore to a distinct disposable database
+        run: |
+          umask 077
+          docker compose -f compose.yaml -f compose.persistence.yaml stop gateway
+          docker compose exec -T postgres pg_dump -U yonder -Fc yonder > /tmp/yonder-pg-recovery.dump
+          test -s /tmp/yonder-pg-recovery.dump
+          docker compose exec -T postgres createdb -U yonder yonder_rehearsal
+          docker compose exec -T postgres pg_restore -U yonder -d yonder_rehearsal --exit-on-error < /tmp/yonder-pg-recovery.dump
+          cat > /tmp/yonder-pg-restore.yaml <<'EOF'
+          services:
+            gateway:
+              environment:
+                YONDER_DATABASE_URL: postgresql+psycopg://yonder:yonder@postgres:5432/yonder_rehearsal
+          EOF
+          docker compose -f compose.yaml -f compose.persistence.yaml -f /tmp/yonder-pg-restore.yaml --profile persistence up -d --force-recreate --wait --wait-timeout 180 gateway
+      - name: Read and write through restored application
+        run: python3 scripts/smoke-postgres-recovery.py --phase verify --state /tmp/yonder-pg-fixture.json
+      - name: Verify original database was not changed by rehearsal writes
+        run: |
+          docker compose exec -T postgres psql -U yonder -d yonder -tAc "SELECT count(*) FROM conversation_messages WHERE content = 'Post-restore synthetic message'" | grep -Fx 0
+          docker compose exec -T postgres psql -U yonder -d yonder_rehearsal -tAc "SELECT count(*) FROM conversation_messages WHERE content = 'Post-restore synthetic message'" | grep -Fx 1
+      - name: Collect diagnostics and remove only disposable project
+        if: always()
+        run: |
+          docker compose -f compose.yaml -f compose.persistence.yaml ps -a
+          docker compose -f compose.yaml -f compose.persistence.yaml logs --no-color --tail=100
+          docker compose -f compose.yaml -f compose.persistence.yaml --profile persistence down --volumes --remove-orphans
+          rm -f /tmp/yonder-pg-recovery.dump /tmp/yonder-pg-fixture.json /tmp/yonder-pg-restore.yaml

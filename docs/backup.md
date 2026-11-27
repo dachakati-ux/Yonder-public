@@ -54,3 +54,7 @@ Alembic head in an isolated temporary database.
 ## Complete local-volume archives
 
 The single-host updater stops all local Compose services before archiving the Gateway data volume. For an isolated restore rehearsal, use the staging command documented in [Updating Yonder](updating.md). Never point a staging command at an existing deployment's data directory. The archive may include private user content and models; keep it encrypted, restrict access, and account for temporary disk space.
+
+### Automated PostgreSQL recovery rehearsal
+
+The PostgreSQL recovery workflow uses a disposable Compose project and synthetic conversation data. It starts the Gateway with PostgreSQL, creates a conversation through the API, quiesces Gateway, creates a custom-format dump, restores into a distinct database, and verifies the restored conversation and an additional write through the restarted Gateway. It verifies the new write did not change the original database. This exercises migration and database recovery on a disposable Linux runner; a separate-host disaster recovery and production credential/retention review remain necessary. Do not run this fixture against a real deployment.
