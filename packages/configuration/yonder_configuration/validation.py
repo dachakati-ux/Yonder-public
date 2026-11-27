@@ -102,7 +102,9 @@ def validate_settings(settings: YonderSettings) -> YonderSettings:
     if settings.is_production():
         worker_secret = (settings.security.worker_shared_secret or "").strip()
         if len(worker_secret) < 32:
-            raise ConfigurationError("Production worker_shared_secret must be at least 32 characters.")
+            raise ConfigurationError(
+                "Production worker_shared_secret must be at least 32 characters."
+            )
         if settings.worker_registration.accept_untrusted:
             raise ConfigurationError("Production cannot accept untrusted worker registration.")
         if settings.security.mode == SecurityMode.TRUSTED_INGRESS:

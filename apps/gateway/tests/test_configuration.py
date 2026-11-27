@@ -64,7 +64,9 @@ def test_trusted_ingress_allowed_in_production() -> None:
         },
         gateway={"host": "0.0.0.0", "port": 8080},
         worker={"host": "0.0.0.0", "port": 8090},
-        worker_registration={"mode": "allowlist", "allowed_worker_ids": [], "accept_untrusted": False},
+        worker_registration={
+            "mode": "allowlist", "allowed_worker_ids": [], "accept_untrusted": False,
+        },
     )
     validated = validate_settings(settings)
     assert validated.security.mode == SecurityMode.TRUSTED_INGRESS
