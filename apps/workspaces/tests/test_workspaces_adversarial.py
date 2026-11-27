@@ -6,8 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
-from workspaces.api import create_app
 from fixture_provisioner import FixtureProvisioner
+from workspaces.api import create_app
 
 TOKEN = "workspaces-service-token-" + "x" * 16
 DIGEST = "yonder-python@sha256:" + "a" * 64

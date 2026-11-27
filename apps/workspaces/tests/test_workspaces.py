@@ -201,7 +201,10 @@ def test_proxmox_adapter_rejects_root_or_http_and_provisions_sessions(tmp_path) 
     assert disabled.post(
         "/workspaces/v1/projects/unknown/sessions",
         headers=_headers("student-a"),
-        json={"idempotency_key": "sess-disabled", "template_digest": "yonder@" + "sha256:" + "a"*64},
+        json={
+            "idempotency_key": "sess-disabled",
+            "template_digest": "yonder@sha256:" + "a" * 64,
+        },
     ).status_code == 501
 
     adapter = FixtureProvisioner()

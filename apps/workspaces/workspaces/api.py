@@ -361,7 +361,9 @@ def create_app(
             raise HTTPException(status_code=409, detail="Session provisioning must be reconciled")
         if session.get("backend_ref") and session["status"] == "running":
             if not execution_enabled or provisioner is None:
-                raise HTTPException(status_code=409, detail="Backend unavailable; reconcile session")
+                raise HTTPException(
+                    status_code=409, detail="Backend unavailable; reconcile session"
+                )
             await provisioner.terminate_session(session_id, str(session["backend_ref"]))
         stopped = store.mark_session_stopped(session_id, status="stopped")
         store.record_audit(

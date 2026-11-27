@@ -186,3 +186,26 @@ async def test_rerank_provider_rejects_near_zero_scores() -> None:
                 documents=("doc",),
             )
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider_class", [LlamaCppEmbeddingProvider, LlamaCppRerankProvider])
+async def test_runtime_worker_token_only_on_deployment_proxy(provider_class, monkeypatch):
+    from app.providers import runtime_auth
+
+    monkeypatch.setattr(runtime_auth, "worker_auth_headers", lambda: {"X-Worker-Test": "secret"})
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("X-Worker-Test"))
+        return _models()
+
+    provider = provider_class(transport=httpx.MockTransport(handler))
+    for endpoint in ("http://external.test", "http://worker.test/v1/runtime/managed"):
+        await provider.load(DeploymentSpec(
+            deployment_id="managed",
+            model_definition_id="test",
+            model_identifier="runtime-model",
+            worker_endpoint=endpoint,
+        ))
+    assert seen == [None, "secret"]
