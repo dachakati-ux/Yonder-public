@@ -46,3 +46,7 @@ The versioned image workflow tests an image-only Compose overlay and has an expl
 ## Browser onboarding
 
 The setup route has a real local-stack Chromium smoke, scoped automated WCAG checks, keyboard skip-navigation and responsive screenshots; fixture-only responses test failure/success controls without claiming actual inference. Manual assistive technology, independent beginner trials and real model/runtime checks remain mandatory.
+
+Production trusted-header startup now requires a distinct ingress authenticator and disallows untrusted worker registration. This is a configuration and middleware safeguard; live proxy, token and tenant-isolation verification are separate acceptance gates.
+
+The Dependency audit workflow checks locked Core Python dependencies, a recorded controller resolution, and the Console npm dependency graph. It is a gate for image publication; OS/runtime/add-on image scans, signatures and independent security review are separate requirements. See [dependency auditing](security/dependency-audit.md).

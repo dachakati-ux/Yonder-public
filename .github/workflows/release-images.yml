@@ -101,7 +101,7 @@ jobs:
           python3 - <<'PY'
           import json
           runs = json.load(open("/tmp/gate-runs.json"))["workflow_runs"]
-          for name in ("CI", "Clean-host Compose smoke"):
+          for name in ("CI", "Clean-host Compose smoke", "Dependency audit"):
               eligible = [r for r in runs if r["name"] == name and r["head_branch"] == "main"]
               assert eligible and eligible[0]["conclusion"] == "success", f"Release gate not met: {name}"
           PY

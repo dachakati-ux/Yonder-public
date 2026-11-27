@@ -37,4 +37,12 @@
 
 * Share the conservative single-device memory screening helper with Model Library. Add real Chromium local setup smoke, keyboard and scoped axe checks, mobile/desktop captures, and explicit fixture-only inference success/error UI checks. No real-inference claim.
 
+## Production trust hardening (M03/M08)
+
+* Fail closed in production trusted-header mode unless distinct managed ingress and worker secrets are configured; reject ambiguous header names, duplicate ingress authenticator headers and untrusted worker registration. Add configuration and middleware negative tests. Document migration and the required proxy stripping/network controls; no upstream IAM assumptions or production certification.
+
+* Add scheduled and PR dependency audits with machine-readable evidence; require a same-commit passing main audit for image publication. No dependency findings have been certified clean before the workflow executes.
+
+- Dependency audit remediation: refreshed Core certificate bundle, Console Next.js/Vitest and vulnerable transitive dependencies; added a hash-pinned standalone controller requirements lock and upgraded cryptography to 50.x. Regenerated locks in an isolated GitHub Actions job and removed the temporary lock-generation workflow. Full verification and security re-audit required before merge.
+
 - Add-on lifecycle integrity: distinguish stored installations from usable activation; fail closed on version drift, incompatible releases and transitive dependency cycles, retain state for operator review, and cover API mount/report/health behavior with regression tests. CI verification pending.

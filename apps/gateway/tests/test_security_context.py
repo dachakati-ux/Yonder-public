@@ -202,3 +202,29 @@ def test_trusted_ingress_enforces_proxy_cidr_allowlist() -> None:
     loopback_client = TestClient(allowed_app, client=("127.0.0.1", 50000))
     ok = loopback_client.get("/secure", headers={"X-Yonder-Trusted-Subject": "alice"})
     assert ok.status_code == 200
+
+
+def test_trusted_ingress_rejects_duplicate_secret_headers() -> None:
+    app = FastAPI()
+    provider = TrustedIngressRequestContextProvider(
+        SecurityConfig(
+            mode=SecurityMode.TRUSTED_INGRESS,
+            trusted_ingress_shared_secret="separate-ingress-secret",
+        )
+    )
+    app.add_middleware(RequestContextMiddleware, provider=provider, service_name="test")
+
+    @app.get("/secure")
+    async def secure() -> dict[str, bool]:
+        return {"ok": True}
+
+    client = TestClient(app)
+    response = client.get(
+        "/secure",
+        headers=[
+            ("X-Yonder-Trusted-Subject", "user"),
+            ("X-Yonder-Ingress-Secret", "separate-ingress-secret"),
+            ("X-Yonder-Ingress-Secret", "different-value"),
+        ],
+    )
+    assert response.status_code == 401
