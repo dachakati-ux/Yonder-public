@@ -110,16 +110,45 @@ class AddonRegistry:
                 continue
         return result
 
+    def _active_ids(self, packaged: dict[str, dict[str, Any]]) -> set[str]:
+        """Resolve usable installed add-ons, including transitive dependencies.
+
+        Stored installation markers are not authorization: version drift,
+        removed manifests, incompatible releases and dependency cycles fail closed.
+        """
+        candidates = {
+            addon_id: AddonManifest.model_validate(item)
+            for addon_id, item in packaged.items()
+            if self._installed.get(addon_id) == item["version"]
+            and item["status"] == "available"
+            and item["install_mode"] == INSTALLABLE_MODE
+        }
+        active: set[str] = set()
+        while True:
+            newly_active = {
+                addon_id for addon_id, manifest in candidates.items()
+                if manifest.compatibility() == "compatible"
+                and set(manifest.dependencies) <= active
+            } - active
+            if not newly_active:
+                return active
+            active.update(newly_active)
+
+    def active(self, addon_id: str) -> bool:
+        with self._lock:
+            return addon_id in self._active_ids(self._bundled())
+
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             packaged = self._bundled()
+            active = self._active_ids(packaged)
             items = []
             for addon_id, item in sorted(packaged.items()):
                 manifest = AddonManifest.model_validate(item)
                 enabled = addon_id in self._installed
                 compatibility = manifest.compatibility()
                 missing_dependencies = [
-                    dep for dep in manifest.dependencies if dep not in self._installed
+                    dep for dep in manifest.dependencies if dep not in active
                 ]
                 installed_version = self._installed.get(addon_id)
                 installable = (
@@ -150,10 +179,8 @@ class AddonRegistry:
                     "ui_extensions": [
                         ext.model_dump(mode="json") for ext in manifest.ui_extensions
                     ],
-                    "requires_attention": bool(
-                        enabled and (installed_version != item["version"]
-                                     or compatibility != "compatible")
-                    ),
+                    "active": addon_id in active,
+                    "requires_attention": enabled and addon_id not in active,
                     "installable": bool(installable and not enabled),
                     "removable": enabled,
                     "in_public_catalog": (
@@ -183,7 +210,8 @@ class AddonRegistry:
 
     def install(self, addon_id: str) -> dict[str, Any]:
         with self._lock:
-            item = self._bundled().get(addon_id)
+            packaged = self._bundled()
+            item = packaged.get(addon_id)
             if item is None:
                 raise AddonError("Add-on is not bundled in this Yonder release.")
             if item.get("status") != "available" or item.get("install_mode") != INSTALLABLE_MODE:
@@ -194,10 +222,11 @@ class AddonRegistry:
                 raise AddonError(
                     f"Add-on is incompatible with Yonder Core: {compatibility}."
                 )
+            active = self._active_ids(packaged)
             missing = [
                 dependency
                 for dependency in manifest.dependencies
-                if dependency not in self._installed
+                if dependency not in active
             ]
             if missing:
                 raise AddonError(
@@ -280,8 +309,8 @@ class AddonRegistry:
         await self.refresh_remote()
 
     def security_report(self, settings: Any) -> dict[str, Any]:
-        if not self.installed("security-insights"):
-            raise AddonError("Security Insights is not installed.")
+        if not self.active("security-insights"):
+            raise AddonError("Security Insights is not active; check installation compatibility.")
         checks = []
         if settings.security.mode.value == "development":
             checks.append({

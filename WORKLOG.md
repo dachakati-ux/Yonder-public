@@ -36,3 +36,5 @@
 * Implement standalone Get started UI with principal-scoped model diagnostics, single-device observed memory screening, explicit inference test, skip navigation and responsive styles. Add TypeScript regression tests. Lab deployment and independent browser review remain outstanding.
 
 * Share the conservative single-device memory screening helper with Model Library. Add real Chromium local setup smoke, keyboard and scoped axe checks, mobile/desktop captures, and explicit fixture-only inference success/error UI checks. No real-inference claim.
+
+- Add-on lifecycle integrity: distinguish stored installations from usable activation; fail closed on version drift, incompatible releases and transitive dependency cycles, retain state for operator review, and cover API mount/report/health behavior with regression tests. CI verification pending.
