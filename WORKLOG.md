@@ -52,3 +52,7 @@
 - PostgreSQL rehearsal exposed revision 0006 exceeding Alembic's default 32-character version column. Widened that column before recording the existing revision on PostgreSQL; retained published IDs and SQLite behavior. Rerun pending.
 
 - Public evaluation and support: reproducible synthetic demo, verified browser artifact link, contributor guidance, security reporting policy and structured issue templates. No claims of independent user validation or stable production support.
+
+## Real CPU inference acceptance
+
+- Add isolated actual llama.cpp CPU model canary using checksum-verified SmolLM2 weights, Gateway-only API checks, measured latency evidence, streaming completion and outage refusal. No lab GPU readiness or model quality claim; CI pending.

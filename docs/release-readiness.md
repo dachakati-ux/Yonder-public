@@ -50,3 +50,7 @@ The setup route has a real local-stack Chromium smoke, scoped automated WCAG che
 Production trusted-header startup now requires a distinct ingress authenticator and disallows untrusted worker registration. This is a configuration and middleware safeguard; live proxy, token and tenant-isolation verification are separate acceptance gates.
 
 The Dependency audit workflow checks locked Core Python dependencies, a recorded controller resolution, and the Console npm dependency graph. It is a gate for image publication; OS/runtime/add-on image scans, signatures and independent security review are separate requirements. See [dependency auditing](security/dependency-audit.md).
+
+## Actual CPU inference canary
+
+The opt-in/PR real-inference workflow downloads a small Apache-2.0 SmolLM2 instruction model using an immutable upstream revision and verifies its published LFS checksum. It records the llama.cpp image digest and checks actual non-mock streaming and non-streaming responses through Gateway, plus outage behavior. Upstream revision and image digest are resolved for each isolated run, not fixed release dependencies. This is CPU transport evidence only, not a quality, GPU, multi-host, or lab parity benchmark. No real user data or model weights are committed to the repository.
