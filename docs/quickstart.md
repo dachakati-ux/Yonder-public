@@ -6,7 +6,7 @@ This guide walks you through deploying **Yonder** from scratch—whether you are
 
 ## Part 1: Prerequisites
 
-You only need **Git** and **Docker** (with **Docker Compose**). Python, Node.js, FastAPI, Next.js, and all dependencies run inside containers automatically.
+The local quick start requires **Git** and a current **Docker Compose v2** (with `up --wait`, `config --environment`, and modern `env_file` support). Python, Node.js, FastAPI, Next.js, and all dependencies run inside containers automatically.
 
 ### Automated Install & Launch (Recommended)
 
@@ -23,9 +23,9 @@ What `./start.sh` does for you:
 2. Offers to install missing tools (using Homebrew on macOS or `apt`/`dnf` on Linux).
 3. Starts Docker Desktop automatically if you are on macOS and Docker isn't running yet.
 4. Copies `.env.example` to `.env` if you don't have one yet.
-5. Checks that ports `3000`, `8080`, `8090`, and `8095` are free.
+5. Uses Compose to bind the configured localhost ports; a binding conflict fails startup.
 6. Builds and starts **Gateway**, **Worker**, **Console**, and **MCP Server**.
-7. Waits until services pass health checks and prints the URLs to open.
+7. Waits for all configured service health checks and prints the actual published URLs. Service health does not guarantee a loaded inference model.
 
 ### Manual Prerequisite Setup (If You Prefer)
 
@@ -95,34 +95,13 @@ YONDER_LLAMA_CPP__BASE_URL=http://host.docker.internal:1234
 ```
 *(On Linux without Docker Desktop, use your host LAN IP or `172.17.0.1` instead of `host.docker.internal`.)*
 
-### D. Deploying to a Remote Server / LAN Host
+### D. Access from another machine
 
-If users will open the Console from another machine (say `http://192.0.2.10:3000`), update `.env` **before** building so the Console browser bundle calls the reachable Gateway URL:
+The default stack deliberately publishes only on loopback. Changing a browser URL does not change that security boundary. For a trusted single-user remote lab, use SSH local forwarding for both Console and Gateway; keep their browser URLs at localhost and use matching ports on the client. For multiple users, do not expose development mode. See [multi-host deployment](multi-host-deployment.md) and the [security boundary](security-boundary.md).
 
-```dotenv
-YONDER_CONSOLE_ORIGIN=http://192.0.2.10:3000
-NEXT_PUBLIC_YONDER_GATEWAY_URL=http://192.0.2.10:8080
-```
+### E. Production readiness
 
-Then rebuild and restart:
-```bash
-docker compose up --build -d
-```
-
-### E. Production Checklist
-
-When deploying to production behind your upstream auth/ingress:
-
-1. Set `YONDER_ENVIRONMENT=production`
-2. Set `YONDER_SECURITY__MODE=trusted_ingress`
-3. Generate and set a shared secret for Gateway ↔ Worker calls:
-   ```bash
-   openssl rand -hex 32
-   ```
-   ```dotenv
-   YONDER_SECURITY__WORKER_SHARED_SECRET=<paste-generated-secret>
-   ```
-4. Enable PostgreSQL persistence (`./start.sh --postgres` or set `YONDER_DATABASE_URL`).
+The convenience launcher is **not a production installer**. A separate, reviewed deployment must enforce trusted ingress, worker service authentication, network isolation, data recovery, and tenant authorization. Setting environment variables or enabling PostgreSQL alone does not establish those controls. Follow [deployment](deployment.md), [security boundary](security-boundary.md), and [release readiness](release-readiness.md). Do not expose a mock principal or the development MCP endpoint to untrusted clients.
 
 ---
 
@@ -205,7 +184,7 @@ See [docs/mcp.md](mcp.md) for security rules, allowlists, and stdio transport op
 | View live logs | `./start.sh --logs` (or `docker compose logs -f`) |
 | Stop all containers | `./start.sh --stop` (or `docker compose down`) |
 | Enable PostgreSQL | `./start.sh --postgres` |
-| Wipe local data & rebuild | `docker compose down -v && ./start.sh` |
+| Permanently delete local data | Only after an independently verified backup: `docker compose down -v` deletes named volumes; this is not a routine troubleshooting step. |
 
 | Problem | Fix |
 | :--- | :--- |

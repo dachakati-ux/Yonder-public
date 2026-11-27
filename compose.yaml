@@ -12,9 +12,9 @@ services:
         required: false
     environment:
       YONDER_CONFIG_FILE: /app/config/environments/development.yaml
-      YONDER_ENVIRONMENT: development
+      YONDER_ENVIRONMENT: ${YONDER_ENVIRONMENT:-development}
       YONDER_BUILD_SHA: ${YONDER_BUILD_SHA:-unknown}
-      YONDER_SECURITY__MODE: development
+      YONDER_SECURITY__MODE: ${YONDER_SECURITY__MODE:-development}
       # Docker network requires non-loopback bind inside the container.
       YONDER_GATEWAY__HOST: "0.0.0.0"
       YONDER_GATEWAY__PORT: "8080"
@@ -45,8 +45,8 @@ services:
         required: false
     environment:
       YONDER_CONFIG_FILE: /app/config/environments/development.yaml
-      YONDER_ENVIRONMENT: development
-      YONDER_SECURITY__MODE: development
+      YONDER_ENVIRONMENT: ${YONDER_ENVIRONMENT:-development}
+      YONDER_SECURITY__MODE: ${YONDER_SECURITY__MODE:-development}
       YONDER_WORKER__HOST: "0.0.0.0"
       YONDER_WORKER__PORT: "8090"
       YONDER_ALLOW_NON_LOCALHOST_BIND_IN_DEVELOPMENT: "true"
@@ -78,6 +78,12 @@ services:
         NEXT_PUBLIC_YONDER_GATEWAY_URL: ${NEXT_PUBLIC_YONDER_GATEWAY_URL:-http://127.0.0.1:${YONDER_GATEWAY__PORT:-8080}}
     environment:
       NEXT_PUBLIC_YONDER_GATEWAY_URL: ${NEXT_PUBLIC_YONDER_GATEWAY_URL:-http://127.0.0.1:${YONDER_GATEWAY__PORT:-8080}}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     ports:
       - "127.0.0.1:${YONDER_CONSOLE_PORT:-3000}:3000"
     depends_on:
@@ -95,7 +101,7 @@ services:
       YONDER_GATEWAY_URL: http://gateway:8080
       YONDER_MCP_HTTP: "true"
       YONDER_MCP_BIND: "0.0.0.0"
-      YONDER_MCP_PORT: ${YONDER_MCP_PORT:-8095}
+      YONDER_MCP_PORT: "8095"
       YONDER_ALLOW_NON_LOCALHOST_BIND_IN_DEVELOPMENT: "true"
     entrypoint: []
     command: ["yonder-mcp", "--http", "--bind", "0.0.0.0", "--port", "8095"]

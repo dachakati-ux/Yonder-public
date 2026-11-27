@@ -21,7 +21,7 @@ The command requires Git, Docker and Compose v2, verifies the expected
 repository remote and fast-forward history, asks for confirmation, preserves
 `.env`, makes an online SQLite backup of the running gateway's data volume,
 verifies the archive, then pulls and rebuilds the stack. It does **not**
-automatically update any non-main checkout or production cluster.
+automatically update any non-main checkout or production cluster. The updater also checks the running Gateway environment/database and rejects additional running Compose services; do not use it for external add-on data or coordinated deployments.
 
 Backups are kept under `backups/update-YYYYMMDD-HHMMSS` on the deployment
 host (mode 0700, `.env` mode 0600). Store an offline/encrypted copy as well.
@@ -53,7 +53,7 @@ restorable SQLite backup, **stop the stack** and restore the saved gateway data
 archive into its persistent volume using a controlled restoration procedure.
 Do not restore while the database is open. Restore the saved `.env` as well,
 and rebuild the previous reviewed commit. Always test restoration on a copy
-before doing this on a school or production system.
+before doing this on a school or production system. The former `--rollback` command is intentionally disabled until a stopped-volume restore and failure-injection procedure has been verified. Never restore a database over a running Gateway.
 
 ## Behavior and privacy
 

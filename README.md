@@ -14,7 +14,9 @@ It provides:
 
 ---
 
-## Quick Start (One Command)
+## Quick Start (Local Development)
+
+**Release status:** Yonder is under active development. The local stack is for a trusted single-user machine, not an internet-facing or school deployment. No stable release is published yet. Review the [release readiness checklist](docs/release-readiness.md) before wider use.
 
 The easiest way to run Yonder locally is with the included launcher script. It checks for Docker, Docker Compose, and `curl`, offers to install any missing dependencies, creates `.env` from `.env.example`, and starts the full stack (**Gateway + Worker + Console + MCP Server**):
 
@@ -45,7 +47,7 @@ New to Docker or setting up from scratch? Follow the **[Step-by-Step Deploy & Qu
 
 ```bash
 ./start.sh --yes        # Auto-confirm dependency installation prompts
-./start.sh --postgres   # Enable PostgreSQL persistence (in addition to SQLite)
+./start.sh --postgres   # Use PostgreSQL instead of SQLite (local development)
 ./start.sh --logs       # Follow live container logs
 ./start.sh --stop       # Stop all running Yonder containers
 ```
@@ -68,8 +70,8 @@ All host ports are controlled from `.env` (copied automatically from `.env.examp
 
 | Variable | Default | When to change |
 | :--- | :--- | :--- |
-| `YONDER_ENVIRONMENT` | `development` | Set to `production` behind upstream auth/ingress. |
-| `YONDER_SECURITY__MODE` | `development` | Set to `trusted_ingress` in production. |
+| `YONDER_ENVIRONMENT` | `development` | Local quick start only; production requires a separately reviewed deployment. |
+| `YONDER_SECURITY__MODE` | `development` | Production requires trusted ingress and a reviewed identity boundary. |
 | `YONDER_SECURITY__WORKER_SHARED_SECRET` | *(unset)* | **Required in production.** Generate with `openssl rand -hex 32`. |
 | `YONDER_CONSOLE_ORIGIN` | `http://127.0.0.1:3000` | Set to your public/LAN Console URL if not localhost. |
 | `NEXT_PUBLIC_YONDER_GATEWAY_URL` | `http://127.0.0.1:8080` | Set to the Gateway URL reachable by your browser (rebuild console if changed). |
@@ -155,6 +157,7 @@ mean released or production-ready.
 
 ## Documentation Index
 
+* [Release readiness and validation](docs/release-readiness.md)
 * [Step-by-Step Deploy & Quick-Start Guide](docs/quickstart.md)
 * [MCP (Model Context Protocol) Guide](docs/mcp.md)
 * [Multi-Host Deployment](docs/multi-host-deployment.md)

@@ -86,13 +86,10 @@ if [[ "$ACTION" == "update" ]]; then
   exec bash "$ROOT_DIR/scripts/update-yonder.sh"
 fi
 
-# Detect Docker Compose command (v2 plugin preferred, v1 fallback)
+# Require Compose v2: health-aware startup and modern env_file syntax.
 detect_compose() {
   if docker compose version >/dev/null 2>&1; then
     COMPOSE_CMD=(docker compose)
-    return 0
-  elif command -v docker-compose >/dev/null 2>&1; then
-    COMPOSE_CMD=(docker-compose)
     return 0
   fi
   return 1
@@ -248,7 +245,7 @@ ok "Docker Compose is available (${COMPOSE_CMD[*]})"
 # 5. Ensure .env exists and load port overrides
 if [[ ! -f .env ]]; then
   if [[ -f .env.example ]]; then
-    cp .env.example .env
+    (umask 077; cp .env.example .env)
     ok "Created .env from .env.example"
   else
     warn ".env.example not found; continuing with Compose defaults"
@@ -257,37 +254,9 @@ else
   ok ".env already exists"
 fi
 
-if [[ -f .env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
-fi
-
-CONSOLE_PORT="${YONDER_CONSOLE_PORT:-3000}"
-GATEWAY_PORT="${YONDER_GATEWAY__PORT:-8080}"
-WORKER_PORT="${YONDER_WORKER__PORT:-8090}"
-MCP_PORT="${YONDER_MCP_PORT:-8095}"
-
+# Compose reads dotenv itself. Never execute .env as a shell script.
 # Record the checked-out revision; unknown revisions never trigger a false update alert.
 export YONDER_BUILD_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
-
-# 6. Check for port conflicts if not already owned by Yonder
-check_port() {
-  local port="$1"
-  if command -v lsof >/dev/null 2>&1; then
-    if lsof -iTCP:"$port" -sTCP:LISTEN -Pn >/dev/null 2>&1; then
-      # Allow if it's already a docker/yonder container
-      if ! "${COMPOSE_CMD[@]}" ps --status running 2>/dev/null | grep -qE "gateway|worker|console|mcp"; then
-        warn "Port $port appears to be in use by another process. You can change it in .env or free port $port."
-      fi
-    fi
-  fi
-}
-check_port "$CONSOLE_PORT"
-check_port "$GATEWAY_PORT"
-check_port "$WORKER_PORT"
-check_port "$MCP_PORT"
 
 # 7. Build and start the stack
 COMPOSE_ARGS=(-f compose.yaml)
@@ -296,41 +265,33 @@ if [[ "$WITH_POSTGRES" -eq 1 ]]; then
   info "PostgreSQL persistence profile enabled."
 fi
 
-info "Building and starting Yonder containers (this may take a few minutes on first run)..."
-"${COMPOSE_CMD[@]}" "${COMPOSE_ARGS[@]}" up --build -d
-
-# 8. Wait for Gateway and Console health
-info "Waiting for Yonder Gateway (http://127.0.0.1:${GATEWAY_PORT}/health)..."
-GATEWAY_READY=0
-for _ in $(seq 1 60); do
-  if curl -fsS "http://127.0.0.1:${GATEWAY_PORT}/health" >/dev/null 2>&1; then
-    GATEWAY_READY=1
-    break
-  fi
-  sleep 2
-done
-
-if [[ "$GATEWAY_READY" -ne 1 ]]; then
-  err "Gateway did not become healthy in time. Check logs with: ${COMPOSE_CMD[*]} logs gateway"
+# Fail before creating containers if this checkout was configured for production.
+# The convenience launcher is intentionally a localhost development installer.
+COMPOSE_ENV="$("${COMPOSE_CMD[@]}" "${COMPOSE_ARGS[@]}" config --environment)"
+if printf '%s\n' "$COMPOSE_ENV" | grep -Eq '^YONDER_ENVIRONMENT=production$|^YONDER_SECURITY__MODE=trusted_ingress$'; then
+  err "The local launcher is not a production installer. See docs/security-boundary.md and docs/deployment.md."
   exit 1
 fi
-ok "Gateway is healthy"
+unset COMPOSE_ENV
 
-info "Waiting for Yonder Console (http://127.0.0.1:${CONSOLE_PORT})..."
-CONSOLE_READY=0
-for _ in $(seq 1 45); do
-  if curl -fsS "http://127.0.0.1:${CONSOLE_PORT}" >/dev/null 2>&1; then
-    CONSOLE_READY=1
-    break
-  fi
-  sleep 2
-done
-
-if [[ "$CONSOLE_READY" -ne 1 ]]; then
-  warn "Console is still starting up. Check logs with: ${COMPOSE_CMD[*]} logs -f console"
-else
-  ok "Console is ready"
+info "Building and starting Yonder containers (this may take a few minutes on first run)..."
+if ! "${COMPOSE_CMD[@]}" "${COMPOSE_ARGS[@]}" up --build -d --wait --wait-timeout 180; then
+  err "The stack did not become healthy. Inspect it with ./start.sh --logs"
+  "${COMPOSE_CMD[@]}" "${COMPOSE_ARGS[@]}" ps || true
+  exit 1
 fi
+
+# Read actual published ports from this Compose project, not shell-evaluated dotenv.
+published_port() {
+  local address
+  address="$("${COMPOSE_CMD[@]}" "${COMPOSE_ARGS[@]}" port "$1" "$2")" || return 1
+  [[ "$address" =~ ^127\.0\.0\.1:([0-9]+)$ ]] || return 1
+  printf '%s' "${BASH_REMATCH[1]}"
+}
+CONSOLE_PORT="$(published_port console 3000)" || { err "Console loopback port unavailable"; exit 1; }
+GATEWAY_PORT="$(published_port gateway 8080)" || { err "Gateway loopback port unavailable"; exit 1; }
+MCP_PORT="$(published_port mcp 8095)" || { err "MCP loopback port unavailable"; exit 1; }
+ok "All configured services are healthy (model readiness is separate)"
 
 echo ""
 echo -e "${GREEN}${BOLD}Yonder is running!${RESET}"
