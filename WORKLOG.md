@@ -56,3 +56,7 @@
 ## Runtime credential boundary
 
 - Restrict worker credentials to deployment-scoped llama.cpp proxy requests, distinguish external attachments during rehydration, and add negative chat/embedding/rerank tests. Disable implicit environment proxy use and redirects. Real lab parity remains outstanding.
+
+## Image supply-chain evidence
+
+- Generate SPDX SBOMs for all three tested local image identities with pinned scanner action. Verify archive and SBOM checksums before explicit release publication, attest immutable registry image digests and release manifest, and gate on main browser and PostgreSQL acceptance. No packages published; candidate evidence verification pending CI.

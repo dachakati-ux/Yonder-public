@@ -34,3 +34,16 @@ Stop with `bash scripts/start-release.sh VERSION_TAG down`; use `logs` for diagn
 5. Treat partially published tags as failed candidates; do not reuse or overwrite a published version. Registry-level tag immutability and signing, SBOMs, base-image digest pinning, multi-architecture builds and release attestation remain explicit requirements before stable release.
 
 The workflow is a packaging candidate, not authorization to publish Yonder 1.0 or certify institutional readiness.
+
+## Supply-chain evidence
+
+Every image candidate now scans the exact locally tested Gateway, Worker, and Console images with a commit-pinned SBOM action, and records SPDX JSON, image IDs and checksums. No signing or package write permission is granted to the PR build. On explicit reviewed-tag publication, the privileged job validates the saved archive checksum, SBOM checksums and loaded image IDs, checks same-commit main CI, dependency audit, browser, SQLite and PostgreSQL recovery gates, then publishes the exact images. It generates signed GitHub artifact provenance and SPDX SBOM attestations bound to registry digests, as well as an attestation for the release manifest. Publication and attestation verification must still be exercised on an actual reviewed tag; a successful candidate build is not proof of either.
+
+Verify the manifest and a published digest with GitHub CLI before deployment:
+
+```bash
+gh attestation verify yonder-image-manifest.json --repo dachakati-ux/Yonder-public
+gh attestation verify oci://ghcr.io/dachakati-ux/yonder-gateway@sha256:REPLACE_WITH_DIGEST --repo dachakati-ux/Yonder-public
+```
+
+Confirm that the verified provenance corresponds to the expected release workflow, reviewed revision and tag. Never substitute a mutable tag for a recorded digest. SBOM generation inventories packages; it does not establish that all OS or model runtime packages are vulnerability-free.

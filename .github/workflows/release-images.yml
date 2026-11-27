@@ -57,6 +57,52 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:8080/v1/models
           curl --fail --silent --show-error http://127.0.0.1:8090/health
           curl --fail --silent --show-error http://127.0.0.1:8095/health
+      - name: Prepare release evidence directory
+        run: mkdir -p release-evidence
+      - name: Generate gateway image SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ghcr.io/dachakati-ux/yonder-gateway:${{ env.YONDER_IMAGE_TAG }}
+          format: spdx-json
+          output-file: release-evidence/gateway.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Generate worker image SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ghcr.io/dachakati-ux/yonder-worker:${{ env.YONDER_IMAGE_TAG }}
+          format: spdx-json
+          output-file: release-evidence/worker.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Generate console image SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ghcr.io/dachakati-ux/yonder-console:${{ env.YONDER_IMAGE_TAG }}
+          format: spdx-json
+          output-file: release-evidence/console.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Record exact tested image identities and SBOM checksums
+        run: |
+          for service in gateway worker console; do
+            image="ghcr.io/dachakati-ux/yonder-$service:$YONDER_IMAGE_TAG"
+            docker image inspect --format '{{.Id}}' "$image" > "release-evidence/$service.image-id"
+          done
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          for file in sorted(Path("release-evidence").glob("*.spdx.json")):
+              sbom = json.loads(file.read_text())
+              assert sbom.get("spdxVersion", "").startswith("SPDX-") and sbom.get("packages"), file
+          assert len(list(Path("release-evidence").glob("*.spdx.json"))) == 3
+          PY
+          (cd release-evidence && sha256sum *.spdx.json *.image-id > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tested-image-evidence
+          path: release-evidence
+          if-no-files-found: error
       - name: Package exact tested images for explicitly requested publishing
         if: github.event_name == 'workflow_dispatch' && inputs.publish
         run: |
@@ -64,11 +110,14 @@ jobs:
             "ghcr.io/dachakati-ux/yonder-gateway:$YONDER_IMAGE_TAG" \
             "ghcr.io/dachakati-ux/yonder-worker:$YONDER_IMAGE_TAG" \
             "ghcr.io/dachakati-ux/yonder-console:$YONDER_IMAGE_TAG" | gzip > candidate-images.tar.gz
+          sha256sum candidate-images.tar.gz > candidate-images.tar.gz.sha256
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch' && inputs.publish
         with:
           name: tested-candidate-images
-          path: candidate-images.tar.gz
+          path: |
+            candidate-images.tar.gz
+            candidate-images.tar.gz.sha256
           retention-days: 1
       - name: Collect diagnostics and remove disposable stack
         if: always()
@@ -85,6 +134,8 @@ jobs:
       contents: read
       actions: read
       packages: write
+      id-token: write
+      attestations: write
     env:
       YONDER_IMAGE_TAG: ${{ inputs.version }}
       GH_TOKEN: ${{ github.token }}
@@ -101,24 +152,32 @@ jobs:
           python3 - <<'PY'
           import json
           runs = json.load(open("/tmp/gate-runs.json"))["workflow_runs"]
-          for name in ("CI", "Clean-host Compose smoke", "Dependency audit"):
+          for name in ("CI", "Clean-host Compose smoke", "Dependency audit", "PostgreSQL recovery rehearsal", "Console browser smoke"):
               eligible = [r for r in runs if r["name"] == name and r["head_branch"] == "main"]
               assert eligible and eligible[0]["conclusion"] == "success", f"Release gate not met: {name}"
           PY
       - uses: actions/download-artifact@v4
         with:
           name: tested-candidate-images
+      - uses: actions/download-artifact@v4
+        with:
+          name: tested-image-evidence
+          path: release-evidence
       - name: Load tested images and authenticate to GHCR
         env:
           REGISTRY_TOKEN: ${{ github.token }}
         run: |
+          sha256sum -c candidate-images.tar.gz.sha256
+          (cd release-evidence && sha256sum -c SHA256SUMS)
           gzip -dc candidate-images.tar.gz | docker load
           printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
       - name: Publish explicit tags and capture immutable references
+        id: digests
         run: |
           for service in gateway worker console; do
             image="ghcr.io/dachakati-ux/yonder-$service:$YONDER_IMAGE_TAG"
             [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" == "$GITHUB_SHA" ]]
+            [[ "$(docker image inspect --format '{{.Id}}' "$image")" == "$(cat "release-evidence/$service.image-id")" ]]
             if docker manifest inspect "$image" > /dev/null 2>&1; then
               echo "Refusing to overwrite existing image tag: $image" >&2
               exit 1
@@ -138,8 +197,52 @@ jobs:
               matches = [ref for ref in refs if ref.startswith(f"ghcr.io/dachakati-ux/yonder-{name}@sha256:")]
               assert len(matches) == 1, f"No unambiguous immutable reference for {name}"
               manifest["images"][name] = matches[0]
+              with open(os.environ["GITHUB_OUTPUT"], "a") as outputs:
+                  print(f"{name}={matches[0].split('@')[1]}", file=outputs)
           Path("yonder-image-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
           PY
+      - name: Attest gateway image provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-name: ghcr.io/dachakati-ux/yonder-gateway
+          subject-digest: ${{ steps.digests.outputs.gateway }}
+          push-to-registry: true
+      - name: Attest gateway image SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-name: ghcr.io/dachakati-ux/yonder-gateway
+          subject-digest: ${{ steps.digests.outputs.gateway }}
+          sbom-path: release-evidence/gateway.spdx.json
+          push-to-registry: true
+      - name: Attest worker image provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-name: ghcr.io/dachakati-ux/yonder-worker
+          subject-digest: ${{ steps.digests.outputs.worker }}
+          push-to-registry: true
+      - name: Attest worker image SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-name: ghcr.io/dachakati-ux/yonder-worker
+          subject-digest: ${{ steps.digests.outputs.worker }}
+          sbom-path: release-evidence/worker.spdx.json
+          push-to-registry: true
+      - name: Attest console image provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-name: ghcr.io/dachakati-ux/yonder-console
+          subject-digest: ${{ steps.digests.outputs.console }}
+          push-to-registry: true
+      - name: Attest console image SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-name: ghcr.io/dachakati-ux/yonder-console
+          subject-digest: ${{ steps.digests.outputs.console }}
+          sbom-path: release-evidence/console.spdx.json
+          push-to-registry: true
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: yonder-image-manifest.json
       - uses: actions/upload-artifact@v4
         with:
           name: yonder-image-manifest
