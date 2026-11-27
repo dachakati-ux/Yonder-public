@@ -1,5 +1,7 @@
 """Onboarding diagnostics preserve routing and authorization boundaries."""
 
+from __future__ import annotations
+
 from fastapi.testclient import TestClient
 
 from app.routing.models import DeploymentRecord, DeploymentState, ModelAliasRoute, RouteState
