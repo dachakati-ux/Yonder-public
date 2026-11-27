@@ -34,3 +34,5 @@
 * Fail closed in production trusted-header mode unless distinct managed ingress and worker secrets are configured; reject ambiguous header names, duplicate ingress authenticator headers and untrusted worker registration. Add configuration and middleware negative tests. Document migration and the required proxy stripping/network controls; no upstream IAM assumptions or production certification.
 
 * Add scheduled and PR dependency audits with machine-readable evidence; require a same-commit passing main audit for image publication. No dependency findings have been certified clean before the workflow executes.
+
+- Dependency audit remediation: refreshed Core certificate bundle, Console Next.js/Vitest and vulnerable transitive dependencies; added a hash-pinned standalone controller requirements lock and upgraded cryptography to 50.x. Regenerated locks in an isolated GitHub Actions job and removed the temporary lock-generation workflow. Full verification and security re-audit required before merge.

@@ -28,10 +28,10 @@ jobs:
           mkdir -p audit-reports
           uv export --locked --all-packages --no-dev --no-emit-workspace --no-hashes \
             --format requirements-txt --output-file audit-reports/core-requirements.txt
-      - name: Resolve and record standalone controller runtime dependencies
+      - name: Install exact standalone controller runtime dependency lock
         run: |
           uv venv --python 3.12 "$RUNNER_TEMP/controller-audit"
-          uv pip install --python "$RUNNER_TEMP/controller-audit/bin/python" -r apps/addon-controller/requirements.txt
+          uv pip install --python "$RUNNER_TEMP/controller-audit/bin/python" --require-hashes -r apps/addon-controller/requirements.lock.txt
           uv pip freeze --python "$RUNNER_TEMP/controller-audit/bin/python" > audit-reports/controller-requirements.txt
       - name: Audit Core runtime
         run: |
