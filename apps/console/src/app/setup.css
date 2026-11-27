@@ -25,3 +25,9 @@
 .setup-workspace .btn { min-height: 2.75rem; white-space: normal; }
 .setup-result { white-space: pre-wrap; padding: 1rem; border: 1px solid var(--line-strong);
   border-radius: var(--radius-md); background: var(--void-2); }
+
+/* Keep focused targets below sticky navigation and preserve visible contrast. */
+#yonder-main { scroll-margin-top: var(--topbar-h); }
+.setup-workspace .btn-primary { background: var(--accent-bright); color: var(--void); }
+.setup-workspace .btn-ghost { color: var(--ink-soft); }
+@media (max-width: 700px) { .setup-workspace { min-width: 0; } .setup-workspace ul, .setup-workspace ol { padding-inline-start: 1.25rem; } }
