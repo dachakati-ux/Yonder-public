@@ -28,3 +28,7 @@
 * Add explicit versioned prebuilt image overlay and local launcher with no implicit latest tag; preserve source-build path and local-only security boundary.
 * Add image-only candidate build/smoke and separately permissioned, explicit-tag publication workflow. No package publication or release creation was performed.
 * Reconcile stale design/draft language with the source tree and document unavailable add-ons and real runtime requirements. Keep all catalog activation states unchanged. Candidate CI, native ARM, signed releases and public registry pull tests remain pending.
+
+## Guided first-run setup (M01/M04/M08)
+
+* Add principal-scoped setup diagnostics distinguishing mock, unavailable and reported-ready model routes; add regression tests. Live model and lab verification remain required.
