@@ -1,5 +1,7 @@
 name: Real CPU inference canary
 on:
+  push:
+    branches: [main]
   pull_request:
     paths:
       - 'apps/gateway/**'
@@ -20,6 +22,10 @@ jobs:
       COMPOSE_PROJECT_NAME: yonder-cpu-canary
       MODEL_REPO: farpluto/SmolLM2-135M-Instruct-Q4_K_M-GGUF
       MODEL_FILE: smollm2-135m-instruct-q4_k_m-imat.gguf
+      MODEL_REVISION: 0a75a35560d42fed8c4d710625ec500f53c5f99c
+      MODEL_SHA256: 2e84ad9d9559e999cb27010adec82fa9ceab0fce214d53e2acf6f1813b959dcc
+      MODEL_BYTES: "105454752"
+      RUNTIME_IMAGE: ghcr.io/ggml-org/llama.cpp@sha256:535b0b2eb8e184668698ebe8204f86ed5e57825965fc5b81b9992c556822e6b9
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,19 +34,21 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/yonder-model" "$RUNNER_TEMP/yonder-inference"
           curl --fail --silent --show-error --retry 3 --proto '=https' \
-            "https://huggingface.co/api/models/$MODEL_REPO?blobs=true" > /tmp/yonder-model.json
+            "https://huggingface.co/api/models/$MODEL_REPO/revision/$MODEL_REVISION?blobs=true" > /tmp/yonder-model.json
           python3 - <<'PY'
           import json, os, re
           from pathlib import Path
           meta = json.load(open("/tmp/yonder-model.json"))
           revision = meta["sha"]
           assert re.fullmatch(r"[a-f0-9]{40}", revision)
+          assert revision == os.environ["MODEL_REVISION"]
           entries = [row for row in meta["siblings"] if row["rfilename"] == os.environ["MODEL_FILE"]]
           assert len(entries) == 1, "Expected reviewed model file is not available"
           entry = entries[0]
           digest = entry["lfs"]["sha256"]
           size = entry["lfs"]["size"]
           assert re.fullmatch(r"[a-f0-9]{64}", digest) and 0 < size < 200_000_000
+          assert digest == os.environ["MODEL_SHA256"] and size == int(os.environ["MODEL_BYTES"])
           root = Path(os.environ["RUNNER_TEMP"])
           (root / "yonder-model" / "revision").write_text(revision)
           (root / "yonder-model" / "sha256").write_text(digest)
@@ -68,8 +76,8 @@ jobs:
           EOF
           docker compose build gateway
           docker compose create gateway
-          docker pull ghcr.io/ggml-org/llama.cpp:server
-          image="$(docker image inspect --format '{{index .RepoDigests 0}}' ghcr.io/ggml-org/llama.cpp:server)"
+          docker pull "$RUNTIME_IMAGE"
+          image="$RUNTIME_IMAGE"
           echo "$image" > "$RUNNER_TEMP/yonder-inference/runtime-image.txt"
           docker run -d --name yonder-cpu-runtime --network yonder-cpu-canary_default \
             --cap-drop ALL --security-opt no-new-privileges --memory 3g --cpus 2 \
