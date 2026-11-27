@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
-from yonder_configuration.worker_auth import worker_auth_headers
 from yonder_contracts.inference import (
     Deployment,
     DeploymentSpec,
@@ -14,6 +13,8 @@ from yonder_contracts.inference import (
     ProviderModel,
 )
 from yonder_contracts.reranking import RerankRequest, RerankResult, RerankResultItem
+
+from app.providers.runtime_auth import runtime_proxy_headers
 
 
 class LlamaCppRerankProvider:
@@ -32,12 +33,16 @@ class LlamaCppRerankProvider:
         self._loaded: dict[str, str] = {}
         self._endpoints: dict[str, str] = {}
 
-    def _client(self, base_url: str) -> httpx.AsyncClient:
+    def _client(
+        self, base_url: str, *, deployment_id: str | None = None
+    ) -> httpx.AsyncClient:
         return httpx.AsyncClient(
             base_url=base_url.rstrip("/"),
             timeout=self._timeout,
             transport=self._transport,
-            headers=worker_auth_headers(),
+            headers=runtime_proxy_headers(base_url, deployment_id),
+            trust_env=False,
+            follow_redirects=False,
         )
 
     async def health(self) -> ProviderHealth:
@@ -48,9 +53,9 @@ class LlamaCppRerankProvider:
                 message="No rerank deployments are loaded",
                 details={"availability": "not_configured"},
             )
-        for endpoint in self._endpoints.values():
+        for deployment_id, endpoint in self._endpoints.items():
             try:
-                async with self._client(endpoint) as client:
+                async with self._client(endpoint, deployment_id=deployment_id) as client:
                     response = await client.get("/health")
                     response.raise_for_status()
                 return ProviderHealth(
@@ -71,12 +76,14 @@ class LlamaCppRerankProvider:
             details={"availability": "collection_failed"},
         )
 
-    async def discover_models(self, *, base_url: str | None = None) -> list[ProviderModel]:
+    async def discover_models(
+        self, *, base_url: str | None = None, deployment_id: str | None = None
+    ) -> list[ProviderModel]:
         if base_url is None:
             if not self._endpoints:
                 return []
-            base_url = next(iter(self._endpoints.values()))
-        async with self._client(base_url) as client:
+            deployment_id, base_url = next(iter(self._endpoints.items()))
+        async with self._client(base_url, deployment_id=deployment_id) as client:
             response = await client.get("/v1/models")
             response.raise_for_status()
             payload = response.json()
@@ -100,7 +107,9 @@ class LlamaCppRerankProvider:
         if not endpoint:
             raise RuntimeError("llama.cpp rerank load requires worker_endpoint")
         expected = deployment.model_identifier.strip()
-        discovered = await self.discover_models(base_url=endpoint)
+        discovered = await self.discover_models(
+            base_url=endpoint, deployment_id=deployment.deployment_id
+        )
         available = {model.id for model in discovered}
         if expected not in available:
             raise RuntimeError(
@@ -142,7 +151,7 @@ class LlamaCppRerankProvider:
         }
         if request.top_n is not None:
             payload["top_n"] = request.top_n
-        async with self._client(endpoint) as client:
+        async with self._client(endpoint, deployment_id=request.deployment_id) as client:
             response = await client.post("/v1/rerank", json=payload)
             response.raise_for_status()
             body = response.json()
