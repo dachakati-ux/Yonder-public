@@ -8,7 +8,6 @@ from typing import Any
 
 import httpx
 from yonder_configuration.models import LlamaCppProviderConfig
-from yonder_configuration.worker_auth import worker_auth_headers
 from yonder_contracts.inference import (
     ChatChunk,
     ChatRequest,
@@ -20,6 +19,8 @@ from yonder_contracts.inference import (
     ProviderModel,
 )
 from yonder_contracts.tools import ToolCall
+
+from app.providers.runtime_auth import runtime_proxy_headers
 
 
 class LlamaCppProvider:
@@ -44,13 +45,19 @@ class LlamaCppProvider:
         self._loaded: dict[str, str] = {}
         # deployment_id -> base_url
         self._endpoints: dict[str, str] = {}
+        self._managed: set[str] = set()
 
-    def _client(self, base_url: str | None = None) -> httpx.AsyncClient:
+    def _client(
+        self, base_url: str | None = None, *, deployment_id: str | None = None
+    ) -> httpx.AsyncClient:
+        endpoint = (base_url or self._config.base_url).rstrip("/")
         return httpx.AsyncClient(
-            base_url=(base_url or self._config.base_url).rstrip("/"),
+            base_url=endpoint,
             timeout=self._config.request_timeout_seconds,
             transport=self._transport,
-            headers=worker_auth_headers(),
+            headers=runtime_proxy_headers(endpoint, deployment_id),
+            trust_env=False,
+            follow_redirects=False,
         )
 
     def _endpoint_for(self, deployment_id: str | None = None) -> str:
@@ -76,9 +83,10 @@ class LlamaCppProvider:
             )
         except (httpx.HTTPError, ValueError) as exc:
             # Still healthy if any managed endpoint is up.
-            for endpoint in self._endpoints.values():
+            for deployment_id, endpoint in self._endpoints.items():
                 try:
-                    async with self._client(endpoint) as client:
+                    proxy_id = deployment_id if deployment_id in self._managed else None
+                    async with self._client(endpoint, deployment_id=proxy_id) as client:
                         response = await client.get("/health")
                         response.raise_for_status()
                     return ProviderHealth(
@@ -100,8 +108,10 @@ class LlamaCppProvider:
                 },
             )
 
-    async def discover_models(self, *, base_url: str | None = None) -> list[ProviderModel]:
-        async with self._client(base_url) as client:
+    async def discover_models(
+        self, *, base_url: str | None = None, deployment_id: str | None = None
+    ) -> list[ProviderModel]:
+        async with self._client(base_url, deployment_id=deployment_id) as client:
             response = await client.get("/v1/models")
             response.raise_for_status()
             payload = response.json()
@@ -133,7 +143,13 @@ class LlamaCppProvider:
             expected_model = (
                 self._config.served_model or deployment.model_identifier
             ).strip()
-        discovered = await self.discover_models(base_url=endpoint)
+        managed = bool(
+            deployment.worker_endpoint
+            and (deployment.runtime_configuration or {}).get("lane") != "external_attach"
+        )
+        discovered = await self.discover_models(
+            base_url=endpoint, deployment_id=deployment.deployment_id if managed else None
+        )
         available_ids = {model.id for model in discovered}
         if expected_model not in available_ids:
             raise RuntimeError(
@@ -144,6 +160,10 @@ class LlamaCppProvider:
 
         self._loaded[deployment.deployment_id] = expected_model
         self._endpoints[deployment.deployment_id] = endpoint
+        if managed:
+            self._managed.add(deployment.deployment_id)
+        else:
+            self._managed.discard(deployment.deployment_id)
         lifecycle = (
             "worker_managed" if deployment.worker_endpoint else "operator_managed"
         )
@@ -163,6 +183,7 @@ class LlamaCppProvider:
     async def unload(self, deployment_id: str) -> None:
         self._loaded.pop(deployment_id, None)
         self._endpoints.pop(deployment_id, None)
+        self._managed.discard(deployment_id)
 
     @staticmethod
     def _message_payload(message: Any) -> dict[str, Any]:
@@ -250,7 +271,8 @@ class LlamaCppProvider:
         payload.update({key: value for key, value in optional.items() if value is not None})
 
         tool_fragments: dict[int, dict[str, str]] = {}
-        async with self._client(endpoint) as client:
+        proxy_id = request.deployment_id if request.deployment_id in self._managed else None
+        async with self._client(endpoint, deployment_id=proxy_id) as client:
             async with client.stream(
                 "POST", "/v1/chat/completions", json=payload
             ) as response:

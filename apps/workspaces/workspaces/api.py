@@ -59,6 +59,7 @@ def create_app(
         if service_token is not None
         else os.getenv("YONDER_WORKSPACES_SERVICE_TOKEN", "")
     )
+    execution_enabled = bool(provisioner and provisioner.execution_enabled)
     authenticate = make_auth_dependency(token)
     auth_dep = Depends(authenticate)
     store = WorkspaceStore(
@@ -86,10 +87,11 @@ def create_app(
         return {
             "service": "yonder-workspaces",
             "metadata_enabled": True,
-            "execution_enabled": provisioner is not None,
-            "vm_isolation": provisioner.backend_name if provisioner else "not_implemented",
+            "execution_enabled": execution_enabled,
+            "vm_isolation": provisioner.backend_name if execution_enabled else "not_implemented",
+            "isolation_verified": False,
             "proxmox_adapter": (
-                "configured"
+                "unverified_disabled"
                 if provisioner and provisioner.backend_name == "proxmox_vm"
                 else "not_implemented"
             ),
@@ -112,6 +114,10 @@ def create_app(
         body: CreateProjectRequest,
         principal: WorkspacePrincipal = auth_dep,
     ) -> dict[str, Any]:
+        if body.class_id and (
+            principal.tenant_id is None or body.class_id not in principal.class_ids
+        ):
+            raise HTTPException(status_code=403, detail="Verified class membership required")
         try:
             project = store.create_project(
                 name=body.name,
@@ -207,7 +213,10 @@ def create_app(
                 detail="delete",
             )
             raise HTTPException(status_code=403, detail="Access denied")
-        store.delete_project(project_id, actor_subject=principal.subject)
+        try:
+            store.delete_project(project_id, actor_subject=principal.subject)
+        except WorkspaceStoreError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return {"deleted": True, "project_id": project_id}
 
     @app.get("/workspaces/v1/admin/policies")
@@ -255,10 +264,10 @@ def create_app(
         body: CreateSessionRequest,
         principal: WorkspacePrincipal = auth_dep,
     ) -> dict[str, Any]:
-        if provisioner is None:
+        if provisioner is None or not execution_enabled:
             raise HTTPException(
                 status_code=501,
-                detail="VM/microVM execution backend is not configured",
+                detail="Verified VM/microVM execution backend is not available",
             )
         project = store.get_project(project_id)
         if project is None:
@@ -290,7 +299,7 @@ def create_app(
                 ttl_seconds=body.ttl_seconds,
                 backend=provisioner.backend_name,
             )
-        except QuotaExceededError as exc:
+        except (QuotaExceededError, WorkspaceStoreError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         if not created:
             return {"session": session, "idempotent_replay": True}
@@ -344,9 +353,17 @@ def create_app(
             tenant_id=project["tenant_id"],
             class_id=project["class_id"],
             action="write",
-        ) and not is_tenant_admin(principal):
+        ) and not (
+            is_tenant_admin(principal) and principal.tenant_id == project["tenant_id"]
+        ):
             raise HTTPException(status_code=403, detail="Access denied")
-        if provisioner is not None and session.get("backend_ref"):
+        if session["status"] == "provisioning":
+            raise HTTPException(status_code=409, detail="Session provisioning must be reconciled")
+        if session.get("backend_ref") and session["status"] == "running":
+            if not execution_enabled or provisioner is None:
+                raise HTTPException(
+                    status_code=409, detail="Backend unavailable; reconcile session"
+                )
             await provisioner.terminate_session(session_id, str(session["backend_ref"]))
         stopped = store.mark_session_stopped(session_id, status="stopped")
         store.record_audit(
@@ -413,10 +430,10 @@ def create_app(
         body: ExecSessionRequest,
         principal: WorkspacePrincipal = auth_dep,
     ) -> dict[str, Any]:
-        if provisioner is None:
+        if provisioner is None or not execution_enabled:
             raise HTTPException(
                 status_code=501,
-                detail="VM/microVM execution backend is not configured",
+                detail="Verified VM/microVM execution backend is not available",
             )
         session = store.get_session(session_id)
         if session is None:

@@ -303,3 +303,34 @@ async def test_static_lane_still_enforces_configured_served_model() -> None:
                 model_identifier="qwen-test",
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_external_runtime_never_receives_worker_token(monkeypatch) -> None:
+    from app.providers import runtime_auth
+
+    monkeypatch.setattr(runtime_auth, "worker_auth_headers", lambda: {"X-Worker-Test": "secret"})
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("X-Worker-Test"))
+        if request.url.path.endswith("/v1/models"):
+            return _model_response()
+        return httpx.Response(200, json={"status": "ok"})
+
+    provider = _provider(handler)
+    await provider.health()
+    await provider.load(DeploymentSpec(
+        deployment_id="external",
+        model_definition_id="real",
+        model_identifier="qwen-test",
+        worker_endpoint="http://external.test/v1/runtime/external",
+        runtime_configuration={"lane": "external_attach"},
+    ))
+    await provider.load(DeploymentSpec(
+        deployment_id="managed",
+        model_definition_id="real",
+        model_identifier="qwen-test",
+        worker_endpoint="http://worker.test/v1/runtime/managed",
+    ))
+    assert seen == [None, None, "secret"]

@@ -31,7 +31,7 @@ def make_auth_dependency(service_token: str):
         if (
             not authorization
             or not authorization.startswith("Bearer ")
-            or not secrets.compare_digest(supplied, service_token)
+            or not secrets.compare_digest(supplied.encode(), service_token.encode())
         ):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -65,16 +65,19 @@ def can_access_project(
     action: str,
 ) -> bool:
     """Default-deny tenant, classroom, and owner isolation."""
-    if principal.tenant_id is not None and tenant_id is not None:
-        if principal.tenant_id != tenant_id:
-            return False
-    if principal.tenant_id is not None and tenant_id is None:
+    # Missing tenant context is never a wildcard for institutional resources.
+    if principal.tenant_id != tenant_id:
         return False
 
     if principal.subject == owner_subject and action in {"read", "write", "export", "delete"}:
         return True
 
-    if "teacher" in principal.roles and class_id and class_id in principal.class_ids:
+    if (
+        principal.tenant_id is not None
+        and "teacher" in principal.roles
+        and class_id
+        and class_id in principal.class_ids
+    ):
         if action in {"read", "export"}:
             return True
 
@@ -82,4 +85,6 @@ def can_access_project(
 
 
 def is_tenant_admin(principal: WorkspacePrincipal) -> bool:
-    return bool({"it_admin", "security_admin"} & set(principal.roles))
+    return principal.tenant_id is not None and bool(
+        {"it_admin", "security_admin"} & set(principal.roles)
+    )

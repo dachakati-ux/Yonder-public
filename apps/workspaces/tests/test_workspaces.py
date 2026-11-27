@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import httpx
 import pytest
 from fastapi.testclient import TestClient
+from fixture_provisioner import FixtureProvisioner
 from workspaces.api import create_app
 from workspaces.provisioner import ProvisionerError, ProxmoxAdapter
 
@@ -185,21 +185,29 @@ def test_proxmox_adapter_rejects_root_or_http_and_provisions_sessions(tmp_path) 
             pool="yonder-students",
         )
 
-    calls: list[str] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.headers["Authorization"] == "PVEAPIToken=yonder-ws@pve!scoped=tok-123"
-        calls.append(request.url.path)
-        return httpx.Response(200, json={"data": "UPID:pve01:123"})
-
     adapter = ProxmoxAdapter(
         api_url="https://pve.school.internal:8006",
         api_token_id="yonder-ws@pve!scoped",
         api_token_secret="tok-123",
         node="pve01",
         pool="yonder-students",
-        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
     )
+    disabled = TestClient(create_app(
+        database_path=tmp_path / "disabled.db", service_token=TOKEN, provisioner=adapter
+    ))
+    caps = disabled.get("/workspaces/v1/capabilities", headers=_headers("student-a"))
+    assert caps.json()["execution_enabled"] is False
+    assert caps.json()["proxmox_adapter"] == "unverified_disabled"
+    assert disabled.post(
+        "/workspaces/v1/projects/unknown/sessions",
+        headers=_headers("student-a"),
+        json={
+            "idempotency_key": "sess-disabled",
+            "template_digest": "yonder@sha256:" + "a" * 64,
+        },
+    ).status_code == 501
+
+    adapter = FixtureProvisioner()
     app = create_app(
         database_path=tmp_path / "ws.db",
         service_token=TOKEN,
@@ -209,7 +217,8 @@ def test_proxmox_adapter_rejects_root_or_http_and_provisions_sessions(tmp_path) 
     client = TestClient(app)
     caps = client.get("/workspaces/v1/capabilities", headers=_headers("student-a"))
     assert caps.json()["execution_enabled"] is True
-    assert caps.json()["vm_isolation"] == "proxmox_vm"
+    assert caps.json()["vm_isolation"] == "test_fixture"
+    assert caps.json()["isolation_verified"] is False
 
     proj = client.post(
         "/workspaces/v1/projects",
@@ -261,4 +270,23 @@ def test_proxmox_adapter_rejects_root_or_http_and_provisions_sessions(tmp_path) 
     stopped = client.post(f"/workspaces/v1/sessions/{sid}/stop", headers=_headers("student-a"))
     assert stopped.status_code == 200
     assert stopped.json()["session"]["status"] == "stopped"
-    assert len(calls) == 2
+    assert len(adapter.calls) == 2
+
+
+def test_missing_tenant_does_not_grant_cross_tenant_access(tmp_path):
+    client = TestClient(create_app(database_path=tmp_path / "scope.db", service_token=TOKEN))
+    owner = _headers("same-user", class_ids="cs-101")
+    pid = client.post(
+        "/workspaces/v1/projects", headers=owner,
+        json={"name": "Private project", "class_id": "cs-101"},
+    ).json()["project"]["project_id"]
+    unscoped = {k: v for k, v in owner.items() if k != "X-Yonder-Tenant-Id"}
+    assert client.get("/workspaces/v1/projects", headers=unscoped).json()["projects"] == []
+    for path in (f"/workspaces/v1/projects/{pid}", f"/workspaces/v1/projects/{pid}/export"):
+        assert client.get(path, headers=unscoped).status_code == 403
+    unscoped["X-Yonder-Roles"] = "it_admin"
+    assert client.get("/workspaces/v1/admin/audit", headers=unscoped).status_code == 403
+    assert client.post(
+        "/workspaces/v1/projects", headers=_headers("student-b"),
+        json={"name": "Unassigned class", "class_id": "cs-101"},
+    ).status_code == 403
