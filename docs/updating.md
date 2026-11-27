@@ -65,3 +65,14 @@ reason to assume an update exists.
 **Future:** replace main-branch SHA comparison with signed, stable release
 manifests, semantic versions, release channels, migration compatibility and
 reliable administrator-targeted notifications.
+
+### Rehearse a restore without touching your running deployment
+
+Use Python 3.12 or later to unpack a saved archive into a **new, empty-path destination** (the destination directory must not exist):
+
+```bash
+python3 scripts/stage-local-restore.py backups/update-YYYYMMDD-HHMMSS/gateway-data.tar.gz backups/staged-restore
+python3 scripts/sqlite_backup.py verify backups/staged-restore/yonder.db
+```
+
+The staging helper rejects unsafe paths, duplicate entries, links, corrupt SQLite files and existing destinations. It does not change the checkout, restart any services, restore into a Docker volume, or replace live data. Preserve the archive and previous-revision file, then test the staged data in a separate deployment using the matching reviewed revision before a production recovery. Do not treat successful extraction as proof that application migrations or external add-on databases are recoverable.
