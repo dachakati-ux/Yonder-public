@@ -32,3 +32,5 @@
 ## Production trust hardening (M03/M08)
 
 * Fail closed in production trusted-header mode unless distinct managed ingress and worker secrets are configured; reject ambiguous header names, duplicate ingress authenticator headers and untrusted worker registration. Add configuration and middleware negative tests. Document migration and the required proxy stripping/network controls; no upstream IAM assumptions or production certification.
+
+* Add scheduled and PR dependency audits with machine-readable evidence; require a same-commit passing main audit for image publication. No dependency findings have been certified clean before the workflow executes.

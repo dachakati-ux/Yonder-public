@@ -44,3 +44,5 @@ The Compose smoke workflow now also rehearses an actual local-volume archive and
 The versioned image workflow tests an image-only Compose overlay and has an explicit, separately permissioned publication job gated by a matching tag and successful main workflows. No release is published merely by building a candidate. Artifact digest verification, signatures, native ARM coverage, actual registry pulls and independent release approval remain outstanding. See [release images](release-images.md) and [feature status](feature-status.md).
 
 Production trusted-header startup now requires a distinct ingress authenticator and disallows untrusted worker registration. This is a configuration and middleware safeguard; live proxy, token and tenant-isolation verification are separate acceptance gates.
+
+The Dependency audit workflow checks locked Core Python dependencies, a recorded controller resolution, and the Console npm dependency graph. It is a gate for image publication; OS/runtime/add-on image scans, signatures and independent security review are separate requirements. See [dependency auditing](security/dependency-audit.md).
