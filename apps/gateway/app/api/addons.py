@@ -56,7 +56,7 @@ async def list_addon_ui_mounts(request: Request):
     snapshot = request.app.state.addons.snapshot()
     mounts = []
     for addon in snapshot.get("addons") or []:
-        if addon.get("status") != "installed":
+        if not addon.get("active"):
             continue
         for ext in addon.get("ui_extensions") or []:
             reqs = ext.get("required_capabilities") or []
@@ -104,6 +104,8 @@ async def uninstall_addon(addon_id: str, request: Request):
         return denied
     try:
         result = request.app.state.addons.uninstall(addon_id)
+    except AddonError as exc:
+        return error_response(ErrorCode.INVALID_REQUEST, str(exc), get_request_id(request))
     except OSError as exc:
         return error_response(
             ErrorCode.INVALID_REQUEST,
@@ -142,9 +144,10 @@ async def addon_service_health(addon_id: str, request: Request):
             "Unknown bundled add-on.",
             get_request_id(request),
         )
-    return await request.app.state.addon_services.health(
-        addon_id, installed=registry.installed(addon_id)
-    )
+    active = registry.active(addon_id)
+    if registry.installed(addon_id) and not active:
+        return {"addon_id": addon_id, "status": "requires_attention"}
+    return await request.app.state.addon_services.health(addon_id, installed=active)
 
 
 @router.post("/services/reload")
@@ -177,14 +180,7 @@ def _controller(request: Request):
 
 
 def _deployable(request: Request, addon_id: str) -> bool:
-    registry = request.app.state.addons
-    return registry.installed(addon_id) and any(
-        item["id"] == addon_id
-        and item["compatibility"] == "compatible"
-        and item["status"] == "installed"
-        and not item["requires_attention"]
-        for item in registry.snapshot()["addons"]
-    )
+    return request.app.state.addons.active(addon_id)
 
 
 @router.get("/controller/status")

@@ -141,3 +141,16 @@ def test_addon_ui_mounts_filters_installed_and_capabilities(tmp_path):
         mounts = client.get("/api/admin/addons/ui-mounts").json()["mounts"]
         assert len(mounts) == 1
         assert mounts[0]["mount_path"] == "/operations"
+
+
+        # Updating the manifest without migrating installed state must hide mounts.
+        manifest = addons_dir / "security-insights" / "addon.json"
+        item = json.loads(manifest.read_text())
+        item["version"] = "0.2.0"
+        manifest.write_text(json.dumps(item))
+        assert client.get("/api/admin/addons/ui-mounts").json()["mounts"] == []
+        assert client.get("/api/admin/addons/security-insights/report").status_code == 400
+        health = client.get("/api/admin/addons/security-insights/service/health")
+        assert health.json()["status"] == "requires_attention"
+        assert app.state.addons.installed("security-insights")
+        assert client.post("/api/admin/addons/security-insights/uninstall").status_code == 200

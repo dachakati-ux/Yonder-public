@@ -201,3 +201,9 @@ credentials and restart/health monitoring **outside the Gateway**. The current
 manager does not start a remote container or a VM. For school deployments,
 external agent/compute modules are not considered production-ready without
 resource-scoped identity, isolation and audit.
+
+### Activation integrity
+
+An installation marker preserves operator intent and is not proof of activation. Only the exact bundled, available, compatible version with all transitive dependencies active may expose UI mounts, bundled reports or controller deployment operations. Version drift, missing dependencies and cycles require operator review; stored installation state is not silently erased. Disable dependents before removing their dependencies.
+
+The disposable clean-host workflow now exercises the reviewed Security Insights module: boot with all optional modules absent, perform a clearly labelled mock chat transport check, persist synthetic conversation data, activate the module, recreate Gateway, remove the module and confirm conversation data and Core routing survive. This does not certify external controller or unimplemented add-ons.

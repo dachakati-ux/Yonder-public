@@ -44,3 +44,11 @@
 * Add scheduled and PR dependency audits with machine-readable evidence; require a same-commit passing main audit for image publication. No dependency findings have been certified clean before the workflow executes.
 
 - Dependency audit remediation: refreshed Core certificate bundle, Console Next.js/Vitest and vulnerable transitive dependencies; added a hash-pinned standalone controller requirements lock and upgraded cryptography to 50.x. Regenerated locks in an isolated GitHub Actions job and removed the temporary lock-generation workflow. Full verification and security re-audit required before merge.
+
+- Add-on lifecycle integrity: distinguish stored installations from usable activation; fail closed on version drift, incompatible releases and transitive dependency cycles, retain state for operator review, and cover API mount/report/health behavior with regression tests. CI verification pending.
+
+- PostgreSQL recovery rehearsal: disposable real database, API-generated synthetic fixture, quiesced dump, distinct database restore, Gateway restart and read/write verification with source database preservation. CI pending; separate-host disaster recovery remains outstanding.
+
+- PostgreSQL rehearsal exposed revision 0006 exceeding Alembic's default 32-character version column. Widened that column before recording the existing revision on PostgreSQL; retained published IDs and SQLite behavior. Rerun pending.
+
+- Public evaluation and support: reproducible synthetic demo, verified browser artifact link, contributor guidance, security reporting policy and structured issue templates. No claims of independent user validation or stable production support.

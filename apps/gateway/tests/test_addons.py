@@ -135,3 +135,48 @@ def test_malformed_manifest_not_listed_or_activated(tmp_path: Path):
     assert not any(row["id"] == "security-insights" for row in registry.snapshot()["addons"])
     with pytest.raises(AddonError):
         registry.install("security-insights")
+
+
+def test_dependency_version_drift_deactivates_dependents_without_erasing_state(tmp_path: Path):
+    registry = make_registry(tmp_path)
+    dependency = registry.root / "security-insights" / "addon.json"
+    dependent = registry.root / "identity-security" / "addon.json"
+    item = json.loads(dependent.read_text())
+    item.update(status="available", install_mode="bundled", dependencies=["security-insights"])
+    dependent.write_text(json.dumps(item))
+    registry.install("security-insights")
+    registry.install("identity-security")
+    assert registry.active("identity-security")
+    item = json.loads(dependency.read_text())
+    item["version"] = "0.2.0"
+    dependency.write_text(json.dumps(item))
+    restored = AddonRegistry(registry.root, registry.state_path)
+    rows = {row["id"]: row for row in restored.snapshot()["addons"]}
+    assert restored.installed("security-insights")
+    assert restored.installed("identity-security")
+    assert not restored.active("security-insights")
+    assert not restored.active("identity-security")
+    assert rows["identity-security"]["requires_attention"]
+    assert rows["identity-security"]["missing_dependencies"] == ["security-insights"]
+    with pytest.raises(AddonError, match="required"):
+        restored.install("identity-security")
+
+
+def test_dependency_cycle_cannot_activate_persisted_installations(tmp_path: Path):
+    registry = make_registry(tmp_path)
+    for name, dependency in (
+        ("security-insights", "identity-security"),
+        ("identity-security", "security-insights"),
+    ):
+        path = registry.root / name / "addon.json"
+        item = json.loads(path.read_text())
+        item.update(status="available", install_mode="bundled", dependencies=[dependency])
+        path.write_text(json.dumps(item))
+    registry.state_path.write_text(json.dumps({
+        "schema_version": 1,
+        "installed": {"security-insights": "0.1.0", "identity-security": "0.1.0"},
+    }))
+    restored = AddonRegistry(registry.root, registry.state_path)
+    assert all(row["requires_attention"] for row in restored.snapshot()["addons"])
+    assert not restored.active("security-insights")
+    assert not restored.active("identity-security")

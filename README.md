@@ -181,6 +181,13 @@ mean released or production-ready.
 * [Troubleshooting](docs/troubleshooting.md)
 * [Backup](docs/backup.md)
 
+## Evaluate or contribute
+
+* [Reproducible evaluation and demo](docs/evaluation.md) — local walkthrough and actual automated browser evidence.
+* [Contributing](CONTRIBUTING.md) — development and review process.
+* [Security policy](SECURITY.md) — responsible reporting and deployment limits.
+* [Report a problem](https://github.com/dachakati-ux/Yonder-public/issues/new/choose) — use synthetic inputs and sanitized evidence.
+
 ## License
 
 [MIT](LICENSE)

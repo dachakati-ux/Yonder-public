@@ -65,11 +65,15 @@ jobs:
             sleep 2
           done
           exit 1
+      - name: Verify Core without add-ons and activate reviewed bundled extension
+        run: python3 scripts/smoke-addon-lifecycle.py --phase before --state /tmp/yonder-addon-smoke-id
       - name: Recreate gateway and verify persistent database
         run: |
           docker compose exec -T gateway python -c 'import sqlite3; c=sqlite3.connect("/app/data/yonder.db"); assert c.execute("PRAGMA integrity_check").fetchone()==("ok",); c.execute("CREATE TABLE IF NOT EXISTS smoke_probe (id INTEGER PRIMARY KEY)"); c.execute("INSERT INTO smoke_probe VALUES (1)"); c.commit()'
           docker compose up -d --force-recreate --wait --wait-timeout 180 gateway
           docker compose exec -T gateway python -c 'import sqlite3; c=sqlite3.connect("/app/data/yonder.db"); assert c.execute("SELECT id FROM smoke_probe").fetchone()==(1,)'
+      - name: Verify persisted add-on activation and removal without chat data loss
+        run: python3 scripts/smoke-addon-lifecycle.py --phase after --state /tmp/yonder-addon-smoke-id
       - name: Rehearse quiesced data archive and isolated restore
         run: |
           umask 077
