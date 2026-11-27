@@ -18,8 +18,8 @@ jobs:
     timeout-minutes: 25
     env:
       COMPOSE_PROJECT_NAME: yonder-cpu-canary
-      MODEL_REPO: tensorblock/SmolLM2-135M-Instruct-GGUF
-      MODEL_FILE: SmolLM2-135M-Instruct-Q4_K_M.gguf
+      MODEL_REPO: farpluto/SmolLM2-135M-Instruct-Q4_K_M-GGUF
+      MODEL_FILE: smollm2-135m-instruct-q4_k_m-imat.gguf
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,7 +35,9 @@ jobs:
           meta = json.load(open("/tmp/yonder-model.json"))
           revision = meta["sha"]
           assert re.fullmatch(r"[a-f0-9]{40}", revision)
-          entry = next(row for row in meta["siblings"] if row["rfilename"] == os.environ["MODEL_FILE"])
+          entries = [row for row in meta["siblings"] if row["rfilename"] == os.environ["MODEL_FILE"]]
+          assert len(entries) == 1, "Expected reviewed model file is not available"
+          entry = entries[0]
           digest = entry["lfs"]["sha256"]
           size = entry["lfs"]["size"]
           assert re.fullmatch(r"[a-f0-9]{64}", digest) and 0 < size < 200_000_000
