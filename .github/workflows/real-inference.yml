@@ -1,0 +1,115 @@
+name: Real CPU inference canary
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'apps/gateway/**'
+      - 'packages/**'
+      - 'config/**'
+      - 'scripts/smoke-real-inference.py'
+      - '.github/workflows/real-inference.yml'
+      - 'compose.yaml'
+      - 'uv.lock'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cpu-model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      COMPOSE_PROJECT_NAME: yonder-cpu-canary
+      MODEL_REPO: farpluto/SmolLM2-135M-Instruct-Q4_K_M-GGUF
+      MODEL_FILE: smollm2-135m-instruct-q4_k_m-imat.gguf
+      MODEL_REVISION: 0a75a35560d42fed8c4d710625ec500f53c5f99c
+      MODEL_SHA256: 2e84ad9d9559e999cb27010adec82fa9ceab0fce214d53e2acf6f1813b959dcc
+      MODEL_BYTES: "105454752"
+      RUNTIME_IMAGE: ghcr.io/ggml-org/llama.cpp@sha256:535b0b2eb8e184668698ebe8204f86ed5e57825965fc5b81b9992c556822e6b9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Resolve immutable upstream weights and verify LFS checksum
+        run: |
+          mkdir -p "$RUNNER_TEMP/yonder-model" "$RUNNER_TEMP/yonder-inference"
+          curl --fail --silent --show-error --retry 3 --proto '=https' \
+            "https://huggingface.co/api/models/$MODEL_REPO/revision/$MODEL_REVISION?blobs=true" > /tmp/yonder-model.json
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          meta = json.load(open("/tmp/yonder-model.json"))
+          revision = meta["sha"]
+          assert re.fullmatch(r"[a-f0-9]{40}", revision)
+          assert revision == os.environ["MODEL_REVISION"]
+          entries = [row for row in meta["siblings"] if row["rfilename"] == os.environ["MODEL_FILE"]]
+          assert len(entries) == 1, "Expected reviewed model file is not available"
+          entry = entries[0]
+          digest = entry["lfs"]["sha256"]
+          size = entry["lfs"]["size"]
+          assert re.fullmatch(r"[a-f0-9]{64}", digest) and 0 < size < 200_000_000
+          assert digest == os.environ["MODEL_SHA256"] and size == int(os.environ["MODEL_BYTES"])
+          root = Path(os.environ["RUNNER_TEMP"])
+          (root / "yonder-model" / "revision").write_text(revision)
+          (root / "yonder-model" / "sha256").write_text(digest)
+          (root / "yonder-inference" / "weights.json").write_text(json.dumps(
+              {"repo": os.environ["MODEL_REPO"], "file": os.environ["MODEL_FILE"],
+               "revision": revision, "sha256": digest, "bytes": size}, indent=2))
+          PY
+          revision="$(cat "$RUNNER_TEMP/yonder-model/revision")"
+          curl --fail --silent --show-error --location --retry 3 --proto '=https' \
+            --proto-redir '=https' --max-filesize 200000000 \
+            "https://huggingface.co/$MODEL_REPO/resolve/$revision/$MODEL_FILE" \
+            -o "$RUNNER_TEMP/yonder-model/model.gguf"
+          printf '%s  %s\n' "$(cat "$RUNNER_TEMP/yonder-model/sha256")" \
+            "$RUNNER_TEMP/yonder-model/model.gguf" | sha256sum -c -
+      - name: Build Gateway and start actual isolated CPU runtime
+        run: |
+          cp .env.example .env
+          cat >> .env <<'EOF'
+          YONDER_GATEWAY__PORT=8180
+          YONDER_LLAMA_CPP__ENABLED=true
+          YONDER_LLAMA_CPP__BASE_URL=http://yonder-cpu-runtime:8080
+          YONDER_LLAMA_CPP__SERVED_MODEL=smollm2-ci
+          YONDER_LLAMA_CPP__ATTACH_ALIASES=ci-real-chat
+          YONDER_LLAMA_CPP__ATTACH_CONTEXT_LENGTH=1024
+          EOF
+          docker compose build gateway
+          docker compose create gateway
+          docker pull "$RUNTIME_IMAGE"
+          image="$RUNTIME_IMAGE"
+          echo "$image" > "$RUNNER_TEMP/yonder-inference/runtime-image.txt"
+          docker run -d --name yonder-cpu-runtime --network yonder-cpu-canary_default \
+            --cap-drop ALL --security-opt no-new-privileges --memory 3g --cpus 2 \
+            -v "$RUNNER_TEMP/yonder-model/model.gguf:/model.gguf:ro" "$image" \
+            -m /model.gguf --alias smollm2-ci --host 0.0.0.0 --port 8080 \
+            -c 1024 -t 2 -ngl 0
+          for attempt in $(seq 1 60); do
+            if docker compose run --rm --no-deps -T --entrypoint curl gateway \
+              -fsS http://yonder-cpu-runtime:8080/health > /dev/null; then break; fi
+            if [[ "$attempt" == 60 ]]; then exit 1; fi
+            sleep 2
+          done
+          docker compose up -d --no-build --wait --wait-timeout 180 gateway
+      - name: Verify actual non-mock chat and streaming through Gateway
+        run: |
+          python3 scripts/smoke-real-inference.py --port 8180 --alias ci-real-chat \
+            --output "$RUNNER_TEMP/yonder-inference/canary.json"
+      - name: Refuse silent fallback when model server stops
+        run: |
+          docker stop yonder-cpu-runtime
+          python3 scripts/smoke-real-inference.py --port 8180 --alias ci-real-chat \
+            --expect-unavailable --output "$RUNNER_TEMP/yonder-inference/outage.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-cpu-inference-evidence
+          path: ${{ runner.temp }}/yonder-inference
+          if-no-files-found: ignore
+      - name: Cleanup disposable stack
+        if: always()
+        run: |
+          docker logs yonder-cpu-runtime --tail 60 || true
+          docker rm -f yonder-cpu-runtime || true
+          docker compose logs --no-color --tail 80 || true
+          docker compose down --volumes --remove-orphans

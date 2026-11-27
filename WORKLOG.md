@@ -60,3 +60,9 @@
 ## Workspace isolation hardening
 
 - Close missing-tenant read/list/audit and cross-tenant admin stop paths. Enforce class membership and active-session deletion guards. Disable unverified Proxmox execution and use clearly identified test fixtures for lifecycle tests; real isolated VM provisioning remains a release gate.
+
+## Real CPU inference acceptance
+
+- Add isolated actual llama.cpp CPU model canary using checksum-verified SmolLM2 weights, Gateway-only API checks, measured latency evidence, streaming completion and outage refusal. No lab GPU readiness or model quality claim; CI pending.
+
+- Actual CPU run 45984246631 passed streaming and nonstreaming (first content 0.022 s, full stream 0.247 s, nonstream 0.297 s) and refused a stopped runtime with HTTP 502. Pin its exact model commit, weight hash, byte count and runtime digest from the evidence artifact. Rerun the pinned fixture before treating it as repeatable evidence.
