@@ -66,7 +66,7 @@ try {
   await fixture.locator("#setup-alias").selectOption("fixture-real");
   assert.equal(await fixture.locator("#setup-alias option").count(), 1);
   await submit.click();
-  await fixture.getByRole("alert").getByText("Fixture runtime unavailable").waitFor();
+  await fixture.getByText("Fixture runtime unavailable", { exact: true }).waitFor();
   assert.equal(await fixture.getByRole("link", { name: "Open this model in Chat" }).count(), 0);
   failInference = false;
   await submit.click();

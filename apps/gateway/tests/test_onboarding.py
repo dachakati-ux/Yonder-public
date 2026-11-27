@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
-
 from app.routing.models import DeploymentRecord, DeploymentState, ModelAliasRoute, RouteState
+from fastapi.testclient import TestClient
 
 
 def test_setup_classifies_mock():
