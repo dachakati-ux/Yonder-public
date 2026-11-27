@@ -50,3 +50,5 @@ The setup route has a real local-stack Chromium smoke, scoped automated WCAG che
 Production trusted-header startup now requires a distinct ingress authenticator and disallows untrusted worker registration. This is a configuration and middleware safeguard; live proxy, token and tenant-isolation verification are separate acceptance gates.
 
 The Dependency audit workflow checks locked Core Python dependencies, a recorded controller resolution, and the Console npm dependency graph. It is a gate for image publication; OS/runtime/add-on image scans, signatures and independent security review are separate requirements. See [dependency auditing](security/dependency-audit.md).
+
+Image candidates now produce SPDX inventories and checksum-bound image evidence; explicit reviewed-tag publication includes signed provenance and SBOM attestations, gated by same-commit browser and PostgreSQL workflows as well as existing CI and dependency gates. Actual registry publication, independent digest-pull and signature verification remain outstanding.
