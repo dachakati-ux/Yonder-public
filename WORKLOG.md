@@ -28,3 +28,7 @@
 * Add explicit versioned prebuilt image overlay and local launcher with no implicit latest tag; preserve source-build path and local-only security boundary.
 * Add image-only candidate build/smoke and separately permissioned, explicit-tag publication workflow. No package publication or release creation was performed.
 * Reconcile stale design/draft language with the source tree and document unavailable add-ons and real runtime requirements. Keep all catalog activation states unchanged. Candidate CI, native ARM, signed releases and public registry pull tests remain pending.
+
+## Production trust hardening (M03/M08)
+
+* Fail closed in production trusted-header mode unless distinct managed ingress and worker secrets are configured; reject ambiguous header names, duplicate ingress authenticator headers and untrusted worker registration. Add configuration and middleware negative tests. Document migration and the required proxy stripping/network controls; no upstream IAM assumptions or production certification.

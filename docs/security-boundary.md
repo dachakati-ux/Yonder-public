@@ -82,6 +82,8 @@ supplied and tested. If trusted context cannot be established:
 The production gateway must not be directly reachable by ordinary clients.
 Only the approved upstream ingress or service layer should reach it.
 
+Production trusted-header mode requires a separate managed `YONDER_SECURITY__TRUSTED_INGRESS_SHARED_SECRET` (at least 32 characters). Generate independently from the worker token, configure it in the approved reverse proxy, and have the proxy strip all client-supplied identity, capability and ingress-authenticator headers before injecting its own. Prefer an additional private-network peer allowlist and TLS. An IP allowlist alone does not authorize production startup. Never put this secret into browser configuration, logs or Git. Production also requires the worker secret to be at least 32 characters and refuses untrusted worker registration. Existing insecure production configurations must be corrected before upgrading.
+
 ## Worker service authentication
 
 Gateway <-> worker calls are authenticated with a shared service token
