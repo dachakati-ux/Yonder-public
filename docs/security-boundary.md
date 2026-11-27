@@ -99,3 +99,5 @@ substitute for the upstream corporate security layer:
   `environment=production` and `worker_shared_secret` is unset.
 
 See [worker-registration.md](worker-registration.md) for wiring details.
+
+Direct OpenAI-compatible model endpoints do not receive worker service credentials. The llama.cpp chat, embedding and reranking adapters send them only to deployment-scoped worker proxy routes; external attachments never use the worker authenticator. Runtime requests ignore environment HTTP proxies and do not follow redirects. Operators must still restrict worker enrollment and outbound network access; rotate service secrets if previously sent to an untrusted model endpoint.

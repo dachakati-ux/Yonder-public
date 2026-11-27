@@ -52,3 +52,7 @@
 - PostgreSQL rehearsal exposed revision 0006 exceeding Alembic's default 32-character version column. Widened that column before recording the existing revision on PostgreSQL; retained published IDs and SQLite behavior. Rerun pending.
 
 - Public evaluation and support: reproducible synthetic demo, verified browser artifact link, contributor guidance, security reporting policy and structured issue templates. No claims of independent user validation or stable production support.
+
+## Runtime credential boundary
+
+- Restrict worker credentials to deployment-scoped llama.cpp proxy requests, distinguish external attachments during rehydration, and add negative chat/embedding/rerank tests. Disable implicit environment proxy use and redirects. Real lab parity remains outstanding.
