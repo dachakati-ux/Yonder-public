@@ -37,7 +37,8 @@ def archive_data(root: Path, output: BinaryIO) -> None:
                     continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             if source.suffix.lower() in (".db", ".sqlite", ".sqlite3"):
-                with closing(sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True)) as src:
+                uri = source.resolve().as_uri() + "?mode=ro"
+                with closing(sqlite3.connect(uri, uri=True)) as src:
                     with closing(sqlite3.connect(dest)) as dst:
                         src.backup(dst)
                         dst.execute("PRAGMA journal_mode=DELETE")
