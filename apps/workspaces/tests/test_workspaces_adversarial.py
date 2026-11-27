@@ -5,10 +5,9 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
-import httpx
 from fastapi.testclient import TestClient
 from workspaces.api import create_app
-from workspaces.provisioner import ProxmoxAdapter
+from fixture_provisioner import FixtureProvisioner
 
 TOKEN = "workspaces-service-token-" + "x" * 16
 DIGEST = "yonder-python@sha256:" + "a" * 64
@@ -23,20 +22,8 @@ def _hdr(subject: str, tenant_id: str = "school-1") -> dict[str, str]:
     }
 
 
-def _adapter() -> ProxmoxAdapter:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/agent/exec"):
-            return httpx.Response(200, json={"data": {"pid": 42, "exitcode": 0}})
-        return httpx.Response(200, json={"data": "UPID:pve01:123"})
-
-    return ProxmoxAdapter(
-        api_url="https://pve.school.internal:8006",
-        api_token_id="yonder-ws@pve!scoped",
-        api_token_secret="tok-123",
-        node="pve01",
-        pool="yonder-students",
-        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
-    )
+def _adapter() -> FixtureProvisioner:
+    return FixtureProvisioner()
 
 
 def test_concurrent_session_creation_respects_quota(tmp_path) -> None:
@@ -131,6 +118,15 @@ def test_sandbox_bounds_snapshots_exec_and_ttl_expiry(tmp_path) -> None:
     )
     assert ok_exec.status_code == 200
     assert ok_exec.json()["result"]["exitcode"] == 0
+
+    foreign_admin = _hdr("other-admin", "school-2")
+    foreign_admin["X-Yonder-Roles"] = "it_admin"
+    assert client.post(
+        f"/workspaces/v1/sessions/{sid}/stop", headers=foreign_admin,
+    ).status_code == 403
+    assert client.delete(
+        f"/workspaces/v1/projects/{pid}", headers=_hdr("student-a"),
+    ).status_code == 409
 
     # Backdate created_at beyond TTL -> exec expires session and returns 409.
     import sqlite3

@@ -77,3 +77,7 @@ all compute operations must be async jobs with idempotency and cancellation.
 
 Keep each phase feature-flagged. Do not claim school compliance or secure
 isolation without an independent threat-model review and penetration testing.
+
+### Execution and tenant boundary
+
+Missing tenant claims are not a wildcard. Personal projects without a tenant are owner-only; tenant administrators must have an explicit tenant and cannot stop another tenant's sessions. Class membership is required when assigning a project to a class. Projects with active sessions cannot be deleted. The experimental Proxmox adapter is deliberately disabled for actual execution: template verification, VM ownership and isolation, asynchronous task completion, and safe recovery still require a real host. Tests use an explicitly named in-memory fixture and do not claim VM isolation.

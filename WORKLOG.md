@@ -52,3 +52,7 @@
 - PostgreSQL rehearsal exposed revision 0006 exceeding Alembic's default 32-character version column. Widened that column before recording the existing revision on PostgreSQL; retained published IDs and SQLite behavior. Rerun pending.
 
 - Public evaluation and support: reproducible synthetic demo, verified browser artifact link, contributor guidance, security reporting policy and structured issue templates. No claims of independent user validation or stable production support.
+
+## Workspace isolation hardening
+
+- Close missing-tenant read/list/audit and cross-tenant admin stop paths. Enforce class membership and active-session deletion guards. Disable unverified Proxmox execution and use clearly identified test fixtures for lifecycle tests; real isolated VM provisioning remains a release gate.

@@ -205,22 +205,32 @@ class WorkspaceStore:
             visible: list[dict] = []
             for row in rows:
                 item = dict(row)
-                if tenant_id is not None and item["tenant_id"] != tenant_id:
+                if item["tenant_id"] != tenant_id:
                     continue
                 if item["owner_subject"] == owner_subject:
                     visible.append(item)
-                elif is_teacher and item["class_id"] and item["class_id"] in class_ids:
+                elif (
+                    tenant_id is not None and is_teacher
+                    and item["class_id"] and item["class_id"] in class_ids
+                ):
                     visible.append(item)
             return visible
 
     def delete_project(self, project_id: str, *, actor_subject: str) -> bool:
         with self._lock, self._conn() as db:
+            db.execute("BEGIN IMMEDIATE")
             row = db.execute(
                 "SELECT * FROM workspace_projects WHERE project_id=? AND deleted_at IS NULL",
                 (project_id,),
             ).fetchone()
             if row is None:
                 return False
+            active = db.execute(
+                "SELECT 1 FROM workspace_sessions WHERE project_id=? "
+                "AND status IN ('provisioning', 'running') LIMIT 1", (project_id,)
+            ).fetchone()
+            if active:
+                raise WorkspaceStoreError("Stop and reconcile active sessions before deletion")
             now = _now()
             db.execute(
                 "UPDATE workspace_projects SET deleted_at=? WHERE project_id=?",
@@ -247,8 +257,8 @@ class WorkspaceStore:
                 ).fetchall()
             else:
                 rows = db.execute(
-                    "SELECT * FROM workspace_audit ORDER BY event_id DESC LIMIT ?",
-                    (min(max(limit, 1), 200),),
+                    "SELECT * FROM workspace_audit WHERE tenant_id IS NULL "
+                    "ORDER BY event_id DESC LIMIT ?", (min(max(limit, 1), 200),)
                 ).fetchall()
             return [dict(row) for row in rows]
 
@@ -281,6 +291,16 @@ class WorkspaceStore:
         backend: str,
     ) -> tuple[dict, bool]:
         with self._lock, self._conn() as db:
+            db.execute("BEGIN IMMEDIATE")
+            project = db.execute(
+                "SELECT * FROM workspace_projects WHERE project_id=? AND deleted_at IS NULL",
+                (project_id,),
+            ).fetchone()
+            if (
+                project is None or project["owner_subject"] != owner_subject
+                or project["tenant_id"] != tenant_id
+            ):
+                raise WorkspaceStoreError("Project is no longer available to this owner")
             existing = db.execute(
                 "SELECT * FROM workspace_sessions WHERE project_id=? AND idempotency_key=?",
                 (project_id, idempotency_key),
@@ -289,8 +309,9 @@ class WorkspaceStore:
                 return dict(existing), False
             active_cnt = db.execute(
                 "SELECT COUNT(*) AS cnt FROM workspace_sessions "
-                "WHERE owner_subject=? AND status IN ('provisioning', 'running')",
-                (owner_subject,),
+                "WHERE owner_subject=? AND tenant_id IS ? "
+                "AND status IN ('provisioning', 'running')",
+                (owner_subject, tenant_id),
             ).fetchone()
             if int(active_cnt["cnt"]) >= self.max_active_sessions_per_user:
                 raise QuotaExceededError("Per-user active session limit exceeded")

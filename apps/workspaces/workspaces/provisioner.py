@@ -42,6 +42,7 @@ class SessionSpec:
 
 class WorkspaceProvisioner(Protocol):
     backend_name: str
+    execution_enabled: bool
 
     async def provision_session(self, spec: SessionSpec) -> str: ...
 
@@ -61,6 +62,9 @@ class ProxmoxAdapter:
     """Scoped Proxmox VE adapter using least-privilege API tokens & isolated pools."""
 
     backend_name = "proxmox_vm"
+    # Do not allow live execution until template identity, VM ownership, task
+    # completion, network isolation and recovery are verified on a real host.
+    execution_enabled = False
 
     def __init__(
         self,
@@ -112,6 +116,8 @@ class ProxmoxAdapter:
         return payload
 
     async def provision_session(self, spec: SessionSpec) -> str:
+        if not self.execution_enabled:
+            raise ProvisionerError("Unverified Proxmox execution is disabled")
         spec.validate()
         # Deterministic numeric VMID derived from session_id within high unprivileged range.
         vmid = 100000 + (int.from_bytes(spec.session_id.encode("utf-8")[:4], "big") % 800000)
@@ -130,6 +136,8 @@ class ProxmoxAdapter:
         return f"pve://{self.node}/{vmid}"
 
     async def terminate_session(self, session_id: str, backend_ref: str) -> None:
+        if not self.execution_enabled:
+            raise ProvisionerError("Unverified Proxmox execution is disabled")
         if not backend_ref.startswith(f"pve://{self.node}/"):
             raise ProvisionerError("Invalid Proxmox backend reference")
         vmid = backend_ref.rsplit("/", 1)[-1]
@@ -145,6 +153,8 @@ class ProxmoxAdapter:
         *,
         timeout_seconds: int = 10,
     ) -> dict[str, object]:
+        if not self.execution_enabled:
+            raise ProvisionerError("Unverified Proxmox execution is disabled")
         if not backend_ref.startswith(f"pve://{self.node}/"):
             raise ProvisionerError("Invalid Proxmox backend reference")
         if not command or len(command) > 32:
