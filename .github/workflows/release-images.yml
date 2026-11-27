@@ -1,0 +1,149 @@
+name: Versioned image candidate
+
+on:
+  pull_request:
+    paths:
+      - 'compose.release.yaml'
+      - 'scripts/start-release.sh'
+      - '.github/workflows/release-images.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Explicit semantic version or release candidate tag
+        required: true
+        default: v0.1.0-rc.1
+      publish:
+        description: Push the tested images (requires matching reviewed Git tag and passing main CI)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      COMPOSE_PROJECT_NAME: yonder-image-candidate
+      YONDER_IMAGE_TAG: ${{ inputs.version || 'v0.1.0-rc.0' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate candidate version
+        run: |
+          [[ "$YONDER_IMAGE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]
+      - name: Build candidate images for linux/amd64
+        run: |
+          for service in gateway worker console; do
+            context=.
+            if [[ "$service" == console ]]; then context=apps/console; fi
+            docker build --pull \
+              --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+              --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+              --label "org.opencontainers.image.version=$YONDER_IMAGE_TAG" \
+              -f "apps/$service/Dockerfile" \
+              -t "ghcr.io/dachakati-ux/yonder-$service:$YONDER_IMAGE_TAG" "$context"
+          done
+      - name: Validate release overlay and boot prebuilt images only
+        run: |
+          bash scripts/start-release.sh "$YONDER_IMAGE_TAG" check
+          docker compose -f compose.yaml -f compose.release.yaml config --format json > /tmp/compose-release.json
+          python3 -c 'import json; s=json.load(open("/tmp/compose-release.json"))["services"]; assert all("build" not in s[n] for n in ("gateway","worker","console","mcp"))'
+          docker compose -f compose.yaml -f compose.release.yaml up --no-build --pull never --wait --wait-timeout 180
+          curl --fail --silent --show-error http://127.0.0.1:3000/ > /dev/null
+          curl --fail --silent --show-error http://127.0.0.1:8080/health
+          curl --fail --silent --show-error http://127.0.0.1:8080/v1/models
+          curl --fail --silent --show-error http://127.0.0.1:8090/health
+          curl --fail --silent --show-error http://127.0.0.1:8095/health
+      - name: Package exact tested images for explicitly requested publishing
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        run: |
+          docker save \
+            "ghcr.io/dachakati-ux/yonder-gateway:$YONDER_IMAGE_TAG" \
+            "ghcr.io/dachakati-ux/yonder-worker:$YONDER_IMAGE_TAG" \
+            "ghcr.io/dachakati-ux/yonder-console:$YONDER_IMAGE_TAG" | gzip > candidate-images.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        with:
+          name: tested-candidate-images
+          path: candidate-images.tar.gz
+          retention-days: 1
+      - name: Collect diagnostics and remove disposable stack
+        if: always()
+        run: |
+          docker compose -f compose.yaml -f compose.release.yaml ps -a || true
+          docker compose -f compose.yaml -f compose.release.yaml logs --tail=80 --no-color || true
+          docker compose -f compose.yaml -f compose.release.yaml down --volumes --remove-orphans
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: build-and-smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    env:
+      YONDER_IMAGE_TAG: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Enforce reviewed tag and passing same-commit main workflows
+        run: |
+          [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" == "$YONDER_IMAGE_TAG" ]]
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=100" > /tmp/gate-runs.json
+          python3 - <<'PY'
+          import json
+          runs = json.load(open("/tmp/gate-runs.json"))["workflow_runs"]
+          for name in ("CI", "Clean-host Compose smoke"):
+              eligible = [r for r in runs if r["name"] == name and r["head_branch"] == "main"]
+              assert eligible and eligible[0]["conclusion"] == "success", f"Release gate not met: {name}"
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: tested-candidate-images
+      - name: Load tested images and authenticate to GHCR
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          gzip -dc candidate-images.tar.gz | docker load
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Publish explicit tags and capture immutable references
+        run: |
+          for service in gateway worker console; do
+            image="ghcr.io/dachakati-ux/yonder-$service:$YONDER_IMAGE_TAG"
+            [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" == "$GITHUB_SHA" ]]
+            if docker manifest inspect "$image" > /dev/null 2>&1; then
+              echo "Refusing to overwrite existing image tag: $image" >&2
+              exit 1
+            fi
+          done
+          for service in gateway worker console; do
+            image="ghcr.io/dachakati-ux/yonder-$service:$YONDER_IMAGE_TAG"
+            docker push "$image"
+            docker image inspect --format '{{json .RepoDigests}}' "$image" > "$service-digests.json"
+          done
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = {"version": os.environ["YONDER_IMAGE_TAG"], "commit": os.environ["GITHUB_SHA"], "platform": "linux/amd64", "images": {}}
+          for name in ("gateway", "worker", "console"):
+              refs = json.loads(Path(f"{name}-digests.json").read_text())
+              matches = [ref for ref in refs if ref.startswith(f"ghcr.io/dachakati-ux/yonder-{name}@sha256:")]
+              assert len(matches) == 1, f"No unambiguous immutable reference for {name}"
+              manifest["images"][name] = matches[0]
+          Path("yonder-image-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yonder-image-manifest
+          path: yonder-image-manifest.json
+      - name: End registry session
+        if: always()
+        run: docker logout ghcr.io || true

@@ -1,6 +1,6 @@
 # Yonder Identity & Security — modular integration design
 
-**Status: design proposal. No identity-provider connector, login flow, or school-compliance certification is implemented by this document.**
+**Status: integration specification.** OIDC bridge and security-context implementation primitives exist in the Gateway source, but the optional catalog add-on is not installable. No end-to-end approved IdP integration, production login flow or school-compliance certification is established by this document.
 
 ## Product rule
 

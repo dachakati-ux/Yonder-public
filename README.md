@@ -34,6 +34,10 @@ Once the launcher finishes, open:
 * **IDE MCP Server:** <http://127.0.0.1:8095/mcp>
 * **Gateway MCP Status:** <http://127.0.0.1:8080/v1/mcp/status>
 
+### Prebuilt image distribution
+
+A versioned image candidate pipeline is available for review. Once tested release images are published, follow [the image deployment guide](docs/release-images.md). There is no stable image tag yet.
+
 ### Prefer raw Docker Compose?
 
 ```bash
@@ -158,6 +162,8 @@ mean released or production-ready.
 ## Documentation Index
 
 * [Release readiness and validation](docs/release-readiness.md)
+* [Versioned image distribution](docs/release-images.md)
+* [Feature and add-on availability](docs/feature-status.md)
 * [Step-by-Step Deploy & Quick-Start Guide](docs/quickstart.md)
 * [MCP (Model Context Protocol) Guide](docs/mcp.md)
 * [Multi-Host Deployment](docs/multi-host-deployment.md)

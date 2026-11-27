@@ -1,8 +1,6 @@
 # Yonder Workspaces — optional module specification
 
-**Status: proposed add-on, not implemented.** The core Yonder installation must
-work unchanged when Workspaces is absent. Do not market current Coder cages or
-Academy text sandboxes as isolated virtual machines.
+**Status: experimental standalone service foundation and specification; the catalog add-on is not installable.** The core Yonder installation must work unchanged when Workspaces is absent. Do not market the current file service, Coder cages or Academy text sandboxes as isolated virtual machines. VM/microVM provisioning and institutional isolation acceptance remain open.
 
 ## Boundary and packaging
 

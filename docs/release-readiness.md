@@ -38,3 +38,7 @@ The Clean-host Compose smoke workflow builds the local stack on a disposable Lin
 The local Compose smoke also checks browser CORS at the selected port and a connected worker reporting a Gateway-reachable address. A model endpoint canary remains mandatory for inference claims.
 
 The Compose smoke workflow now also rehearses an actual local-volume archive and stages it outside the live container volume, checking the SQLite probe and required schema. This is a disposable-runner restore rehearsal, not an approved live rollback or PostgreSQL/add-on disaster-recovery test.
+
+## Distribution candidate
+
+The versioned image workflow tests an image-only Compose overlay and has an explicit, separately permissioned publication job gated by a matching tag and successful main workflows. No release is published merely by building a candidate. Artifact digest verification, signatures, native ARM coverage, actual registry pulls and independent release approval remain outstanding. See [release images](release-images.md) and [feature status](feature-status.md).
