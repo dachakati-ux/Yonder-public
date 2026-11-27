@@ -3,6 +3,10 @@ environment: production
 
 security:
   mode: trusted_ingress
+  # Inject distinct managed secrets (at least 32 characters) via environment:
+  # YONDER_SECURITY__TRUSTED_INGRESS_SHARED_SECRET
+  # YONDER_SECURITY__WORKER_SHARED_SECRET
+  # The ingress must strip client-supplied identity and secret headers first.
   trusted_subject_header: X-Yonder-Trusted-Subject
   trusted_principal_type_header: X-Yonder-Trusted-Principal-Type
   trusted_capabilities_header: X-Yonder-Trusted-Capabilities

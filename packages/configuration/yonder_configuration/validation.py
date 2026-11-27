@@ -99,6 +99,47 @@ def validate_settings(settings: YonderSettings) -> YonderSettings:
             "security.worker_token_header must be non-empty in production."
         )
 
+    if settings.is_production():
+        worker_secret = (settings.security.worker_shared_secret or "").strip()
+        if len(worker_secret) < 32:
+            raise ConfigurationError(
+                "Production worker_shared_secret must be at least 32 characters."
+            )
+        if settings.worker_registration.accept_untrusted:
+            raise ConfigurationError("Production cannot accept untrusted worker registration.")
+        if settings.security.mode == SecurityMode.TRUSTED_INGRESS:
+            ingress_secret = (settings.security.trusted_ingress_shared_secret or "").strip()
+            # An IP allowlist alone cannot guarantee the proxy stripped client-supplied
+            # identity headers. Require a distinct server-to-server authenticator.
+            if len(ingress_secret) < 32:
+                raise ConfigurationError(
+                    "Production trusted_ingress requires trusted_ingress_shared_secret "
+                    "of at least 32 characters from a managed secret."
+                )
+            if ingress_secret == worker_secret:
+                raise ConfigurationError("Ingress and worker authentication secrets must differ.")
+            security = settings.security
+            protected_headers = (
+                security.trusted_subject_header,
+                security.trusted_principal_type_header,
+                security.trusted_capabilities_header,
+                security.trusted_roles_header,
+                security.trusted_groups_header,
+                security.trusted_attributes_header,
+                security.trusted_ingress_secret_header,
+                security.worker_token_header,
+            )
+            normalized = [header.strip().lower() for header in protected_headers]
+            if (
+                any(not header or header != raw.lower()
+                    for header, raw in zip(normalized, protected_headers, strict=True))
+                or len(set(normalized)) != len(normalized)
+            ):
+                raise ConfigurationError(
+                    "Production trusted ingress and worker headers must be non-empty, "
+                    "distinct, and have no surrounding whitespace."
+                )
+
     if settings.admission.max_queue_depth < 0:
         raise ConfigurationError("admission.max_queue_depth must be >= 0")
     if settings.admission.max_active_requests_per_deployment < 1:

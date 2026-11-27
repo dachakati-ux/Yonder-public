@@ -59,11 +59,14 @@ def test_trusted_ingress_allowed_in_production() -> None:
         environment=YonderEnvironment.PRODUCTION,
         security={
             "mode": "trusted_ingress",
-            "worker_shared_secret": "unit-test-worker-secret",
+            "worker_shared_secret": "w" * 32,
+            "trusted_ingress_shared_secret": "i" * 32,
         },
         gateway={"host": "0.0.0.0", "port": 8080},
         worker={"host": "0.0.0.0", "port": 8090},
-        worker_registration={"mode": "allowlist", "allowed_worker_ids": []},
+        worker_registration={
+            "mode": "allowlist", "allowed_worker_ids": [], "accept_untrusted": False,
+        },
     )
     validated = validate_settings(settings)
     assert validated.security.mode == SecurityMode.TRUSTED_INGRESS
@@ -104,3 +107,41 @@ def test_redact_settings_hides_secret_like_fields() -> None:
     assert redacted["database_url"] == "***REDACTED***"
     attrs = redacted["security"]["development_principal"]["attributes"]
     assert attrs["api_token"] == "***REDACTED***"
+
+
+def production_ingress_settings(**security_overrides):
+    return YonderSettings(
+        environment=YonderEnvironment.PRODUCTION,
+        security={
+            "mode": "trusted_ingress",
+            "worker_shared_secret": "w" * 32,
+            "trusted_ingress_shared_secret": "i" * 32,
+            **security_overrides,
+        },
+        worker_registration={"mode": "allowlist", "accept_untrusted": False},
+    )
+
+
+@pytest.mark.parametrize("secret", [None, "", "short", "w" * 32])
+def test_production_refuses_unsafe_ingress_secret(secret) -> None:
+    with pytest.raises(ConfigurationError, match="trusted_ingress_shared_secret|must differ"):
+        validate_settings(production_ingress_settings(trusted_ingress_shared_secret=secret))
+
+
+def test_production_requires_distinct_identity_headers() -> None:
+    with pytest.raises(ConfigurationError, match="headers must be"):
+        validate_settings(
+            production_ingress_settings(trusted_ingress_secret_header="x-yonder-worker-token")
+        )
+
+
+def test_production_refuses_weak_worker_secret() -> None:
+    with pytest.raises(ConfigurationError, match="at least 32 characters"):
+        validate_settings(production_ingress_settings(worker_shared_secret="weak"))
+
+
+def test_production_refuses_untrusted_worker_registration() -> None:
+    settings = production_ingress_settings()
+    settings.worker_registration.accept_untrusted = True
+    with pytest.raises(ConfigurationError, match="untrusted worker"):
+        validate_settings(settings)

@@ -129,10 +129,12 @@ class TrustedIngressRequestContextProvider:
                         )
                     ).model_dump(),
                 )
-        expected_secret = self._security.trusted_ingress_shared_secret
+        expected_secret = (self._security.trusted_ingress_shared_secret or "").strip()
         if expected_secret:
-            supplied = request.headers.get(self._security.trusted_ingress_secret_header) or ""
-            if not secrets.compare_digest(supplied, expected_secret):
+            supplied = request.headers.getlist(self._security.trusted_ingress_secret_header)
+            if len(supplied) != 1 or not secrets.compare_digest(
+                supplied[0].encode("utf-8"), expected_secret.encode("utf-8")
+            ):
                 raise HTTPException(
                     status_code=401,
                     detail=ErrorResponse(

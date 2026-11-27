@@ -1,0 +1,73 @@
+name: Dependency audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '27 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  python-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - name: Export exact Core runtime dependency lock
+        run: |
+          mkdir -p audit-reports
+          uv export --locked --all-packages --no-dev --no-emit-workspace --no-hashes \
+            --format requirements-txt --output-file audit-reports/core-requirements.txt
+      - name: Install exact standalone controller runtime dependency lock
+        run: |
+          uv venv --python 3.12 "$RUNNER_TEMP/controller-audit"
+          uv pip install --python "$RUNNER_TEMP/controller-audit/bin/python" --require-hashes -r apps/addon-controller/requirements.lock.txt
+          uv pip freeze --python "$RUNNER_TEMP/controller-audit/bin/python" > audit-reports/controller-requirements.txt
+      - name: Audit Core runtime
+        run: |
+          uvx --python 3.12 --from pip-audit==2.9.0 pip-audit --no-deps --disable-pip \
+            -r audit-reports/core-requirements.txt -f json -o audit-reports/core-vulnerabilities.json
+      - name: Audit controller runtime
+        if: success() || failure()
+        run: |
+          uvx --python 3.12 --from pip-audit==2.9.0 pip-audit --no-deps --disable-pip \
+            -r audit-reports/controller-requirements.txt -f json -o audit-reports/controller-vulnerabilities.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-dependency-audit
+          path: audit-reports
+          if-no-files-found: error
+  javascript-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Audit Console runtime dependencies
+        working-directory: apps/console
+        run: npm audit --omit=dev --audit-level=high --json > "$RUNNER_TEMP/npm-runtime-audit.json"
+      - name: Audit Console including build and test dependencies
+        if: success() || failure()
+        working-directory: apps/console
+        run: npm audit --audit-level=high --json > "$RUNNER_TEMP/npm-all-audit.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: javascript-dependency-audit
+          path: ${{ runner.temp }}/npm-*-audit.json
+          if-no-files-found: error

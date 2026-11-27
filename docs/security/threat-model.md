@@ -20,7 +20,7 @@
 
 1. **Direct-Gateway header spoofing (`M03.1`)**
    * *Threat:* Caller bypasses reverse proxy and sends `X-Yonder-Trusted-Subject: admin`.
-   * *Control:* `TrustedIngressRequestContextProvider` verifies `trusted_proxy_cidrs` and `trusted_ingress_shared_secret` in constant time (`secrets.compare_digest`), failing closed with `401`.
+   * *Control:* Production startup requires a distinct ingress shared secret of at least 32 characters. `TrustedIngressRequestContextProvider` enforces the configured peer CIDRs and authenticates the ingress secret in constant time, rejecting missing, incorrect or duplicate secret headers with `401`. The ingress must strip all client-provided identity headers. Live proxy bypass tests remain required.
 2. **OIDC token / CSRF / replay attacks (`M03.2`, `M03.5`)**
    * *Threat:* Token forgery, `alg=none`, nonce replay, CSRF, or replaying logged-out cookies.
    * *Control:* PKCE S256 + `state` + `nonce`, pinned asymmetric JWK algorithms (`RS256`/`ES256`/`EdDSA`), `X-Yonder-CSRF-Token` on mutating requests, `SessionRevocationStore` JTI revocation on logout/admin revoke, and `require_mfa_for_admin` assurance gating.
