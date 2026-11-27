@@ -1,0 +1,27 @@
+name: Feature request
+description: Propose a user-facing or operator-facing improvement
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and intended audience
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and alternatives
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Measurable acceptance criteria
+    validations:
+      required: true
+  - type: textarea
+    id: modularity
+    attributes:
+      label: Modularity, security and data implications
+      description: Explain whether optional services can be removed without affecting Core.

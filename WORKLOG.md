@@ -50,3 +50,5 @@
 - PostgreSQL recovery rehearsal: disposable real database, API-generated synthetic fixture, quiesced dump, distinct database restore, Gateway restart and read/write verification with source database preservation. CI pending; separate-host disaster recovery remains outstanding.
 
 - PostgreSQL rehearsal exposed revision 0006 exceeding Alembic's default 32-character version column. Widened that column before recording the existing revision on PostgreSQL; retained published IDs and SQLite behavior. Rerun pending.
+
+- Public evaluation and support: reproducible synthetic demo, verified browser artifact link, contributor guidance, security reporting policy and structured issue templates. No claims of independent user validation or stable production support.

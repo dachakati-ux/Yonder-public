@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a reproducible Yonder defect
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, private addresses, real conversations, student data or vulnerability details. For security concerns see SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Commit SHA or image digest
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Component
+      options:
+        - Installation / upgrade
+        - Console / onboarding
+        - Gateway / API
+        - Worker / runtime
+        - Add-ons / controller
+        - Workspaces
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, deployment mode, runtime and sanitized hardware information.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps with synthetic inputs
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized logs or screenshots
