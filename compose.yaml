@@ -22,6 +22,9 @@ services:
       YONDER_CONSOLE_ORIGIN: ${YONDER_CONSOLE_ORIGIN:-http://127.0.0.1:${YONDER_CONSOLE_PORT:-3000}}
       YONDER_STATE_FILE: /app/data/gateway-state.json
       YONDER_MODEL_ROOTS: /app/data/models
+      YONDER_SPEECH__WORKER_BASE_URL: http://worker:8090
+      # A clean install does not simulate real speech output.
+      YONDER_SPEECH__ENABLED: ${YONDER_SPEECH__ENABLED:-false}
       YONDER_DATABASE_URL: ${YONDER_DATABASE_URL:-sqlite:////app/data/yonder.db}
       YONDER_MCP__ENABLED: ${YONDER_MCP__ENABLED:-true}
       YONDER_MCP__SERVER_ENABLED: ${YONDER_MCP__SERVER_ENABLED:-true}
@@ -52,9 +55,13 @@ services:
       YONDER_ALLOW_NON_LOCALHOST_BIND_IN_DEVELOPMENT: "true"
       YONDER_GATEWAY_URL: http://gateway:8080
       YONDER_WORKER_ID: local-dev-worker
+      YONDER_WORKER_PUBLIC_ENDPOINT: http://worker:8090
       YONDER_WORKER_DISPLAY_NAME: "Compose local worker"
       # Downloads made by Gateway are read-only in the local worker.
       YONDER_LLAMA_CPP_RUNTIME__ALLOWED_MODEL_ROOTS: /app/data/models
+      YONDER_SPEECH_RUNTIME__ENABLED: ${YONDER_SPEECH_RUNTIME__ENABLED:-false}
+      YONDER_SPEECH_RUNTIME__DRY_RUN: "false"
+      YONDER_SPEECH_RUNTIME__OUTPUT_ROOT: /var/lib/yonder/generated
     volumes:
       - yonder_data:/app/data:ro
     ports:

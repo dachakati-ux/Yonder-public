@@ -18,3 +18,5 @@
 * Include uv workspace member manifests in container builds, require locked sync, and avoid re-resolving dependencies during migrations.
 * Exclude local credentials, runtime data and build outputs from Docker contexts.
 * Add clean-host Compose smoke CI with non-default ports and database persistence probe; add archive regression tests. Real runner results and independent restore remain required.
+
+* Add development-only configured console origin to CORS; advertise the worker's reachable Docker DNS URL; disable mock speech in the default Compose stack; document exact external runtime attachment and inference acceptance. Four archive-helper regression tests passed in a local Python 3.13 environment using matching source; full repository and Docker validation remain CI-dependent.

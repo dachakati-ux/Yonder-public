@@ -41,7 +41,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-New to Docker or setting up from scratch? Follow the **[Step-by-Step Deploy & Quick-Start Guide](docs/quickstart.md)**.
+New to Docker or setting up from scratch? Follow the **[Step-by-Step Deploy & Quick-Start Guide](docs/quickstart.md)**. A successful installation is not a real inference test: the development stack may start with mock routes. Follow the first real model steps before evaluating model quality.
 
 ### Useful Launcher Flags
 
@@ -77,7 +77,7 @@ All host ports are controlled from `.env` (copied automatically from `.env.examp
 | `NEXT_PUBLIC_YONDER_GATEWAY_URL` | `http://127.0.0.1:8080` | Set to the Gateway URL reachable by your browser (rebuild console if changed). |
 | `YONDER_MCP__ENABLED` | `true` | Enables Gateway MCP client (`/v1/mcp/*`). |
 | `YONDER_MCP__SERVER_ENABLED` | `true` | Enables IDE MCP server status and `yonder-mcp` container on `:8095`. |
-| `YONDER_LLAMA_CPP__BASE_URL` | *(unset)* | Point to a local `llama-server` / Ollama / LM Studio (e.g. `http://host.docker.internal:1234`). |
+| `YONDER_LLAMA_CPP__BASE_URL` | *(unset)* | Point to a reachable OpenAI-compatible server; set enabled, served model and attach aliases as explained in the [first real model guide](docs/quickstart.md#c-first-real-model-response-lm-studio-or-another-openai-compatible-server). |
 | `YONDER_DATABASE_URL` | `sqlite:///./data/yonder.db` | Uncomment the Postgres URL if using `./start.sh --postgres`. |
 
 See [docs/quickstart.md](docs/quickstart.md) for the complete `.env` and MCP setup walkthrough.

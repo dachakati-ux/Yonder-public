@@ -86,14 +86,40 @@ The default `.env.example` works out of the box for local use:
 * `YONDER_MCP__ENABLED=true`
 * `YONDER_MCP__SERVER_ENABLED=true`
 
-### C. Connecting a Local LLM Runtime (Optional)
+### C. First real model response (LM Studio or another OpenAI-compatible server)
 
-If you run `llama-server`, Ollama, or LM Studio on your host machine (e.g. on port `1234`), uncomment and set in `.env`:
+The initial development chat route can use a **mock** model; service health and a mock answer do not establish real model readiness. To use a real model:
 
-```dotenv
-YONDER_LLAMA_CPP__BASE_URL=http://host.docker.internal:1234
-```
-*(On Linux without Docker Desktop, use your host LAN IP or `172.17.0.1` instead of `host.docker.internal`.)*
+1. Start an OpenAI-compatible inference server on a trusted machine. In LM Studio, download a model suitable for your available RAM/VRAM, load it, and start its local server.
+2. Query the inference server from that machine (adjust the port):
+
+   ```bash
+   curl --fail http://127.0.0.1:1234/v1/models
+   ```
+
+   Copy the exact model ID returned in `data[].id`. If this fails, resolve the model server issue first.
+3. Choose the address that the Gateway container can reach. On Docker Desktop this is normally `host.docker.internal`; on Linux use a reachable host or private LAN IP. The model server must listen on an interface reachable by the container; restrict it with a firewall and never expose it publicly.
+4. Add these settings to the local `.env`, substituting the actual endpoint and model identifier:
+
+   ```dotenv
+   YONDER_LLAMA_CPP__ENABLED=true
+   YONDER_LLAMA_CPP__BASE_URL=http://host.docker.internal:1234
+   YONDER_LLAMA_CPP__SERVED_MODEL=replace-with-exact-model-id
+   YONDER_LLAMA_CPP__ATTACH_ALIASES=my-local-model
+   ```
+
+   Use a **server root URL**, not a URL ending in `/v1`. Use a fresh alias for the external attachment; do not remove an existing data volume to change models.
+5. Run `./start.sh`, check Operations and Models for the external attachment, and select `my-local-model` in Chat. Test through the Gateway (not the inference server):
+
+   ```bash
+   curl --fail http://127.0.0.1:8080/v1/chat/completions \
+     -H 'Content-Type: application/json' \
+     -d '{"model":"my-local-model","messages":[{"role":"user","content":"Explain a CPU in one sentence."}],"max_tokens":128}'
+   ```
+
+   A real successful completion is your first inference acceptance test. If the alias is unavailable, check the exact ID, reachability from the container, model status and Operations logs. Existing persistent route state may require operator reconciliation; do not assume a changed environment variable replaces an existing deployment.
+
+The default worker image is an agent/control-plane component, not a bundled GPU inference runtime. Speech is disabled in the local Compose stack until a real runtime is configured. Model downloads and GPU passthrough need runtime-specific setup; see [model library](huggingface-model-library.md), [worker registration](worker-registration.md) and [GPU scheduling](gpu-model-scheduler.md).
 
 ### D. Access from another machine
 

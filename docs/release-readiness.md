@@ -34,3 +34,5 @@ Track implementation in [M01](https://github.com/dachakati-ux/Yonder-public/issu
 ## Automated clean-host checks
 
 The Clean-host Compose smoke workflow builds the local stack on a disposable Linux runner, checks non-default published ports, recreates the Gateway and checks SQLite persistence. It does not validate real model inference, macOS/Windows hardware, external identity, or production isolation. The archive tests verify SQLite contents, missing/corrupt database handling and symlink rejection; a full restore rehearsal remains a separate gate.
+
+The local Compose smoke also checks browser CORS at the selected port and a connected worker reporting a Gateway-reachable address. A model endpoint canary remains mandatory for inference claims.

@@ -11,10 +11,12 @@ import sqlite3
 import sys
 import tarfile
 import tempfile
+from contextlib import closing
 from pathlib import Path
+from typing import BinaryIO
 
 
-def archive_data(root: Path, output) -> None:
+def archive_data(root: Path, output: BinaryIO) -> None:
     if not root.is_dir() or not (root / "yonder.db").is_file():
         raise ValueError("Expected local gateway database is missing")
     with tempfile.TemporaryDirectory() as temp:
@@ -35,9 +37,10 @@ def archive_data(root: Path, output) -> None:
                     continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             if source.suffix.lower() in (".db", ".sqlite", ".sqlite3"):
-                with sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True) as src:
-                    with sqlite3.connect(dest) as dst:
+                with closing(sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True)) as src:
+                    with closing(sqlite3.connect(dest)) as dst:
                         src.backup(dst)
+                        dst.execute("PRAGMA journal_mode=DELETE")
                         rows = dst.execute("PRAGMA integrity_check").fetchall()
                         if rows != [("ok",)]:
                             raise ValueError(f"Database integrity check failed: {source.name}")

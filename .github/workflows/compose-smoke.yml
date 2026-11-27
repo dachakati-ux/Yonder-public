@@ -49,6 +49,20 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:8180/v1/models
           curl --fail --silent --show-error http://127.0.0.1:8190/health
           curl --fail --silent --show-error http://127.0.0.1:8195/health
+      - name: Verify browser CORS and worker registration
+        run: |
+          curl --fail --silent --show-error -D /tmp/yonder-cors -o /dev/null \
+            -H 'Origin: http://127.0.0.1:3100' \
+            -H 'Access-Control-Request-Method: POST' \
+            -X OPTIONS http://127.0.0.1:8180/v1/chat/completions
+          grep -Eiq '^access-control-allow-origin: http://127\.0\.0\.1:3100' /tmp/yonder-cors
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8180/api/admin/workers | python -c 'import json,sys; assert any(w["id"] == "local-dev-worker" and w["connected"] and w["endpoint"] == "http://worker:8090" for w in json.load(sys.stdin)["workers"])'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
       - name: Recreate gateway and verify persistent database
         run: |
           docker compose exec -T gateway python -c 'import sqlite3; c=sqlite3.connect("/app/data/yonder.db"); assert c.execute("PRAGMA integrity_check").fetchone()==("ok",); c.execute("CREATE TABLE IF NOT EXISTS smoke_probe (id INTEGER PRIMARY KEY)"); c.execute("INSERT INTO smoke_probe VALUES (1)"); c.commit()'
