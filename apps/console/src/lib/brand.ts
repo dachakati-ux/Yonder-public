@@ -3,6 +3,7 @@ export const YONDER_CONSOLE = {
   tagline: "Intelligence beyond search.",
   nav: [
     { href: "/", label: "Chat" },
+    { href: "/setup", label: "Get started" },
     { href: "/coder", label: "Coder" },
     { href: "/academy", label: "Academy" },
     { href: "/recipes", label: "Recipes" },

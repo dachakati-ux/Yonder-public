@@ -18,6 +18,7 @@ export function AppShell({
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#yonder-main">Skip to content</a>
       <div className="atmosphere" aria-hidden="true">
         <div className="atmosphere-hex" />
         <div className="atmosphere-orb atmosphere-orb-a" />
@@ -52,6 +53,7 @@ export function AppShell({
               key={item.href}
               href={item.href}
               className="nav-link"
+              aria-current={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href + "/")) ? "page" : undefined}
               data-active={
                 item.href === "/"
                   ? pathname === "/"
@@ -68,7 +70,7 @@ export function AppShell({
         </nav>
       </header>
 
-      <div className="shell-main">{children}</div>
+      <div id="yonder-main" tabIndex={-1} className="shell-main">{children}</div>
     </div>
   );
 }

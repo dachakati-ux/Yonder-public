@@ -32,3 +32,5 @@
 ## Guided first-run setup (M01/M04/M08)
 
 * Add principal-scoped setup diagnostics distinguishing mock, unavailable and reported-ready model routes; add regression tests. Live model and lab verification remain required.
+
+* Implement standalone Get started UI with principal-scoped model diagnostics, single-device observed memory screening, explicit inference test, skip navigation and responsive styles. Add TypeScript regression tests. Lab deployment and independent browser review remain outstanding.

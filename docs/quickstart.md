@@ -133,6 +133,8 @@ The convenience launcher is **not a production installer**. A separate, reviewed
 
 ## Part 3: Verifying Your Deployment
 
+Open **Get started** in the Console. The guide distinguishes Gateway readiness from model readiness, excludes mock routes from its test prompt, and screens hardware using eligible worker heartbeats. It does not install models or mutate deployments. Configure a runtime, refresh and send a test prompt.
+
 Once `./start.sh` (or `docker compose up --build -d`) finishes:
 
 1. **Web Console:** Open <http://127.0.0.1:3000> in your browser.

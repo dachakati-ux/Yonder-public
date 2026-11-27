@@ -1,0 +1,27 @@
+/* Independent setup guide and shared keyboard navigation. */
+.skip-link { position: absolute; top: 0.5rem; left: 0.5rem; z-index: 1000;
+  transform: translateY(-200%); background: var(--void-3); color: var(--ink);
+  border: 2px solid var(--accent-bright); padding: 0.75rem; border-radius: var(--radius-sm); }
+.skip-link:focus { transform: none; }
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent-bright); outline-offset: 3px;
+}
+.setup-workspace { max-width: 74rem; margin: 0 auto; padding: clamp(1rem, 3vw, 2.5rem);
+  display: grid; gap: 1rem; line-height: 1.6; }
+.setup-heading { display: flex; justify-content: space-between; align-items: flex-start;
+  flex-wrap: wrap; gap: 1rem; }
+.setup-heading h1 { margin: 0; font-size: clamp(1.6rem, 4vw, 2.6rem); }
+.setup-eyebrow { color: var(--accent-bright); letter-spacing: 0.12em; font-weight: 700; }
+.setup-step { border: 1px solid var(--line-strong); border-radius: var(--radius-lg);
+  background: var(--surface-strong); padding: clamp(1rem, 2vw, 1.5rem); overflow-wrap: anywhere; }
+.setup-step h2 { margin: 0 0 0.5rem; font-size: 1.25rem; }
+.setup-step p, .setup-heading p { color: var(--ink-soft); }
+.setup-notice { background: var(--void-3); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md); padding: 0.8rem; color: var(--ink); }
+.setup-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.setup-workspace select { display: block; max-width: 100%; margin: 0.5rem 0; min-height: 2.75rem;
+  padding: 0.5rem; color: var(--ink); background: var(--void-3);
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm); }
+.setup-workspace .btn { min-height: 2.75rem; white-space: normal; }
+.setup-result { white-space: pre-wrap; padding: 1rem; border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md); background: var(--void-2); }
