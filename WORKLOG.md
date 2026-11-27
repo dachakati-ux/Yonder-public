@@ -56,3 +56,7 @@
 ## Runtime credential boundary
 
 - Restrict worker credentials to deployment-scoped llama.cpp proxy requests, distinguish external attachments during rehydration, and add negative chat/embedding/rerank tests. Disable implicit environment proxy use and redirects. Real lab parity remains outstanding.
+
+## Workspace isolation hardening
+
+- Close missing-tenant read/list/audit and cross-tenant admin stop paths. Enforce class membership and active-session deletion guards. Disable unverified Proxmox execution and use clearly identified test fixtures for lifecycle tests; real isolated VM provisioning remains a release gate.
